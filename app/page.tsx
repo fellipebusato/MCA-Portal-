@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase";
 import AdminDashboard from "@/components/AdminDashboard";
 import ClientDashboard from "@/components/ClientDashboard";
 import AddClientForm from "@/components/AddClientForm";
+import ConsentPage from "@/components/ConsentPage";
 
 const ADMIN_EMAIL = "fbusato@cfgms.com";
 
@@ -33,6 +34,8 @@ export default function Home() {
   const [selectedClient, setSelectedClient] = useState<any>(null);
   const [view, setView] = useState<"admin" | "client" | "add">("admin");
   const [clientRecord, setClientRecord] = useState<any>(null);
+  const [hasConsented, setHasConsented] = useState(false);
+  const [checkingConsent, setCheckingConsent] = useState(false);
 
   const [newClient, setNewClient] = useState({
     businessName: "",
@@ -56,7 +59,7 @@ export default function Home() {
       if (isAdmin) {
         fetchClients();
       } else {
-        fetchClientByEmail(user.email);
+        checkConsent(user.email);
       }
     }
   }, [user]);
@@ -65,6 +68,45 @@ export default function Home() {
     const { data } = await supabase.auth.getUser();
     setUser(data.user);
     setLoading(false);
+  }
+
+  // Check if client has already consented
+  async function checkConsent(userEmail: string) {
+    setCheckingConsent(true);
+    const { data } = await supabase
+      .from("consent_log")
+      .select("id")
+      .eq("email", userEmail)
+      .limit(1);
+
+    if (data && data.length > 0) {
+      setHasConsented(true);
+      await fetchClientByEmail(userEmail);
+    } else {
+      setHasConsented(false);
+      setCheckingConsent(false);
+      setLoading(false);
+    }
+  }
+
+  // Record consent and proceed
+  async function handleConsent() {
+    if (!user) return;
+
+    await supabase.from("consent_log").insert({
+      email: user.email,
+      portal_version: "1.0",
+    });
+
+    setHasConsented(true);
+    await fetchClientByEmail(user.email);
+  }
+
+  // Client declined — log out
+  async function handleDecline() {
+    await supabase.auth.signOut();
+    setUser(null);
+    setHasConsented(false);
   }
 
   async function handleLogin() {
@@ -81,12 +123,11 @@ export default function Home() {
     setPayments([]);
     setSelectedClient(null);
     setClientRecord(null);
+    setHasConsented(false);
   }
 
-  // ── Client-only: find their record by email ──────────────
   async function fetchClientByEmail(userEmail: string) {
     setLoading(true);
-
     const { data, error } = await supabase
       .from("clients")
       .select("*")
@@ -96,6 +137,7 @@ export default function Home() {
     if (error || !data) {
       setClientRecord(null);
       setLoading(false);
+      setCheckingConsent(false);
       return;
     }
 
@@ -103,9 +145,9 @@ export default function Home() {
     await fetchPayments(data.invoice);
     setView("client");
     setLoading(false);
+    setCheckingConsent(false);
   }
 
-  // ── Admin: fetch all clients ─────────────────────────────
   async function fetchClients() {
     setLoading(true);
     const { data, error } = await supabase
@@ -298,7 +340,6 @@ export default function Home() {
       }
     } else {
       const rows = text.split("\n").slice(1);
-
       for (let row of rows) {
         const cols = row.split(",");
         const invoice = cols[3]?.trim();
@@ -360,9 +401,9 @@ export default function Home() {
   }
 
   // ── Loading ──────────────────────────────────────────────
-  if (loading) {
+  if (loading || checkingConsent) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
+      <div className="flex min-h-screen items-center justify-center bg-[#f4f4f0]">
         <div className="text-sm text-gray-400">Loading...</div>
       </div>
     );
@@ -416,7 +457,18 @@ export default function Home() {
     );
   }
 
-  // ── Client view (non-admin) ──────────────────────────────
+  // ── Consent (non-admin, first time only) ─────────────────
+  if (!isAdmin && !hasConsented) {
+    return (
+      <ConsentPage
+        userEmail={user.email}
+        onAgree={handleConsent}
+        onDecline={handleDecline}
+      />
+    );
+  }
+
+  // ── Client view (non-admin, consented) ───────────────────
   if (!isAdmin) {
     if (!clientRecord) {
       return (
