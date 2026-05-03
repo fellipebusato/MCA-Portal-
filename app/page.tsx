@@ -74,7 +74,7 @@ function parseXLSRows(text: string): { invoice: string; date: string; amount: nu
       const amount = parseFloat(amountRaw);
 
       // Only process actual Payment rows
-      if (type !== "Payment" && type !== "payment") continue;
+      if (!["payment", "credit memo"].includes(type.toLowerCase())) continue;
       if (!invoice || !amount || isNaN(amount)) continue;
 
       // Normalize date — strip time component
