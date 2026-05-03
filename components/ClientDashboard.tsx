@@ -242,7 +242,7 @@ export default function ClientDashboard({ selectedClient, payments }: ClientDash
   const missedDays = buildMissedDays(payments);
 
   // Days behind calculation
-  const missedCount = [...termDays].filter(d => {
+  const missedCount = Array.from(termDays).filter(d => {
     const date = new Date(d + "T00:00:00");
     return date <= today && !paymentDays.has(d) && !missedDays.has(d);
   }).length;
