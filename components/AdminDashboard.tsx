@@ -1,0 +1,316 @@
+'use client';
+
+import { useState } from 'react';
+
+type AdminDashboardProps = {
+  clients: any[];
+  openClient: (client: any) => void;
+  handlePaymentUpload: (e: any) => void;
+  deleteClient: (client: any) => void;
+  updateClient: (client: any) => void;
+};
+
+function money(amount: number) {
+  return amount.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+}
+
+function StatusBadge({ status }: { status: string }) {
+  const isGood = status === 'Good Standing';
+  const isDefault = status === 'Default';
+
+  const styles = isGood
+    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+    : isDefault
+    ? 'bg-red-50 text-red-700 border border-red-200'
+    : 'bg-amber-50 text-amber-700 border border-amber-200';
+
+  return (
+    <span
+      className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${styles}`}
+    >
+      {status}
+    </span>
+  );
+}
+
+const EDIT_FIELDS: [string, string, string][] = [
+  ['business_name', 'Business name', 'text'],
+  ['invoice', 'Invoice #', 'text'],
+  ['owner_name', 'Owner name', 'text'],
+  ['client_email', 'Client email', 'text'],
+  ['funded_date', 'Funded date', 'date'],
+  ['funded', 'Funded amount', 'text'],
+  ['payback', 'Payback amount', 'text'],
+  ['balance', 'Current balance', 'text'],
+  ['payment', 'Payment amount', 'text'],
+  ['total_term', 'Total term', 'text'],
+  ['payment_frequency', 'Frequency (daily/weekly)', 'text'],
+  ['status', 'Status', 'text'],
+];
+
+export default function AdminDashboard({
+  clients,
+  openClient,
+  handlePaymentUpload,
+  deleteClient,
+  updateClient,
+}: AdminDashboardProps) {
+  const [editingClient, setEditingClient] = useState<any>(null);
+
+  const totalBalance = clients.reduce(
+    (sum, c) => sum + Number(c.balance || 0),
+    0
+  );
+  const needsAttention = clients.filter(
+    (c) => c.status !== 'Good Standing'
+  ).length;
+  const dailyClients = clients.filter(
+    (c) => c.payment_frequency === 'daily'
+  ).length;
+  const weeklyClients = clients.filter(
+    (c) => c.payment_frequency === 'weekly'
+  ).length;
+
+  return (
+    <div className="space-y-5">
+      {/* Stat cards */}
+      <div className="grid grid-cols-4 gap-4">
+        <div className="rounded-xl bg-white border border-gray-100 p-5">
+          <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">
+            Total clients
+          </p>
+          <p className="text-2xl font-semibold text-gray-900">
+            {clients.length}
+          </p>
+          <p className="text-xs text-gray-400 mt-1">
+            {dailyClients} daily · {weeklyClients} weekly
+          </p>
+        </div>
+
+        <div className="rounded-xl bg-white border border-gray-100 p-5">
+          <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">
+            Open balance
+          </p>
+          <p className="text-2xl font-semibold text-gray-900">
+            {money(totalBalance)}
+          </p>
+          <p className="text-xs text-gray-400 mt-1">Across all clients</p>
+        </div>
+
+        <div className="rounded-xl bg-white border border-gray-100 p-5">
+          <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">
+            Needs attention
+          </p>
+          <p
+            className={`text-2xl font-semibold ${
+              needsAttention > 0 ? 'text-amber-600' : 'text-gray-900'
+            }`}
+          >
+            {needsAttention}
+          </p>
+          <p className="text-xs text-gray-400 mt-1">
+            {needsAttention === 0 ? 'All accounts current' : 'Review required'}
+          </p>
+        </div>
+
+        <div className="rounded-xl bg-white border border-gray-100 p-5">
+          <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">
+            Good standing
+          </p>
+          <p className="text-2xl font-semibold text-emerald-600">
+            {clients.filter((c) => c.status === 'Good Standing').length}
+          </p>
+          <p className="text-xs text-gray-400 mt-1">
+            {clients.length > 0
+              ? `${Math.round(
+                  (clients.filter((c) => c.status === 'Good Standing').length /
+                    clients.length) *
+                    100
+                )}% of portfolio`
+              : '—'}
+          </p>
+        </div>
+      </div>
+
+      {/* Upload banner */}
+      <div className="rounded-xl bg-white border border-gray-100 p-5 flex items-center gap-4">
+        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-50 flex-shrink-0">
+          <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+            <path
+              d="M9 2v10M5 6l4-4 4 4M2 14h14"
+              stroke="#059669"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </div>
+        <div className="flex-1">
+          <p className="text-sm font-medium text-gray-900">
+            Upload daily payments report
+          </p>
+          <p className="text-xs text-gray-400 mt-0.5">
+            Save the daily report as CSV before uploading. All balances update
+            automatically.
+          </p>
+        </div>
+        <label className="cursor-pointer rounded-lg border border-gray-200 bg-gray-50 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 transition-colors">
+          Choose file
+          <input
+            type="file"
+            accept=".csv"
+            onChange={handlePaymentUpload}
+            className="hidden"
+          />
+        </label>
+      </div>
+
+      {/* Edit panel */}
+      {editingClient && (
+        <div className="rounded-xl bg-white border border-gray-100 p-5">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-sm font-semibold text-gray-900">
+              Editing — {editingClient.business_name}
+            </h3>
+            <button
+              onClick={() => setEditingClient(null)}
+              className="text-xs text-gray-400 hover:text-gray-600"
+            >
+              Cancel
+            </button>
+          </div>
+
+          <div className="grid grid-cols-3 gap-3">
+            {EDIT_FIELDS.map(([field, label, type]) => (
+              <div key={field}>
+                <label className="block text-xs text-gray-400 mb-1">
+                  {label}
+                </label>
+                <input
+                  type={type}
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:border-gray-400"
+                  value={editingClient[field] || ''}
+                  onChange={(e) =>
+                    setEditingClient({
+                      ...editingClient,
+                      [field]: e.target.value,
+                    })
+                  }
+                />
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-4 flex gap-2">
+            <button
+              onClick={() => {
+                updateClient(editingClient);
+                setEditingClient(null);
+              }}
+              className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 transition-colors"
+            >
+              Save changes
+            </button>
+            <button
+              onClick={() => setEditingClient(null)}
+              className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Client table */}
+      <div className="rounded-xl bg-white border border-gray-100 overflow-hidden">
+        <div className="px-5 py-4 border-b border-gray-100">
+          <h3 className="text-sm font-semibold text-gray-900">Client roster</h3>
+        </div>
+
+        <table className="w-full">
+          <thead>
+            <tr className="border-b border-gray-100">
+              <th className="px-5 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wide">
+                Business
+              </th>
+              <th className="px-5 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wide">
+                Invoice
+              </th>
+              <th className="px-5 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wide">
+                Balance
+              </th>
+              <th className="px-5 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wide">
+                Frequency
+              </th>
+              <th className="px-5 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wide">
+                Status
+              </th>
+              <th className="px-5 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wide">
+                Actions
+              </th>
+            </tr>
+          </thead>
+
+          <tbody>
+            {clients.map((client) => (
+              <tr
+                key={client.id}
+                className="border-b border-gray-50 hover:bg-gray-50 transition-colors cursor-pointer"
+                onClick={() => openClient(client)}
+              >
+                <td className="px-5 py-3.5">
+                  <p className="text-sm font-medium text-gray-900">
+                    {client.business_name}
+                  </p>
+                  <p className="text-xs text-gray-400">{client.owner_name}</p>
+                </td>
+                <td className="px-5 py-3.5 text-sm text-gray-600">
+                  {client.invoice}
+                </td>
+                <td className="px-5 py-3.5 text-sm font-medium text-gray-900">
+                  {money(Number(client.balance || 0))}
+                </td>
+                <td className="px-5 py-3.5 text-sm text-gray-500 capitalize">
+                  {client.payment_frequency || 'daily'}
+                </td>
+                <td className="px-5 py-3.5">
+                  <StatusBadge status={client.status} />
+                </td>
+                <td className="px-5 py-3.5">
+                  <div
+                    className="flex gap-2"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <button
+                      onClick={() => setEditingClient({ ...client })}
+                      className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 transition-colors"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => deleteClient(client)}
+                      className="rounded-lg border border-red-100 px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 transition-colors"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+
+            {clients.length === 0 && (
+              <tr>
+                <td
+                  colSpan={6}
+                  className="px-5 py-10 text-center text-sm text-gray-400"
+                >
+                  No clients yet. Add your first client to get started.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
