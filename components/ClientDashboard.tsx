@@ -21,32 +21,11 @@ function formatDate(date: string) {
   return utc.toLocaleDateString("en-US", { month: "2-digit", day: "2-digit", year: "numeric" });
 }
 
-// Federal bank holidays 2026 and 2027
 const BANK_HOLIDAYS = new Set([
-  // 2026
-  "2026-01-01", // New Year's Day
-  "2026-01-19", // MLK Day
-  "2026-02-16", // Presidents' Day
-  "2026-05-25", // Memorial Day
-  "2026-06-19", // Juneteenth
-  "2026-07-03", // July 4th observed (falls on Saturday)
-  "2026-09-07", // Labor Day
-  "2026-10-12", // Columbus Day
-  "2026-11-11", // Veterans Day
-  "2026-11-26", // Thanksgiving
-  "2026-12-25", // Christmas
-  // 2027
-  "2027-01-01", // New Year's Day
-  "2027-01-18", // MLK Day
-  "2027-02-15", // Presidents' Day
-  "2027-05-31", // Memorial Day
-  "2027-06-18", // Juneteenth observed
-  "2027-07-05", // July 4th observed (falls on Sunday)
-  "2027-09-06", // Labor Day
-  "2027-10-11", // Columbus Day
-  "2027-11-11", // Veterans Day
-  "2027-11-25", // Thanksgiving
-  "2027-12-24", // Christmas observed
+  "2026-01-01","2026-01-19","2026-02-16","2026-05-25","2026-06-19",
+  "2026-07-03","2026-09-07","2026-10-12","2026-11-11","2026-11-26","2026-12-25",
+  "2027-01-01","2027-01-18","2027-02-15","2027-05-31","2027-06-18",
+  "2027-07-05","2027-09-06","2027-10-11","2027-11-11","2027-11-25","2027-12-24",
 ]);
 
 function isWeekend(date: Date): boolean {
@@ -55,8 +34,7 @@ function isWeekend(date: Date): boolean {
 }
 
 function isHoliday(date: Date): boolean {
-  const str = toDateStr(date);
-  return BANK_HOLIDAYS.has(str);
+  return BANK_HOLIDAYS.has(toDateStr(date));
 }
 
 function isBusinessDay(date: Date): boolean {
@@ -77,7 +55,6 @@ function addBusinessDaysToDate(start: Date, days: number): Date {
   return result;
 }
 
-// Build set of business days in the term
 function buildTermDays(startDate: Date, totalTerm: number): Set<string> {
   const days = new Set<string>();
   const cursor = new Date(startDate);
@@ -92,7 +69,6 @@ function buildTermDays(startDate: Date, totalTerm: number): Set<string> {
   return days;
 }
 
-// Build set of dates that had successful payments
 function buildPaymentDays(payments: any[]): Set<string> {
   const days = new Set<string>();
   for (const p of payments) {
@@ -107,7 +83,6 @@ function buildPaymentDays(payments: any[]): Set<string> {
   return days;
 }
 
-// Build set of missed/returned dates
 function buildMissedDays(payments: any[]): Set<string> {
   const days = new Set<string>();
   for (const p of payments) {
@@ -130,12 +105,12 @@ function CalendarMonth({
   missedDays: Set<string>;
   today: Date;
 }) {
-  const monthNames = ["January", "February", "March", "April", "May", "June",
-    "July", "August", "September", "October", "November", "December"];
+  const monthNames = ["January","February","March","April","May","June",
+    "July","August","September","October","November","December"];
 
   const firstDay = new Date(year, month, 1);
   const lastDay = new Date(year, month + 1, 0);
-  const startPad = firstDay.getDay(); // 0=Sun
+  const startPad = firstDay.getDay();
 
   const days: (Date | null)[] = [];
   for (let i = 0; i < startPad; i++) days.push(null);
@@ -147,14 +122,12 @@ function CalendarMonth({
         {monthNames[month]} {year}
       </h3>
 
-      {/* Day headers */}
       <div className="grid grid-cols-7 mb-1">
-        {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
+        {["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map((d) => (
           <div key={d} className="text-center text-xs text-gray-400 font-medium py-1">{d}</div>
         ))}
       </div>
 
-      {/* Calendar grid */}
       <div className="grid grid-cols-7 gap-0.5">
         {days.map((date, idx) => {
           if (!date) return <div key={`pad-${idx}`} />;
@@ -174,7 +147,7 @@ function CalendarMonth({
           if (isHol) {
             bg = "bg-yellow-100";
             textColor = "text-yellow-800";
-            title = "Bank holiday";
+            title = "Bank holiday — no payments";
           } else if (isWknd) {
             textColor = "text-gray-400";
           } else if (paid) {
@@ -184,7 +157,7 @@ function CalendarMonth({
           } else if (missed) {
             bg = "bg-red-100";
             textColor = "text-red-700";
-            title = "Missed/returned payment";
+            title = "Missed / returned payment";
           } else if (inTerm) {
             bg = "bg-blue-50";
             textColor = "text-blue-800";
@@ -224,7 +197,6 @@ export default function ClientDashboard({ selectedClient, payments }: ClientDash
   const paymentFrequency = selectedClient.payment_frequency === "weekly" ? "Weekly" : "Daily";
   const totalPaid = Number(selectedClient.payback || 0) - Number(selectedClient.balance || 0);
 
-  // Build calendar data
   const fundedDate = selectedClient.funded_date
     ? new Date(selectedClient.funded_date + "T00:00:00")
     : null;
@@ -241,13 +213,11 @@ export default function ClientDashboard({ selectedClient, payments }: ClientDash
   const paymentDays = buildPaymentDays(payments);
   const missedDays = buildMissedDays(payments);
 
-  // Days behind calculation
   const missedCount = Array.from(termDays).filter(d => {
     const date = new Date(d + "T00:00:00");
     return date <= today && !paymentDays.has(d) && !missedDays.has(d);
   }).length;
 
-  // Navigate calendar
   function prevMonth() {
     if (calMonth === 0) { setCalMonth(11); setCalYear(y => y - 1); }
     else setCalMonth(m => m - 1);
@@ -314,7 +284,9 @@ export default function ClientDashboard({ selectedClient, payments }: ClientDash
         <div className="flex justify-between mt-2">
           <p className="text-xs text-gray-400">{money(totalPaid)} paid</p>
           <p className="text-xs text-gray-400">
-            {termEndDate ? `Expected completion: ${formatDate(termEndDate.toISOString().split("T")[0])}` : `${money(Number(selectedClient.balance || 0))} remaining`}
+            {termEndDate
+              ? `Expected completion: ${formatDate(termEndDate.toISOString().split("T")[0])}`
+              : `${money(Number(selectedClient.balance || 0))} remaining`}
           </p>
         </div>
       </div>
@@ -410,7 +382,7 @@ export default function ClientDashboard({ selectedClient, payments }: ClientDash
             </div>
             <div className="flex items-center gap-1.5">
               <div className="w-3 h-3 rounded bg-yellow-100" />
-              <span className="text-xs text-gray-500">Bank holiday</span>
+              <span className="text-xs text-gray-500">Bank holiday — no payments</span>
             </div>
             <div className="flex items-center gap-1.5">
               <div className="w-3 h-3 rounded border-2 border-gray-900" />
@@ -437,7 +409,7 @@ export default function ClientDashboard({ selectedClient, payments }: ClientDash
               <p className="text-xs text-red-600 mt-1">
                 To stay on track, please make up for missed payments as soon as possible. You can pay online or via Zelle.
               </p>
-              <div className="flex gap-3 mt-3">
+              <div className="flex gap-3 mt-3 flex-wrap">
                 <a
                   href={PAYMENT_LINK}
                   target="_blank"
@@ -447,7 +419,8 @@ export default function ClientDashboard({ selectedClient, payments }: ClientDash
                   Pay now online →
                 </a>
                 <div className="inline-block rounded-lg border border-red-200 bg-white px-4 py-2 text-xs font-medium text-red-700">
-                  Zelle: fbusato@cfgms.com
+                  <span className="block">Zelle: invoices@cfgms.com</span>
+                  <span className="block text-red-500 mt-0.5">Include your invoice # or business name</span>
                 </div>
               </div>
             </div>
