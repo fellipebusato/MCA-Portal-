@@ -28,6 +28,11 @@ const BANK_HOLIDAYS = new Set([
   "2027-07-05","2027-09-06","2027-10-11","2027-11-11","2027-11-25","2027-12-24",
 ]);
 
+const DAY_NAME_TO_NUM: Record<string, number> = {
+  sunday: 0, monday: 1, tuesday: 2, wednesday: 3,
+  thursday: 4, friday: 5, saturday: 6,
+};
+
 function isWeekend(date: Date): boolean {
   return date.getDay() === 0 || date.getDay() === 6;
 }
@@ -54,7 +59,8 @@ function addBusinessDaysToDate(start: Date, days: number): Date {
   return result;
 }
 
-function buildTermDays(startDate: Date, totalTerm: number): Set<string> {
+// Daily: every business day in term
+function buildDailyTermDays(startDate: Date, totalTerm: number): Set<string> {
   const days = new Set<string>();
   const cursor = new Date(startDate);
   let count = 0;
@@ -64,6 +70,29 @@ function buildTermDays(startDate: Date, totalTerm: number): Set<string> {
       count++;
     }
     cursor.setDate(cursor.getDate() + 1);
+  }
+  return days;
+}
+
+// Weekly: only the chosen day of week, skipping holidays, up to totalTerm occurrences
+function buildWeeklyTermDays(startDate: Date, totalTerm: number, paymentDayName: string): Set<string> {
+  const days = new Set<string>();
+  const targetDow = DAY_NAME_TO_NUM[paymentDayName.toLowerCase()] ?? 5; // default friday
+  const cursor = new Date(startDate);
+  let count = 0;
+
+  // Find first occurrence of target day on or after startDate
+  while (cursor.getDay() !== targetDow) {
+    cursor.setDate(cursor.getDate() + 1);
+  }
+
+  while (count < totalTerm) {
+    // Skip if holiday — move to next week
+    if (!isHoliday(cursor)) {
+      days.add(toDateStr(cursor));
+      count++;
+    }
+    cursor.setDate(cursor.getDate() + 7);
   }
   return days;
 }
@@ -114,35 +143,20 @@ function MiniCalendar({
 
   return (
     <div>
-      {/* Month nav */}
       <div className="flex items-center justify-between mb-2">
-        <button
-          onClick={onPrev}
-          disabled={!canPrev}
-          className="text-gray-400 hover:text-gray-700 disabled:opacity-20 px-1 text-sm transition-colors"
-        >
-          ‹
-        </button>
-        <span className="text-xs font-semibold text-gray-700">
-          {monthNames[month]} {year}
-        </span>
-        <button
-          onClick={onNext}
-          disabled={!canNext}
-          className="text-gray-400 hover:text-gray-700 disabled:opacity-20 px-1 text-sm transition-colors"
-        >
-          ›
-        </button>
+        <button onClick={onPrev} disabled={!canPrev}
+          className="text-gray-400 hover:text-gray-700 disabled:opacity-20 px-1 text-sm transition-colors">‹</button>
+        <span className="text-xs font-semibold text-gray-700">{monthNames[month]} {year}</span>
+        <button onClick={onNext} disabled={!canNext}
+          className="text-gray-400 hover:text-gray-700 disabled:opacity-20 px-1 text-sm transition-colors">›</button>
       </div>
 
-      {/* Day headers */}
       <div className="grid grid-cols-7 mb-0.5">
         {["S","M","T","W","T","F","S"].map((d, i) => (
           <div key={i} className="text-center text-[9px] text-gray-400 font-medium py-0.5">{d}</div>
         ))}
       </div>
 
-      {/* Calendar grid */}
       <div className="grid grid-cols-7 gap-px">
         {days.map((date, idx) => {
           if (!date) return <div key={`pad-${idx}`} className="aspect-square" />;
@@ -160,40 +174,24 @@ function MiniCalendar({
           let title = "";
 
           if (isHol) {
-            bg = "bg-yellow-100";
-            textColor = "text-yellow-700";
-            title = "Bank holiday";
+            bg = "bg-yellow-100"; textColor = "text-yellow-700"; title = "Bank holiday";
           } else if (paid) {
-            bg = "bg-emerald-100";
-            textColor = "text-emerald-700";
-            title = "Payment received";
+            bg = "bg-emerald-100"; textColor = "text-emerald-700"; title = "Payment received";
           } else if (missed) {
-            bg = "bg-red-100";
-            textColor = "text-red-600";
-            title = "Missed / returned";
-          } else if (inTerm && !isWknd) {
-            bg = "bg-blue-50";
-            textColor = "text-blue-700";
-            title = "Expected payment day";
+            bg = "bg-red-100"; textColor = "text-red-600"; title = "Missed / returned";
+          } else if (inTerm) {
+            bg = "bg-blue-50"; textColor = "text-blue-700"; title = "Expected payment day";
           }
 
           return (
-            <div
-              key={dateStr}
-              title={title}
-              className={`
-                aspect-square flex items-center justify-center rounded text-[10px] font-medium
-                ${bg} ${textColor}
-                ${isToday ? "ring-1 ring-gray-900 font-bold" : ""}
-              `}
-            >
+            <div key={dateStr} title={title}
+              className={`aspect-square flex items-center justify-center rounded text-[10px] font-medium ${bg} ${textColor} ${isToday ? "ring-1 ring-gray-900 font-bold" : ""}`}>
               {date.getDate()}
             </div>
           );
         })}
       </div>
 
-      {/* Legend */}
       <div className="mt-2 space-y-1">
         <div className="flex items-center gap-1.5">
           <div className="w-2 h-2 rounded-sm bg-blue-50 border border-blue-200 flex-shrink-0" />
@@ -224,7 +222,11 @@ export default function ClientDashboard({ selectedClient, payments }: ClientDash
   const percentPaid = 100 - (Number(selectedClient.balance || 0) / Number(selectedClient.payback || 1)) * 100;
   const safePercent = Math.max(0, Math.min(100, percentPaid));
   const isGoodStanding = selectedClient.status === "Good Standing";
-  const paymentFrequency = selectedClient.payment_frequency === "weekly" ? "Weekly" : "Daily";
+  const isWeeklyClient = selectedClient.payment_frequency === "weekly";
+  const paymentDayName = (selectedClient.payment_day || "").toLowerCase();
+  const paymentFrequencyLabel = isWeeklyClient
+    ? `Weekly · ${paymentDayName ? paymentDayName.charAt(0).toUpperCase() + paymentDayName.slice(1) + "s" : ""}`
+    : "Daily";
   const totalPaid = Number(selectedClient.payback || 0) - Number(selectedClient.balance || 0);
 
   const fundedDate = selectedClient.funded_date
@@ -232,21 +234,39 @@ export default function ClientDashboard({ selectedClient, payments }: ClientDash
     : null;
   const totalTerm = Number(selectedClient.total_term || 0);
 
+  // Build term days based on frequency
   const termDays = fundedDate && totalTerm > 0
-    ? buildTermDays(fundedDate, totalTerm)
+    ? isWeeklyClient && paymentDayName
+      ? buildWeeklyTermDays(fundedDate, totalTerm, paymentDayName)
+      : buildDailyTermDays(fundedDate, totalTerm)
     : new Set<string>();
 
-  const termEndDate = fundedDate && totalTerm > 0
-    ? addBusinessDaysToDate(fundedDate, totalTerm)
-    : null;
+  // For daily: end date based on business days
+  // For weekly: end date is last date in termDays
+  let termEndDate: Date | null = null;
+  if (fundedDate && totalTerm > 0) {
+    if (isWeeklyClient && paymentDayName) {
+      const sortedDays = Array.from(termDays).sort();
+      if (sortedDays.length > 0) {
+        termEndDate = new Date(sortedDays[sortedDays.length - 1] + "T00:00:00");
+      }
+    } else {
+      termEndDate = addBusinessDaysToDate(fundedDate, totalTerm);
+    }
+  }
 
   const paymentDays = buildPaymentDays(payments);
   const missedDays = buildMissedDays(payments);
 
+  // Days/occurrences behind: term days in the past that have no payment and no missed record
   const missedCount = Array.from(termDays).filter(d => {
     const date = new Date(d + "T00:00:00");
     return date <= today && !paymentDays.has(d) && !missedDays.has(d);
   }).length;
+
+  const behindLabel = isWeeklyClient
+    ? `${missedCount} ${missedCount === 1 ? "week" : "weeks"} behind schedule`
+    : `${missedCount} ${missedCount === 1 ? "day" : "days"} behind schedule`;
 
   function prevMonth() {
     if (calMonth === 0) { setCalMonth(11); setCalYear(y => y - 1); }
@@ -259,7 +279,6 @@ export default function ClientDashboard({ selectedClient, payments }: ClientDash
 
   const canGoPrev = calYear > 2026 || (calYear === 2026 && calMonth > 0);
   const canGoNext = calYear < 2027 || (calYear === 2027 && calMonth < 11);
-
   const showCalendar = fundedDate && totalTerm > 0;
 
   return (
@@ -283,10 +302,10 @@ export default function ClientDashboard({ selectedClient, payments }: ClientDash
         </div>
       </div>
 
-      {/* Main content — left panel + right calendar sidebar */}
-      <div className={`flex gap-5 items-start ${showCalendar ? "" : ""}`}>
+      {/* Main content — left + right calendar sidebar */}
+      <div className="flex gap-5 items-start">
 
-        {/* Left: stats + progress + standing */}
+        {/* Left panel */}
         <div className="flex-1 space-y-5 min-w-0">
 
           {/* Stat cards */}
@@ -305,7 +324,7 @@ export default function ClientDashboard({ selectedClient, payments }: ClientDash
               <p className="text-xs text-gray-400 mt-1">{money(totalPaid)} paid so far</p>
             </div>
             <div className="rounded-xl bg-white border border-gray-100 p-5">
-              <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">{paymentFrequency} payment</p>
+              <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">{paymentFrequencyLabel} payment</p>
               <p className="text-xl font-semibold text-gray-900">{money(Number(selectedClient.payment || 0))}</p>
             </div>
           </div>
@@ -374,9 +393,7 @@ export default function ClientDashboard({ selectedClient, payments }: ClientDash
                   </svg>
                 </div>
                 <div className="flex-1">
-                  <p className="text-sm font-semibold text-red-800">
-                    You are {missedCount} {missedCount === 1 ? "day" : "days"} behind schedule
-                  </p>
+                  <p className="text-sm font-semibold text-red-800">You are {behindLabel}</p>
                   <p className="text-xs text-red-600 mt-1">
                     To stay on track, please make up for missed payments as soon as possible. You can pay online or via Zelle.
                   </p>
@@ -402,27 +419,26 @@ export default function ClientDashboard({ selectedClient, payments }: ClientDash
             <div className="mb-2">
               <p className="text-xs font-semibold text-gray-700">Payment calendar</p>
               <p className="text-[9px] text-gray-400 mt-0.5">
-                {totalTerm} day term
+                {totalTerm} {isWeeklyClient ? "weekly" : "business day"} term
                 {termEndDate && ` · ends ${formatDate(termEndDate.toISOString().split("T")[0])}`}
               </p>
+              {isWeeklyClient && paymentDayName && (
+                <p className="text-[9px] text-blue-500 mt-0.5 font-medium">
+                  Every {paymentDayName.charAt(0).toUpperCase() + paymentDayName.slice(1)}
+                </p>
+              )}
             </div>
             <MiniCalendar
-              year={calYear}
-              month={calMonth}
-              termDays={termDays}
-              paymentDays={paymentDays}
-              missedDays={missedDays}
-              today={today}
-              onPrev={prevMonth}
-              onNext={nextMonth}
-              canPrev={canGoPrev}
-              canNext={canGoNext}
+              year={calYear} month={calMonth}
+              termDays={termDays} paymentDays={paymentDays} missedDays={missedDays}
+              today={today} onPrev={prevMonth} onNext={nextMonth}
+              canPrev={canGoPrev} canNext={canGoNext}
             />
           </div>
         )}
       </div>
 
-      {/* Payment history — full width below */}
+      {/* Payment history — full width */}
       <PaymentHistory payments={payments} />
     </div>
   );

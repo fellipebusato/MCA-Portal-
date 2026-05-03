@@ -18,8 +18,7 @@ function daysSinceLastPayment(client: any): number {
   if (!client.last_payment_date) return 999;
   const last = new Date(client.last_payment_date);
   const today = new Date();
-  const diff = Math.floor((today.getTime() - last.getTime()) / (1000 * 60 * 60 * 24));
-  return diff;
+  return Math.floor((today.getTime() - last.getTime()) / (1000 * 60 * 60 * 24));
 }
 
 function businessDaysSince(days: number): string {
@@ -54,17 +53,14 @@ const EDIT_FIELDS: [string, string, string][] = [
   ["payback", "Payback amount", "text"],
   ["balance", "Current balance", "text"],
   ["payment", "Payment amount", "text"],
-  ["total_term", "Total term", "text"],
-  ["payment_frequency", "Frequency (daily/weekly)", "text"],
+  ["total_term", "Total term (business days)", "text"],
   ["status", "Status", "text"],
 ];
 
+const DAYS = ["monday", "tuesday", "wednesday", "thursday", "friday"];
+
 export default function AdminDashboard({
-  clients,
-  openClient,
-  handlePaymentUpload,
-  deleteClient,
-  updateClient,
+  clients, openClient, handlePaymentUpload, deleteClient, updateClient,
 }: AdminDashboardProps) {
   const [editingClient, setEditingClient] = useState<any>(null);
   const [filterAttention, setFilterAttention] = useState(false);
@@ -74,7 +70,6 @@ export default function AdminDashboard({
   const goodClients = clients.filter((c) => c.status === "Good Standing");
   const dailyClients = clients.filter((c) => c.payment_frequency === "daily").length;
   const weeklyClients = clients.filter((c) => c.payment_frequency === "weekly").length;
-
   const displayedClients = filterAttention ? attentionClients : clients;
 
   return (
@@ -82,10 +77,8 @@ export default function AdminDashboard({
 
       {/* Stat cards */}
       <div className="grid grid-cols-4 gap-4">
-        <div
-          className="rounded-xl bg-white border border-gray-100 p-5 cursor-pointer hover:border-gray-200 transition-colors"
-          onClick={() => setFilterAttention(false)}
-        >
+        <div className="rounded-xl bg-white border border-gray-100 p-5 cursor-pointer hover:border-gray-200 transition-colors"
+          onClick={() => setFilterAttention(false)}>
           <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">Total clients</p>
           <p className="text-2xl font-semibold text-gray-900">{clients.length}</p>
           <p className="text-xs text-gray-400 mt-1">{dailyClients} daily · {weeklyClients} weekly</p>
@@ -99,9 +92,7 @@ export default function AdminDashboard({
 
         <div
           className={`rounded-xl border p-5 cursor-pointer transition-colors ${
-            filterAttention
-              ? "bg-amber-50 border-amber-200"
-              : "bg-white border-gray-100 hover:border-amber-200"
+            filterAttention ? "bg-amber-50 border-amber-200" : "bg-white border-gray-100 hover:border-amber-200"
           }`}
           onClick={() => setFilterAttention(true)}
         >
@@ -114,16 +105,12 @@ export default function AdminDashboard({
           </p>
         </div>
 
-        <div
-          className="rounded-xl bg-white border border-gray-100 p-5 cursor-pointer hover:border-gray-200 transition-colors"
-          onClick={() => setFilterAttention(false)}
-        >
+        <div className="rounded-xl bg-white border border-gray-100 p-5 cursor-pointer hover:border-gray-200 transition-colors"
+          onClick={() => setFilterAttention(false)}>
           <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">Good standing</p>
           <p className="text-2xl font-semibold text-emerald-600">{goodClients.length}</p>
           <p className="text-xs text-gray-400 mt-1">
-            {clients.length > 0
-              ? `${Math.round((goodClients.length / clients.length) * 100)}% of portfolio`
-              : "—"}
+            {clients.length > 0 ? `${Math.round((goodClients.length / clients.length) * 100)}% of portfolio` : "—"}
           </p>
         </div>
       </div>
@@ -164,7 +151,38 @@ export default function AdminDashboard({
                 />
               </div>
             ))}
+
+            {/* Payment frequency */}
+            <div>
+              <label className="block text-xs text-gray-400 mb-1">Payment frequency</label>
+              <select
+                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:border-gray-400 bg-white"
+                value={editingClient.payment_frequency || "daily"}
+                onChange={(e) => setEditingClient({ ...editingClient, payment_frequency: e.target.value })}
+              >
+                <option value="daily">Daily</option>
+                <option value="weekly">Weekly</option>
+              </select>
+            </div>
+
+            {/* Payment day — only for weekly */}
+            {editingClient.payment_frequency === "weekly" && (
+              <div>
+                <label className="block text-xs text-gray-400 mb-1">Weekly payment day</label>
+                <select
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:border-gray-400 bg-white"
+                  value={editingClient.payment_day || ""}
+                  onChange={(e) => setEditingClient({ ...editingClient, payment_day: e.target.value })}
+                >
+                  <option value="">Select a day</option>
+                  {DAYS.map((d) => (
+                    <option key={d} value={d}>{d.charAt(0).toUpperCase() + d.slice(1)}</option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
+
           <div className="mt-4 flex gap-2">
             <button
               onClick={() => { updateClient(editingClient); setEditingClient(null); }}
@@ -190,54 +208,41 @@ export default function AdminDashboard({
               </h3>
               <p className="text-xs text-amber-700 mt-0.5">These clients have missed payments or returned transactions.</p>
             </div>
-            <button
-              onClick={() => setFilterAttention(false)}
-              className="text-xs text-amber-600 hover:text-amber-800 font-medium"
-            >
+            <button onClick={() => setFilterAttention(false)} className="text-xs text-amber-600 hover:text-amber-800 font-medium">
               ← Show all clients
             </button>
           </div>
-
           <div className="space-y-3">
             {attentionClients.map((client) => {
               const days = daysSinceLastPayment(client);
               const isUrgent = days > 7;
               return (
-                <div
-                  key={client.id}
+                <div key={client.id}
                   className="rounded-lg bg-white border border-amber-100 p-4 flex items-center gap-4 cursor-pointer hover:border-amber-300 transition-colors"
-                  onClick={() => openClient(client)}
-                >
+                  onClick={() => openClient(client)}>
                   <div className={`flex h-10 w-10 items-center justify-center rounded-full flex-shrink-0 ${isUrgent ? "bg-red-100" : "bg-amber-100"}`}>
                     <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
                       <path d="M9 6v4M9 12v.5" stroke={isUrgent ? "#dc2626" : "#92400e"} strokeWidth="1.8" strokeLinecap="round"/>
                       <circle cx="9" cy="9" r="7.5" stroke={isUrgent ? "#dc2626" : "#92400e"} strokeWidth="1.2"/>
                     </svg>
                   </div>
-
                   <div className="flex-1">
                     <p className="text-sm font-semibold text-gray-900">{client.business_name}</p>
                     <p className="text-xs text-gray-500 mt-0.5">
-                      {client.invoice} · {client.payment_frequency === "weekly" ? "Weekly" : "Daily"} · {money(Number(client.payment))} per payment
+                      {client.invoice} · {client.payment_frequency === "weekly"
+                        ? `Weekly${client.payment_day ? ` (${client.payment_day.charAt(0).toUpperCase() + client.payment_day.slice(1)}s)` : ""}`
+                        : "Daily"} · {money(Number(client.payment))} per payment
                     </p>
                   </div>
-
                   <div className="text-right">
-                    <p className={`text-sm font-semibold ${isUrgent ? "text-red-600" : "text-amber-600"}`}>
-                      {businessDaysSince(days)}
-                    </p>
+                    <p className={`text-sm font-semibold ${isUrgent ? "text-red-600" : "text-amber-600"}`}>{businessDaysSince(days)}</p>
                     <p className="text-xs text-gray-400 mt-0.5">Last payment</p>
                   </div>
-
                   <div className="text-right">
                     <p className="text-sm font-semibold text-gray-900">{money(Number(client.balance || 0))}</p>
                     <p className="text-xs text-gray-400 mt-0.5">Balance</p>
                   </div>
-
-                  <div>
-                    <StatusBadge status={client.status} />
-                  </div>
-
+                  <StatusBadge status={client.status} />
                   <div className="text-xs text-gray-400">View →</div>
                 </div>
               );
@@ -253,19 +258,16 @@ export default function AdminDashboard({
             {filterAttention ? `Needs attention (${attentionClients.length})` : "Client roster"}
           </h3>
           {filterAttention && (
-            <button onClick={() => setFilterAttention(false)} className="text-xs text-gray-400 hover:text-gray-600">
-              Show all →
-            </button>
+            <button onClick={() => setFilterAttention(false)} className="text-xs text-gray-400 hover:text-gray-600">Show all →</button>
           )}
         </div>
-
         <table className="w-full">
           <thead>
             <tr className="border-b border-gray-100">
               <th className="px-5 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wide">Business</th>
               <th className="px-5 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wide">Invoice</th>
               <th className="px-5 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wide">Balance</th>
-              <th className="px-5 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wide">Frequency</th>
+              <th className="px-5 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wide">Schedule</th>
               {filterAttention && (
                 <th className="px-5 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wide">Last payment</th>
               )}
@@ -276,35 +278,32 @@ export default function AdminDashboard({
           <tbody>
             {displayedClients.map((client) => {
               const days = daysSinceLastPayment(client);
+              const scheduleLabel = client.payment_frequency === "weekly"
+                ? `Weekly${client.payment_day ? ` · ${client.payment_day.charAt(0).toUpperCase() + client.payment_day.slice(1)}s` : ""}`
+                : "Daily";
               return (
-                <tr
-                  key={client.id}
+                <tr key={client.id}
                   className="border-b border-gray-50 hover:bg-gray-50 transition-colors cursor-pointer"
-                  onClick={() => openClient(client)}
-                >
+                  onClick={() => openClient(client)}>
                   <td className="px-5 py-3.5">
                     <p className="text-sm font-medium text-gray-900">{client.business_name}</p>
                     <p className="text-xs text-gray-400">{client.owner_name}</p>
                   </td>
                   <td className="px-5 py-3.5 text-sm text-gray-600">{client.invoice}</td>
                   <td className="px-5 py-3.5 text-sm font-medium text-gray-900">{money(Number(client.balance || 0))}</td>
-                  <td className="px-5 py-3.5 text-sm text-gray-500 capitalize">{client.payment_frequency || "daily"}</td>
+                  <td className="px-5 py-3.5 text-sm text-gray-500">{scheduleLabel}</td>
                   {filterAttention && (
                     <td className="px-5 py-3.5 text-sm font-medium text-amber-600">{businessDaysSince(days)}</td>
                   )}
                   <td className="px-5 py-3.5"><StatusBadge status={client.status} /></td>
                   <td className="px-5 py-3.5">
                     <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
-                      <button
-                        onClick={() => setEditingClient({ ...client })}
-                        className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 transition-colors"
-                      >
+                      <button onClick={() => setEditingClient({ ...client })}
+                        className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 transition-colors">
                         Edit
                       </button>
-                      <button
-                        onClick={() => deleteClient(client)}
-                        className="rounded-lg border border-red-100 px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 transition-colors"
-                      >
+                      <button onClick={() => deleteClient(client)}
+                        className="rounded-lg border border-red-100 px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 transition-colors">
                         Delete
                       </button>
                     </div>

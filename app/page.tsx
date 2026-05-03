@@ -74,7 +74,7 @@ function parseXLSRows(text: string): { invoice: string; date: string; amount: nu
       const amount = parseFloat(amountRaw);
 
       // Only process actual Payment rows
-      if (!["payment", "credit memo"].includes(type.toLowerCase())) continue;
+      if (type !== "Payment" && type !== "payment") continue;
       if (!invoice || !amount || isNaN(amount)) continue;
 
       // Normalize date — strip time component
@@ -125,6 +125,7 @@ export default function Home() {
     businessName: "", invoice: "", ownerName: "", clientEmail: "",
     fundedDate: "", funded: "", payback: "", payment: "", totalTerm: "",
     paymentFrequency: "daily",
+    paymentDay: "",
   });
 
   const isAdmin = user?.email === ADMIN_EMAIL;
@@ -237,11 +238,13 @@ export default function Home() {
       funded_date: newClient.fundedDate, funded: Number(newClient.funded),
       payback: Number(newClient.payback), paid: 0, balance: Number(newClient.payback),
       payment: Number(newClient.payment), total_term: Number(newClient.totalTerm),
-      payment_frequency: newClient.paymentFrequency, status: "Good Standing",
+      payment_frequency: newClient.paymentFrequency,
+      payment_day: newClient.paymentDay || null,
+      status: "Good Standing",
     };
     const { error } = await supabase.from("clients").insert([client]);
     if (error) { alert(error.message); return; }
-    setNewClient({ businessName: "", invoice: "", ownerName: "", clientEmail: "", fundedDate: "", funded: "", payback: "", payment: "", totalTerm: "", paymentFrequency: "daily" });
+    setNewClient({ businessName: "", invoice: "", ownerName: "", clientEmail: "", fundedDate: "", funded: "", payback: "", payment: "", totalTerm: "", paymentFrequency: "daily", paymentDay: "" });
     await fetchClients();
     setView("admin");
   }
@@ -261,7 +264,9 @@ export default function Home() {
       funded_date: client.funded_date, funded: Number(client.funded),
       payback: Number(client.payback), balance: Number(client.balance),
       payment: Number(client.payment), total_term: Number(client.total_term),
-      payment_frequency: client.payment_frequency, status: client.status,
+      payment_frequency: client.payment_frequency,
+      payment_day: client.payment_day || null,
+      status: client.status,
     }).eq("id", client.id);
     if (error) { alert(error.message); return; }
     await fetchClients();
