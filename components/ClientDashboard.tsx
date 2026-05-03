@@ -6,9 +6,11 @@ import PaymentHistory from "./PaymentHistory";
 type ClientDashboardProps = {
   selectedClient: any;
   payments: any[];
+  isAdminView?: boolean;
 };
 
 const PAYMENT_LINK = "https://zohosecurepay.com/checkout/iuh0ui5-xp013mz2w5xz9/CFG-Merchant-Solutions-Payment-Portal";
+const PORTAL_URL = "https://mcaportal-fb.vercel.app";
 
 function money(amount: number) {
   return amount.toLocaleString("en-US", { style: "currency", currency: "USD" });
@@ -33,17 +35,9 @@ const DAY_NAME_TO_NUM: Record<string, number> = {
   thursday: 4, friday: 5, saturday: 6,
 };
 
-function isWeekend(date: Date): boolean {
-  return date.getDay() === 0 || date.getDay() === 6;
-}
-
-function isHoliday(date: Date): boolean {
-  return BANK_HOLIDAYS.has(toDateStr(date));
-}
-
-function isBusinessDay(date: Date): boolean {
-  return !isWeekend(date) && !isHoliday(date);
-}
+function isWeekend(date: Date): boolean { return date.getDay() === 0 || date.getDay() === 6; }
+function isHoliday(date: Date): boolean { return BANK_HOLIDAYS.has(toDateStr(date)); }
+function isBusinessDay(date: Date): boolean { return !isWeekend(date) && !isHoliday(date); }
 
 function toDateStr(date: Date): string {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
@@ -59,39 +53,25 @@ function addBusinessDaysToDate(start: Date, days: number): Date {
   return result;
 }
 
-// Daily: every business day in term
 function buildDailyTermDays(startDate: Date, totalTerm: number): Set<string> {
   const days = new Set<string>();
   const cursor = new Date(startDate);
   let count = 0;
   while (count < totalTerm) {
-    if (isBusinessDay(cursor)) {
-      days.add(toDateStr(cursor));
-      count++;
-    }
+    if (isBusinessDay(cursor)) { days.add(toDateStr(cursor)); count++; }
     cursor.setDate(cursor.getDate() + 1);
   }
   return days;
 }
 
-// Weekly: only the chosen day of week, skipping holidays, up to totalTerm occurrences
 function buildWeeklyTermDays(startDate: Date, totalTerm: number, paymentDayName: string): Set<string> {
   const days = new Set<string>();
-  const targetDow = DAY_NAME_TO_NUM[paymentDayName.toLowerCase()] ?? 5; // default friday
+  const targetDow = DAY_NAME_TO_NUM[paymentDayName.toLowerCase()] ?? 5;
   const cursor = new Date(startDate);
   let count = 0;
-
-  // Find first occurrence of target day on or after startDate
-  while (cursor.getDay() !== targetDow) {
-    cursor.setDate(cursor.getDate() + 1);
-  }
-
+  while (cursor.getDay() !== targetDow) cursor.setDate(cursor.getDate() + 1);
   while (count < totalTerm) {
-    // Skip if holiday — move to next week
-    if (!isHoliday(cursor)) {
-      days.add(toDateStr(cursor));
-      count++;
-    }
+    if (!isHoliday(cursor)) { days.add(toDateStr(cursor)); count++; }
     cursor.setDate(cursor.getDate() + 7);
   }
   return days;
@@ -121,6 +101,52 @@ function buildMissedDays(payments: any[]): Set<string> {
   return days;
 }
 
+// Build general "not in good standing" email
+function buildGeneralEmail(client: any): string {
+  const to = client.client_email || "";
+  const subject = encodeURIComponent(`Your MCA Account — Action Required`);
+  const body = encodeURIComponent(
+    `Hello ${client.owner_name || client.business_name},\n\n` +
+    `Your account (${client.invoice}) is not in good standing. ` +
+    `Please contact me directly or log in to your portal for instructions:\n\n` +
+    `${PORTAL_URL}\n\n` +
+    `Best regards,\nFellipe Busato\nfbusato@cfgms.com\n+1 (917) 920-0881`
+  );
+  return `mailto:${to}?subject=${subject}&body=${body}`;
+}
+
+// Build missed payment email with specific dates
+function buildMissedPaymentEmail(client: any, payments: any[]): string {
+  const to = client.client_email || "";
+  const subject = encodeURIComponent(`Missed Payment Notice — ${client.invoice}`);
+
+  // Get actual missed/returned payment dates
+  const missedDates = payments
+    .filter((p) => {
+      const desc = (p.description || "").toLowerCase();
+      return desc.includes("missed") || desc.includes("return");
+    })
+    .map((p) => {
+      const d = p.ach_date || p.payment_date;
+      return d ? formatDate(d) : null;
+    })
+    .filter(Boolean);
+
+  const dateList = missedDates.length > 0
+    ? missedDates.join(", ")
+    : "recent dates";
+
+  const body = encodeURIComponent(
+    `Hello ${client.owner_name || client.business_name},\n\n` +
+    `You have missed payment(s) on the following date(s): ${dateList}.\n\n` +
+    `Please log in to your portal for additional instructions and to make up any missed payments:\n\n` +
+    `${PORTAL_URL}\n\n` +
+    `You may also pay via Zelle at invoices@cfgms.com — please include your invoice number (${client.invoice}) or business name.\n\n` +
+    `Best regards,\nFellipe Busato\nfbusato@cfgms.com\n+1 (917) 920-0881`
+  );
+  return `mailto:${to}?subject=${subject}&body=${body}`;
+}
+
 function MiniCalendar({
   year, month, termDays, paymentDays, missedDays, today,
   onPrev, onNext, canPrev, canNext
@@ -132,11 +158,9 @@ function MiniCalendar({
 }) {
   const monthNames = ["January","February","March","April","May","June",
     "July","August","September","October","November","December"];
-
   const firstDay = new Date(year, month, 1);
   const lastDay = new Date(year, month + 1, 0);
   const startPad = firstDay.getDay();
-
   const days: (Date | null)[] = [];
   for (let i = 0; i < startPad; i++) days.push(null);
   for (let d = 1; d <= lastDay.getDate(); d++) days.push(new Date(year, month, d));
@@ -144,23 +168,18 @@ function MiniCalendar({
   return (
     <div>
       <div className="flex items-center justify-between mb-2">
-        <button onClick={onPrev} disabled={!canPrev}
-          className="text-gray-400 hover:text-gray-700 disabled:opacity-20 px-1 text-sm transition-colors">‹</button>
+        <button onClick={onPrev} disabled={!canPrev} className="text-gray-400 hover:text-gray-700 disabled:opacity-20 px-1 text-sm transition-colors">‹</button>
         <span className="text-xs font-semibold text-gray-700">{monthNames[month]} {year}</span>
-        <button onClick={onNext} disabled={!canNext}
-          className="text-gray-400 hover:text-gray-700 disabled:opacity-20 px-1 text-sm transition-colors">›</button>
+        <button onClick={onNext} disabled={!canNext} className="text-gray-400 hover:text-gray-700 disabled:opacity-20 px-1 text-sm transition-colors">›</button>
       </div>
-
       <div className="grid grid-cols-7 mb-0.5">
         {["S","M","T","W","T","F","S"].map((d, i) => (
           <div key={i} className="text-center text-[9px] text-gray-400 font-medium py-0.5">{d}</div>
         ))}
       </div>
-
       <div className="grid grid-cols-7 gap-px">
         {days.map((date, idx) => {
           if (!date) return <div key={`pad-${idx}`} className="aspect-square" />;
-
           const dateStr = toDateStr(date);
           const isToday = dateStr === toDateStr(today);
           const isWknd = isWeekend(date);
@@ -168,21 +187,11 @@ function MiniCalendar({
           const inTerm = termDays.has(dateStr);
           const paid = paymentDays.has(dateStr);
           const missed = missedDays.has(dateStr);
-
-          let bg = "";
-          let textColor = isWknd ? "text-gray-300" : "text-gray-700";
-          let title = "";
-
-          if (isHol) {
-            bg = "bg-yellow-100"; textColor = "text-yellow-700"; title = "Bank holiday";
-          } else if (paid) {
-            bg = "bg-emerald-100"; textColor = "text-emerald-700"; title = "Payment received";
-          } else if (missed) {
-            bg = "bg-red-100"; textColor = "text-red-600"; title = "Missed / returned";
-          } else if (inTerm) {
-            bg = "bg-blue-50"; textColor = "text-blue-700"; title = "Expected payment day";
-          }
-
+          let bg = "", textColor = isWknd ? "text-gray-300" : "text-gray-700", title = "";
+          if (isHol) { bg = "bg-yellow-100"; textColor = "text-yellow-700"; title = "Bank holiday"; }
+          else if (paid) { bg = "bg-emerald-100"; textColor = "text-emerald-700"; title = "Payment received"; }
+          else if (missed) { bg = "bg-red-100"; textColor = "text-red-600"; title = "Missed / returned"; }
+          else if (inTerm) { bg = "bg-blue-50"; textColor = "text-blue-700"; title = "Expected payment day"; }
           return (
             <div key={dateStr} title={title}
               className={`aspect-square flex items-center justify-center rounded text-[10px] font-medium ${bg} ${textColor} ${isToday ? "ring-1 ring-gray-900 font-bold" : ""}`}>
@@ -191,30 +200,19 @@ function MiniCalendar({
           );
         })}
       </div>
-
       <div className="mt-2 space-y-1">
-        <div className="flex items-center gap-1.5">
-          <div className="w-2 h-2 rounded-sm bg-blue-50 border border-blue-200 flex-shrink-0" />
-          <span className="text-[9px] text-gray-400">Expected payment</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <div className="w-2 h-2 rounded-sm bg-emerald-100 flex-shrink-0" />
-          <span className="text-[9px] text-gray-400">Payment received</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <div className="w-2 h-2 rounded-sm bg-red-100 flex-shrink-0" />
-          <span className="text-[9px] text-gray-400">Missed / returned</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <div className="w-2 h-2 rounded-sm bg-yellow-100 flex-shrink-0" />
-          <span className="text-[9px] text-gray-400">Bank holiday</span>
-        </div>
+        {[["bg-blue-50 border border-blue-200","Expected payment"],["bg-emerald-100","Payment received"],["bg-red-100","Missed / returned"],["bg-yellow-100","Bank holiday"]].map(([cls, label]) => (
+          <div key={label} className="flex items-center gap-1.5">
+            <div className={`w-2 h-2 rounded-sm ${cls} flex-shrink-0`} />
+            <span className="text-[9px] text-gray-400">{label}</span>
+          </div>
+        ))}
       </div>
     </div>
   );
 }
 
-export default function ClientDashboard({ selectedClient, payments }: ClientDashboardProps) {
+export default function ClientDashboard({ selectedClient, payments, isAdminView }: ClientDashboardProps) {
   const today = new Date();
   const [calYear, setCalYear] = useState(today.getFullYear());
   const [calMonth, setCalMonth] = useState(today.getMonth());
@@ -229,27 +227,20 @@ export default function ClientDashboard({ selectedClient, payments }: ClientDash
     : "Daily";
   const totalPaid = Number(selectedClient.payback || 0) - Number(selectedClient.balance || 0);
 
-  const fundedDate = selectedClient.funded_date
-    ? new Date(selectedClient.funded_date + "T00:00:00")
-    : null;
+  const fundedDate = selectedClient.funded_date ? new Date(selectedClient.funded_date + "T00:00:00") : null;
   const totalTerm = Number(selectedClient.total_term || 0);
 
-  // Build term days based on frequency
   const termDays = fundedDate && totalTerm > 0
     ? isWeeklyClient && paymentDayName
       ? buildWeeklyTermDays(fundedDate, totalTerm, paymentDayName)
       : buildDailyTermDays(fundedDate, totalTerm)
     : new Set<string>();
 
-  // For daily: end date based on business days
-  // For weekly: end date is last date in termDays
   let termEndDate: Date | null = null;
   if (fundedDate && totalTerm > 0) {
     if (isWeeklyClient && paymentDayName) {
       const sortedDays = Array.from(termDays).sort();
-      if (sortedDays.length > 0) {
-        termEndDate = new Date(sortedDays[sortedDays.length - 1] + "T00:00:00");
-      }
+      if (sortedDays.length > 0) termEndDate = new Date(sortedDays[sortedDays.length - 1] + "T00:00:00");
     } else {
       termEndDate = addBusinessDaysToDate(fundedDate, totalTerm);
     }
@@ -258,7 +249,6 @@ export default function ClientDashboard({ selectedClient, payments }: ClientDash
   const paymentDays = buildPaymentDays(payments);
   const missedDays = buildMissedDays(payments);
 
-  // Days/occurrences behind: term days in the past that have no payment and no missed record
   const missedCount = Array.from(termDays).filter(d => {
     const date = new Date(d + "T00:00:00");
     return date <= today && !paymentDays.has(d) && !missedDays.has(d);
@@ -280,6 +270,10 @@ export default function ClientDashboard({ selectedClient, payments }: ClientDash
   const canGoPrev = calYear > 2026 || (calYear === 2026 && calMonth > 0);
   const canGoNext = calYear < 2027 || (calYear === 2027 && calMonth < 11);
   const showCalendar = fundedDate && totalTerm > 0;
+  const hasMissedPayments = payments.some(p => {
+    const desc = (p.description || "").toLowerCase();
+    return desc.includes("missed") || desc.includes("return");
+  });
 
   return (
     <div className="space-y-5">
@@ -294,18 +288,45 @@ export default function ClientDashboard({ selectedClient, payments }: ClientDash
               {selectedClient.invoice} · Funded {formatDate(selectedClient.funded_date)}
             </p>
           </div>
-          <div className="text-right flex-shrink-0">
-            <p className="text-xs text-gray-400 mb-1">Need help?</p>
-            <p className="text-sm font-medium text-gray-900">fbusato@cfgms.com</p>
-            <p className="text-sm text-gray-500">+1 (917) 920-0881</p>
+          <div className="flex flex-col items-end gap-2">
+            {/* Email buttons — only shown when admin is viewing */}
+            {isAdminView && selectedClient.client_email && (
+              <div className="flex gap-2">
+                <a
+                  href={buildGeneralEmail(selectedClient)}
+                  className="flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 transition-colors"
+                  title="Send general notice"
+                >
+                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                    <path d="M1 3l5 3.5L11 3M1 3h10v7H1V3z" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                  Send notice
+                </a>
+                {hasMissedPayments && (
+                  <a
+                    href={buildMissedPaymentEmail(selectedClient, payments)}
+                    className="flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-medium text-red-700 hover:bg-red-100 transition-colors"
+                    title="Send missed payment email with dates"
+                  >
+                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                      <path d="M1 3l5 3.5L11 3M1 3h10v7H1V3z" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                    Missed payment notice
+                  </a>
+                )}
+              </div>
+            )}
+            <div className="text-right">
+              <p className="text-xs text-gray-400 mb-1">Need help?</p>
+              <p className="text-sm font-medium text-gray-900">fbusato@cfgms.com</p>
+              <p className="text-sm text-gray-500">+1 (917) 920-0881</p>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Main content — left + right calendar sidebar */}
+      {/* Main content */}
       <div className="flex gap-5 items-start">
-
-        {/* Left panel */}
         <div className="flex-1 space-y-5 min-w-0">
 
           {/* Stat cards */}
@@ -341,9 +362,7 @@ export default function ClientDashboard({ selectedClient, payments }: ClientDash
             <div className="flex justify-between mt-2">
               <p className="text-xs text-gray-400">{money(totalPaid)} paid</p>
               <p className="text-xs text-gray-400">
-                {termEndDate
-                  ? `Expected completion: ${formatDate(termEndDate.toISOString().split("T")[0])}`
-                  : `${money(Number(selectedClient.balance || 0))} remaining`}
+                {termEndDate ? `Expected completion: ${formatDate(termEndDate.toISOString().split("T")[0])}` : `${money(Number(selectedClient.balance || 0))} remaining`}
               </p>
             </div>
           </div>
@@ -382,7 +401,7 @@ export default function ClientDashboard({ selectedClient, payments }: ClientDash
             </a>
           )}
 
-          {/* Days behind attention box */}
+          {/* Days behind */}
           {missedCount > 0 && (
             <div className="rounded-xl border border-red-200 bg-red-50 p-5">
               <div className="flex items-start gap-4">
@@ -394,9 +413,7 @@ export default function ClientDashboard({ selectedClient, payments }: ClientDash
                 </div>
                 <div className="flex-1">
                   <p className="text-sm font-semibold text-red-800">You are {behindLabel}</p>
-                  <p className="text-xs text-red-600 mt-1">
-                    To stay on track, please make up for missed payments as soon as possible. You can pay online or via Zelle.
-                  </p>
+                  <p className="text-xs text-red-600 mt-1">To stay on track, please make up for missed payments as soon as possible. You can pay online or via Zelle.</p>
                   <div className="flex gap-3 mt-3 flex-wrap">
                     <a href={PAYMENT_LINK} target="_blank" rel="noopener noreferrer"
                       className="inline-block rounded-lg bg-red-600 px-4 py-2 text-xs font-medium text-white hover:bg-red-700 transition-colors">
@@ -413,7 +430,7 @@ export default function ClientDashboard({ selectedClient, payments }: ClientDash
           )}
         </div>
 
-        {/* Right: mini calendar sidebar */}
+        {/* Calendar sidebar */}
         {showCalendar && (
           <div className="flex-shrink-0 w-52 rounded-xl bg-white border border-gray-100 p-4 sticky top-20">
             <div className="mb-2">
@@ -438,7 +455,6 @@ export default function ClientDashboard({ selectedClient, payments }: ClientDash
         )}
       </div>
 
-      {/* Payment history — full width */}
       <PaymentHistory payments={payments} />
     </div>
   );

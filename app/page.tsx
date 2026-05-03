@@ -564,7 +564,7 @@ export default function Home() {
           <AdminDashboard clients={clients} openClient={openClient} handlePaymentUpload={handlePaymentUpload} deleteClient={deleteClient} updateClient={updateClient} />
         )}
         {view === "client" && selectedClient && (
-          <ClientDashboard selectedClient={selectedClient} payments={payments} />
+          <ClientDashboard selectedClient={selectedClient} payments={payments} isAdminView={true} />
         )}
         {view === "add" && (
           <AddClientForm newClient={newClient} setNewClient={setNewClient} addClient={addClient} />
