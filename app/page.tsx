@@ -127,7 +127,7 @@ export default function Home() {
     setForgotStatus("loading");
 
     const { error } = await supabase.auth.resetPasswordForEmail(forgotEmail, {
-      redirectTo: "https://mcaportal.vercel.app/reset",
+      redirectTo: "https://mcaportal-fb.vercel.app/reset",
     });
 
     if (error) {
