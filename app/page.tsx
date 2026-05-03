@@ -37,6 +37,12 @@ export default function Home() {
   const [hasConsented, setHasConsented] = useState(false);
   const [checkingConsent, setCheckingConsent] = useState(false);
 
+  // Forgot password state
+  const [showForgot, setShowForgot] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState("");
+  const [forgotStatus, setForgotStatus] = useState<"idle" | "loading" | "sent" | "error">("idle");
+  const [forgotMessage, setForgotMessage] = useState("");
+
   const [newClient, setNewClient] = useState({
     businessName: "",
     invoice: "",
@@ -70,7 +76,6 @@ export default function Home() {
     setLoading(false);
   }
 
-  // Check if client has already consented
   async function checkConsent(userEmail: string) {
     setCheckingConsent(true);
     const { data } = await supabase
@@ -89,20 +94,16 @@ export default function Home() {
     }
   }
 
-  // Record consent and proceed
   async function handleConsent() {
     if (!user) return;
-
     await supabase.from("consent_log").insert({
       email: user.email,
       portal_version: "1.0",
     });
-
     setHasConsented(true);
     await fetchClientByEmail(user.email);
   }
 
-  // Client declined — log out
   async function handleDecline() {
     await supabase.auth.signOut();
     setUser(null);
@@ -114,6 +115,29 @@ export default function Home() {
     if (error) { alert(error.message); return; }
     const { data } = await supabase.auth.getUser();
     setUser(data.user);
+  }
+
+  async function handleForgotPassword() {
+    if (!forgotEmail) {
+      setForgotMessage("Please enter your email address.");
+      setForgotStatus("error");
+      return;
+    }
+
+    setForgotStatus("loading");
+
+    const { error } = await supabase.auth.resetPasswordForEmail(forgotEmail, {
+      redirectTo: "https://mca-portal-gilt.vercel.app/reset",
+    });
+
+    if (error) {
+      setForgotMessage(error.message);
+      setForgotStatus("error");
+      return;
+    }
+
+    setForgotStatus("sent");
+    setForgotMessage("Check your email for a password reset link. It expires in 1 hour.");
   }
 
   async function logout() {
@@ -409,7 +433,7 @@ export default function Home() {
     );
   }
 
-  // ── Login ────────────────────────────────────────────────
+  // ── Login / Forgot password ──────────────────────────────
   if (!user) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-[#f4f4f0] p-8">
@@ -420,36 +444,89 @@ export default function Home() {
           </div>
 
           <div className="rounded-2xl bg-white border border-gray-100 p-8 shadow-sm">
-            <div className="space-y-4">
-              <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1.5">Email</label>
-                <input
-                  type="email"
-                  placeholder="you@example.com"
-                  className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm text-gray-900 placeholder:text-gray-300 focus:outline-none focus:border-gray-400 transition-colors"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && handleLogin()}
-                />
+            {!showForgot ? (
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1.5">Email</label>
+                  <input
+                    type="email"
+                    placeholder="you@example.com"
+                    className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm text-gray-900 placeholder:text-gray-300 focus:outline-none focus:border-gray-400 transition-colors"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && handleLogin()}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1.5">Password</label>
+                  <input
+                    type="password"
+                    placeholder="••••••••"
+                    className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm text-gray-900 placeholder:text-gray-300 focus:outline-none focus:border-gray-400 transition-colors"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && handleLogin()}
+                  />
+                </div>
+                <button
+                  onClick={handleLogin}
+                  className="w-full rounded-lg bg-gray-900 py-2.5 text-sm font-medium text-white hover:bg-gray-800 transition-colors mt-2"
+                >
+                  Sign in
+                </button>
+                <div className="text-center">
+                  <button
+                    onClick={() => { setShowForgot(true); setForgotEmail(email); setForgotStatus("idle"); setForgotMessage(""); }}
+                    className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
+                  >
+                    Forgot your password?
+                  </button>
+                </div>
               </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1.5">Password</label>
-                <input
-                  type="password"
-                  placeholder="••••••••"
-                  className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm text-gray-900 placeholder:text-gray-300 focus:outline-none focus:border-gray-400 transition-colors"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && handleLogin()}
-                />
+            ) : (
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1.5">Your email address</label>
+                  <input
+                    type="email"
+                    placeholder="you@example.com"
+                    className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm text-gray-900 placeholder:text-gray-300 focus:outline-none focus:border-gray-400 transition-colors"
+                    value={forgotEmail}
+                    onChange={(e) => setForgotEmail(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && handleForgotPassword()}
+                  />
+                </div>
+
+                {forgotMessage && (
+                  <div className={`rounded-lg px-3 py-2.5 text-sm ${
+                    forgotStatus === "sent"
+                      ? "bg-emerald-50 text-emerald-700 border border-emerald-100"
+                      : "bg-red-50 text-red-700 border border-red-100"
+                  }`}>
+                    {forgotMessage}
+                  </div>
+                )}
+
+                {forgotStatus !== "sent" && (
+                  <button
+                    onClick={handleForgotPassword}
+                    disabled={forgotStatus === "loading"}
+                    className="w-full rounded-lg bg-gray-900 py-2.5 text-sm font-medium text-white hover:bg-gray-800 transition-colors disabled:opacity-50"
+                  >
+                    {forgotStatus === "loading" ? "Sending..." : "Send reset link"}
+                  </button>
+                )}
+
+                <div className="text-center">
+                  <button
+                    onClick={() => { setShowForgot(false); setForgotStatus("idle"); setForgotMessage(""); }}
+                    className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
+                  >
+                    ← Back to sign in
+                  </button>
+                </div>
               </div>
-              <button
-                onClick={handleLogin}
-                className="w-full rounded-lg bg-gray-900 py-2.5 text-sm font-medium text-white hover:bg-gray-800 transition-colors mt-2"
-              >
-                Sign in
-              </button>
-            </div>
+            )}
           </div>
           <p className="mt-4 text-center text-xs text-gray-400">CFG Merchant Solutions · Secure portal</p>
         </div>
@@ -457,7 +534,7 @@ export default function Home() {
     );
   }
 
-  // ── Consent (non-admin, first time only) ─────────────────
+  // ── Consent ──────────────────────────────────────────────
   if (!isAdmin && !hasConsented) {
     return (
       <ConsentPage
@@ -468,7 +545,7 @@ export default function Home() {
     );
   }
 
-  // ── Client view (non-admin, consented) ───────────────────
+  // ── Client view ──────────────────────────────────────────
   if (!isAdmin) {
     if (!clientRecord) {
       return (
@@ -476,10 +553,7 @@ export default function Home() {
           <div className="text-center">
             <p className="text-sm text-gray-500 mb-4">No account found for {user.email}.</p>
             <p className="text-xs text-gray-400 mb-6">Please contact your manager for access.</p>
-            <button
-              onClick={logout}
-              className="rounded-lg border border-gray-200 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50"
-            >
+            <button onClick={logout} className="rounded-lg border border-gray-200 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50">
               Sign out
             </button>
           </div>
@@ -494,10 +568,7 @@ export default function Home() {
             <span className="text-base font-semibold text-gray-900">MCA Portal</span>
             <div className="flex items-center gap-3">
               <span className="text-xs text-gray-400 hidden sm:block">{user.email}</span>
-              <button
-                onClick={logout}
-                className="rounded-lg border border-gray-200 px-3.5 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors"
-              >
+              <button onClick={logout} className="rounded-lg border border-gray-200 px-3.5 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors">
                 Logout
               </button>
             </div>
@@ -522,40 +593,30 @@ export default function Home() {
             <span className="text-base font-semibold text-gray-900">MCA Portal</span>
             <span className="ml-2 text-xs text-gray-400">Admin</span>
           </button>
-
           <div className="flex items-center gap-2">
             <button
               onClick={() => setView("admin")}
-              className={`rounded-lg px-3.5 py-2 text-sm font-medium transition-colors ${
-                view === "admin" ? "bg-gray-900 text-white" : "text-gray-600 hover:bg-gray-100"
-              }`}
+              className={`rounded-lg px-3.5 py-2 text-sm font-medium transition-colors ${view === "admin" ? "bg-gray-900 text-white" : "text-gray-600 hover:bg-gray-100"}`}
             >
               Dashboard
             </button>
             <button
               onClick={() => setView("add")}
-              className={`rounded-lg px-3.5 py-2 text-sm font-medium transition-colors ${
-                view === "add" ? "bg-gray-900 text-white" : "text-gray-600 hover:bg-gray-100"
-              }`}
+              className={`rounded-lg px-3.5 py-2 text-sm font-medium transition-colors ${view === "add" ? "bg-gray-900 text-white" : "text-gray-600 hover:bg-gray-100"}`}
             >
               + Add client
             </button>
             {selectedClient && (
               <button
                 onClick={() => openClient(selectedClient)}
-                className={`rounded-lg px-3.5 py-2 text-sm font-medium transition-colors ${
-                  view === "client" ? "bg-gray-900 text-white" : "text-gray-600 hover:bg-gray-100"
-                }`}
+                className={`rounded-lg px-3.5 py-2 text-sm font-medium transition-colors ${view === "client" ? "bg-gray-900 text-white" : "text-gray-600 hover:bg-gray-100"}`}
               >
                 Client view
               </button>
             )}
             <div className="mx-1 h-5 w-px bg-gray-200" />
             <span className="text-xs text-gray-400 hidden sm:block">{user.email}</span>
-            <button
-              onClick={logout}
-              className="rounded-lg border border-gray-200 px-3.5 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors"
-            >
+            <button onClick={logout} className="rounded-lg border border-gray-200 px-3.5 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors">
               Logout
             </button>
           </div>
@@ -568,22 +629,14 @@ export default function Home() {
           {view === "add" && <h1 className="text-lg font-semibold text-gray-900">Add client</h1>}
           {view === "client" && selectedClient && (
             <div className="flex items-center gap-2">
-              <button onClick={() => setView("admin")} className="text-sm text-gray-400 hover:text-gray-600">
-                ← Dashboard
-              </button>
+              <button onClick={() => setView("admin")} className="text-sm text-gray-400 hover:text-gray-600">← Dashboard</button>
               <h1 className="text-lg font-semibold text-gray-900">{selectedClient.business_name}</h1>
             </div>
           )}
         </div>
 
         {view === "admin" && (
-          <AdminDashboard
-            clients={clients}
-            openClient={openClient}
-            handlePaymentUpload={handlePaymentUpload}
-            deleteClient={deleteClient}
-            updateClient={updateClient}
-          />
+          <AdminDashboard clients={clients} openClient={openClient} handlePaymentUpload={handlePaymentUpload} deleteClient={deleteClient} updateClient={updateClient} />
         )}
         {view === "client" && selectedClient && (
           <ClientDashboard selectedClient={selectedClient} payments={payments} />
