@@ -8,7 +8,6 @@ import AddClientForm from "@/components/AddClientForm";
 
 const ADMIN_EMAIL = "fbusato@cfgms.com";
 
-// Add N business days to a date (skips Sat/Sun)
 function addBusinessDays(date: Date, days: number): Date {
   const result = new Date(date);
   let added = 0;
@@ -33,6 +32,7 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [selectedClient, setSelectedClient] = useState<any>(null);
   const [view, setView] = useState<"admin" | "client" | "add">("admin");
+  const [clientRecord, setClientRecord] = useState<any>(null);
 
   const [newClient, setNewClient] = useState({
     businessName: "",
@@ -50,7 +50,16 @@ export default function Home() {
   const isAdmin = user?.email === ADMIN_EMAIL;
 
   useEffect(() => { checkUser(); }, []);
-  useEffect(() => { if (user) fetchClients(); }, [user]);
+
+  useEffect(() => {
+    if (user) {
+      if (isAdmin) {
+        fetchClients();
+      } else {
+        fetchClientByEmail(user.email);
+      }
+    }
+  }, [user]);
 
   async function checkUser() {
     const { data } = await supabase.auth.getUser();
@@ -71,8 +80,32 @@ export default function Home() {
     setClients([]);
     setPayments([]);
     setSelectedClient(null);
+    setClientRecord(null);
   }
 
+  // ── Client-only: find their record by email ──────────────
+  async function fetchClientByEmail(userEmail: string) {
+    setLoading(true);
+
+    const { data, error } = await supabase
+      .from("clients")
+      .select("*")
+      .eq("client_email", userEmail)
+      .single();
+
+    if (error || !data) {
+      setClientRecord(null);
+      setLoading(false);
+      return;
+    }
+
+    setClientRecord(data);
+    await fetchPayments(data.invoice);
+    setView("client");
+    setLoading(false);
+  }
+
+  // ── Admin: fetch all clients ─────────────────────────────
   async function fetchClients() {
     setLoading(true);
     const { data, error } = await supabase
@@ -85,7 +118,7 @@ export default function Home() {
     setClients(data || []);
     setSelectedClient(data?.[0] || null);
     if (data?.[0]) await fetchPayments(data[0].invoice);
-    setView(isAdmin ? "admin" : "client");
+    setView("admin");
     setLoading(false);
   }
 
@@ -168,16 +201,9 @@ export default function Home() {
     await fetchClients();
   }
 
-  // Determine Needs Attention based on both conditions
-  async function evaluateStanding(
-    client: any,
-    reportHadPayment: boolean,
-    hadReturn: boolean
-  ): Promise<string> {
-    // Condition 1: returned payment in last 7 days
+  async function evaluateStanding(client: any, reportHadPayment: boolean, hadReturn: boolean): Promise<string> {
     if (hadReturn) return "Needs Attention";
 
-    // Condition 2: no settled payment in last 5 business days
     if (!reportHadPayment) {
       const { data: recentPayments } = await supabase
         .from("payments")
@@ -190,15 +216,9 @@ export default function Home() {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
 
-        // Find last actual settled payment (not returns/missed)
         const lastSettled = recentPayments.find((p: any) => {
           const desc = (p.description || "").toLowerCase();
-          return (
-            !desc.includes("return") &&
-            !desc.includes("missed") &&
-            !desc.includes("initial") &&
-            p.settlement_date
-          );
+          return !desc.includes("return") && !desc.includes("missed") && !desc.includes("initial") && p.settlement_date;
         });
 
         if (!lastSettled) return "Needs Attention";
@@ -206,7 +226,6 @@ export default function Home() {
         const settlDate = new Date(lastSettled.settlement_date);
         settlDate.setHours(0, 0, 0, 0);
 
-        // Count business days since last settlement
         let bizDays = 0;
         const cursor = new Date(settlDate);
         while (cursor < today) {
@@ -235,13 +254,10 @@ export default function Home() {
 
     const localClients = clientsData.map((c: any) => ({ ...c }));
     const reportInvoices: string[] = [];
-    // Track which clients had a return today
     const returnedInvoices: string[] = [];
-
     const isXML = text.trim().startsWith("<?xml");
 
     if (isXML) {
-      // ACH Works XLS format
       const parser = new DOMParser();
       const xmlDoc = parser.parseFromString(text, "text/xml");
       const ns = "urn:schemas-microsoft-com:office:spreadsheet";
@@ -256,48 +272,31 @@ export default function Home() {
         const invoice = cells[3]?.textContent?.trim() || "";
         const amount = Number(cells[6]?.textContent?.trim() || "0");
 
-        if (!invoice || !amount) continue;
+        if (!invoice || !amount || type !== "Payment") continue;
 
+        reportInvoices.push(invoice);
         const client = localClients.find((c: any) => c.invoice === invoice);
         if (!client) continue;
 
-        if (type === "Payment") {
-          reportInvoices.push(invoice);
+        const achDate = new Date(achDateRaw);
+        const settlementDate = addBusinessDays(achDate, 4);
+        const settlementStr = toDateString(settlementDate);
+        const alreadySettled = settlementDate <= today;
+        const newBalance = alreadySettled ? Math.max(Number(client.balance || 0) - amount, 0) : Number(client.balance || 0);
 
-          // Calculate settlement date: ACH date + 4 business days
-          const achDate = new Date(achDateRaw);
-          const settlementDate = addBusinessDays(achDate, 4);
-          const settlementStr = toDateString(settlementDate);
+        await supabase.from("payments").insert({
+          invoice, payment_date: achDateRaw, ach_date: achDateRaw,
+          settlement_date: settlementStr, description: "Posted",
+          credit: 0, debit: amount, returns: 0,
+          running_balance: alreadySettled ? newBalance : null,
+        });
 
-          // Only deduct from balance if already settled (settlement date <= today)
-          const alreadySettled = settlementDate <= today;
-          const newBalance = alreadySettled
-            ? Math.max(Number(client.balance || 0) - amount, 0)
-            : Number(client.balance || 0);
-
-          await supabase.from("payments").insert({
-            invoice,
-            payment_date: achDateRaw,
-            ach_date: achDateRaw,
-            settlement_date: settlementStr,
-            description: "Posted",
-            credit: 0,
-            debit: amount,
-            returns: 0,
-            running_balance: alreadySettled ? newBalance : null,
-          });
-
-          if (alreadySettled) {
-            await supabase
-              .from("clients")
-              .update({ balance: newBalance })
-              .eq("id", client.id);
-            client.balance = newBalance;
-          }
+        if (alreadySettled) {
+          await supabase.from("clients").update({ balance: newBalance }).eq("id", client.id);
+          client.balance = newBalance;
         }
       }
     } else {
-      // Plain CSV fallback
       const rows = text.split("\n").slice(1);
 
       for (let row of rows) {
@@ -316,46 +315,31 @@ export default function Home() {
         const settlementDate = addBusinessDays(achDate, 4);
         const settlementStr = toDateString(settlementDate);
         const alreadySettled = settlementDate <= today;
-        const newBalance = alreadySettled
-          ? Math.max(Number(client.balance || 0) - amount, 0)
-          : Number(client.balance || 0);
+        const newBalance = alreadySettled ? Math.max(Number(client.balance || 0) - amount, 0) : Number(client.balance || 0);
 
         await supabase.from("payments").insert({
-          invoice,
-          payment_date: achDateRaw,
-          ach_date: achDateRaw,
-          settlement_date: settlementStr,
-          description: "Posted",
-          credit: 0,
-          debit: amount,
-          returns: 0,
+          invoice, payment_date: achDateRaw, ach_date: achDateRaw,
+          settlement_date: settlementStr, description: "Posted",
+          credit: 0, debit: amount, returns: 0,
           running_balance: alreadySettled ? newBalance : null,
         });
 
         if (alreadySettled) {
-          await supabase
-            .from("clients")
-            .update({ balance: newBalance })
-            .eq("id", client.id);
+          await supabase.from("clients").update({ balance: newBalance }).eq("id", client.id);
           client.balance = newBalance;
         }
       }
     }
 
-    // Handle clients NOT in today's report
     for (let client of localClients) {
       if (!reportInvoices.includes(client.invoice)) {
         const day = today.getDay();
         if (client.payment_frequency === "weekly" && day !== 5) continue;
 
         await supabase.from("payments").insert({
-          invoice: client.invoice,
-          payment_date: todayStr,
-          ach_date: todayStr,
-          settlement_date: todayStr,
-          description: "Missed Payment",
-          credit: 0,
-          debit: 0,
+          invoice: client.invoice, payment_date: todayStr,
+          ach_date: todayStr, settlement_date: todayStr,
+          description: "Missed Payment", credit: 0, debit: 0,
           returns: Number(client.payment),
           running_balance: Number(client.balance || 0),
         });
@@ -364,22 +348,18 @@ export default function Home() {
       }
     }
 
-    // Evaluate standing for every client using both conditions
     for (let client of localClients) {
       const hadPayment = reportInvoices.includes(client.invoice);
       const hadReturn = returnedInvoices.includes(client.invoice);
       const newStatus = await evaluateStanding(client, hadPayment, hadReturn);
-
-      await supabase
-        .from("clients")
-        .update({ status: newStatus })
-        .eq("id", client.id);
+      await supabase.from("clients").update({ status: newStatus }).eq("id", client.id);
     }
 
     alert("Upload complete. All balances updated.");
     await fetchClients();
   }
 
+  // ── Loading ──────────────────────────────────────────────
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
@@ -388,6 +368,7 @@ export default function Home() {
     );
   }
 
+  // ── Login ────────────────────────────────────────────────
   if (!user) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-[#f4f4f0] p-8">
@@ -410,7 +391,6 @@ export default function Home() {
                   onKeyDown={(e) => e.key === "Enter" && handleLogin()}
                 />
               </div>
-
               <div>
                 <label className="block text-xs font-medium text-gray-500 mb-1.5">Password</label>
                 <input
@@ -422,7 +402,6 @@ export default function Home() {
                   onKeyDown={(e) => e.key === "Enter" && handleLogin()}
                 />
               </div>
-
               <button
                 onClick={handleLogin}
                 className="w-full rounded-lg bg-gray-900 py-2.5 text-sm font-medium text-white hover:bg-gray-800 transition-colors mt-2"
@@ -431,47 +410,85 @@ export default function Home() {
               </button>
             </div>
           </div>
-
-          <p className="mt-4 text-center text-xs text-gray-400">
-            CFG Merchant Solutions · Secure portal
-          </p>
+          <p className="mt-4 text-center text-xs text-gray-400">CFG Merchant Solutions · Secure portal</p>
         </div>
       </main>
     );
   }
 
+  // ── Client view (non-admin) ──────────────────────────────
+  if (!isAdmin) {
+    if (!clientRecord) {
+      return (
+        <main className="flex min-h-screen items-center justify-center bg-[#f4f4f0]">
+          <div className="text-center">
+            <p className="text-sm text-gray-500 mb-4">No account found for {user.email}.</p>
+            <p className="text-xs text-gray-400 mb-6">Please contact your manager for access.</p>
+            <button
+              onClick={logout}
+              className="rounded-lg border border-gray-200 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50"
+            >
+              Sign out
+            </button>
+          </div>
+        </main>
+      );
+    }
+
+    return (
+      <main className="min-h-screen bg-[#f4f4f0]">
+        <nav className="sticky top-0 z-10 border-b border-gray-100 bg-white">
+          <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-3.5">
+            <span className="text-base font-semibold text-gray-900">MCA Portal</span>
+            <div className="flex items-center gap-3">
+              <span className="text-xs text-gray-400 hidden sm:block">{user.email}</span>
+              <button
+                onClick={logout}
+                className="rounded-lg border border-gray-200 px-3.5 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors"
+              >
+                Logout
+              </button>
+            </div>
+          </div>
+        </nav>
+        <div className="mx-auto max-w-6xl px-6 py-6">
+          <div className="mb-5">
+            <h1 className="text-lg font-semibold text-gray-900">My account</h1>
+          </div>
+          <ClientDashboard selectedClient={clientRecord} payments={payments} />
+        </div>
+      </main>
+    );
+  }
+
+  // ── Admin view ───────────────────────────────────────────
   return (
     <main className="min-h-screen bg-[#f4f4f0]">
       <nav className="sticky top-0 z-10 border-b border-gray-100 bg-white">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-3.5">
-          <button onClick={() => setView(isAdmin ? "admin" : "client")} className="text-left">
+          <button onClick={() => setView("admin")} className="text-left">
             <span className="text-base font-semibold text-gray-900">MCA Portal</span>
-            <span className="ml-2 text-xs text-gray-400">{isAdmin ? "Admin" : "Client"}</span>
+            <span className="ml-2 text-xs text-gray-400">Admin</span>
           </button>
 
           <div className="flex items-center gap-2">
-            {isAdmin && (
-              <>
-                <button
-                  onClick={() => setView("admin")}
-                  className={`rounded-lg px-3.5 py-2 text-sm font-medium transition-colors ${
-                    view === "admin" ? "bg-gray-900 text-white" : "text-gray-600 hover:bg-gray-100"
-                  }`}
-                >
-                  Dashboard
-                </button>
-                <button
-                  onClick={() => setView("add")}
-                  className={`rounded-lg px-3.5 py-2 text-sm font-medium transition-colors ${
-                    view === "add" ? "bg-gray-900 text-white" : "text-gray-600 hover:bg-gray-100"
-                  }`}
-                >
-                  + Add client
-                </button>
-              </>
-            )}
-
-            {isAdmin && selectedClient && (
+            <button
+              onClick={() => setView("admin")}
+              className={`rounded-lg px-3.5 py-2 text-sm font-medium transition-colors ${
+                view === "admin" ? "bg-gray-900 text-white" : "text-gray-600 hover:bg-gray-100"
+              }`}
+            >
+              Dashboard
+            </button>
+            <button
+              onClick={() => setView("add")}
+              className={`rounded-lg px-3.5 py-2 text-sm font-medium transition-colors ${
+                view === "add" ? "bg-gray-900 text-white" : "text-gray-600 hover:bg-gray-100"
+              }`}
+            >
+              + Add client
+            </button>
+            {selectedClient && (
               <button
                 onClick={() => openClient(selectedClient)}
                 className={`rounded-lg px-3.5 py-2 text-sm font-medium transition-colors ${
@@ -481,7 +498,6 @@ export default function Home() {
                 Client view
               </button>
             )}
-
             <div className="mx-1 h-5 w-px bg-gray-200" />
             <span className="text-xs text-gray-400 hidden sm:block">{user.email}</span>
             <button
@@ -496,30 +512,19 @@ export default function Home() {
 
       <div className="mx-auto max-w-6xl px-6 py-6">
         <div className="mb-5">
-          {view === "admin" && (
-            <h1 className="text-lg font-semibold text-gray-900">Dashboard</h1>
-          )}
-          {view === "add" && (
-            <h1 className="text-lg font-semibold text-gray-900">Add client</h1>
-          )}
+          {view === "admin" && <h1 className="text-lg font-semibold text-gray-900">Dashboard</h1>}
+          {view === "add" && <h1 className="text-lg font-semibold text-gray-900">Add client</h1>}
           {view === "client" && selectedClient && (
             <div className="flex items-center gap-2">
-              {isAdmin && (
-                <button
-                  onClick={() => setView("admin")}
-                  className="text-sm text-gray-400 hover:text-gray-600"
-                >
-                  ← Dashboard
-                </button>
-              )}
-              <h1 className="text-lg font-semibold text-gray-900">
-                {isAdmin ? selectedClient.business_name : "My account"}
-              </h1>
+              <button onClick={() => setView("admin")} className="text-sm text-gray-400 hover:text-gray-600">
+                ← Dashboard
+              </button>
+              <h1 className="text-lg font-semibold text-gray-900">{selectedClient.business_name}</h1>
             </div>
           )}
         </div>
 
-        {isAdmin && view === "admin" && (
+        {view === "admin" && (
           <AdminDashboard
             clients={clients}
             openClient={openClient}
@@ -528,17 +533,11 @@ export default function Home() {
             updateClient={updateClient}
           />
         )}
-
         {view === "client" && selectedClient && (
           <ClientDashboard selectedClient={selectedClient} payments={payments} />
         )}
-
-        {isAdmin && view === "add" && (
-          <AddClientForm
-            newClient={newClient}
-            setNewClient={setNewClient}
-            addClient={addClient}
-          />
+        {view === "add" && (
+          <AddClientForm newClient={newClient} setNewClient={setNewClient} addClient={addClient} />
         )}
       </div>
     </main>
