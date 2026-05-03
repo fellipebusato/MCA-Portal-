@@ -47,7 +47,7 @@ export default function ConsentPage({ userEmail, onAgree, onDecline }: ConsentPa
 
             <div>
               <h2 className="text-xs font-semibold text-gray-900 uppercase tracking-wide mb-2">1. Purpose of this portal</h2>
-              <p>This MCA Client Portal ("Portal") is operated independently by Fellipe Busato as a courtesy service to provide Merchant Cash Advance clients with an informational view of their payment activity. This Portal is not an official system of record and is not affiliated with, endorsed by, or operated on behalf of CFG Merchant Solutions or any affiliated entity.</p>
+              <p>This MCA Client Portal (&quot;Portal&quot;) is operated independently by Fellipe Busato as a courtesy service to provide Merchant Cash Advance clients with an informational view of their payment activity. This Portal is not an official system of record and is not affiliated with, endorsed by, or operated on behalf of CFG Merchant Solutions or any affiliated entity.</p>
             </div>
 
             <div>
