@@ -528,7 +528,7 @@ export default function Home() {
               </div>
             )}
           </div>
-          <p className="mt-4 text-center text-xs text-gray-400">CFG Merchant Solutions · Secure portal</p>
+          <p className="mt-4 text-center text-xs text-gray-400">Secure client portal · Operated by Fellipe Busato</p>
         </div>
       </main>
     );
