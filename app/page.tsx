@@ -24,32 +24,20 @@ function toDateString(date: Date): string {
   return date.toISOString().split("T")[0];
 }
 
-// ── Parse ACH Works XML/XLS format ──────────────────────────
 function parseXLSRows(text: string): { invoice: string; date: string; amount: number }[] {
   const results: { invoice: string; date: string; amount: number }[] = [];
   try {
     const parser = new DOMParser();
     const xmlDoc = parser.parseFromString(text, "text/xml");
-
-    // Try namespace-aware parsing first
     const ns = "urn:schemas-microsoft-com:office:spreadsheet";
     let rows = Array.from(xmlDoc.getElementsByTagNameNS(ns, "Row"));
-
-    // Fallback: try without namespace
-    if (rows.length === 0) {
-      rows = Array.from(xmlDoc.getElementsByTagName("Row"));
-    }
-
-    // Find header row to locate column positions
+    if (rows.length === 0) rows = Array.from(xmlDoc.getElementsByTagName("Row"));
     if (rows.length === 0) return results;
 
     const headerRow = rows[0];
     let headerCells = Array.from(headerRow.getElementsByTagNameNS(ns, "Data"));
-    if (headerCells.length === 0) {
-      headerCells = Array.from(headerRow.getElementsByTagName("Data"));
-    }
+    if (headerCells.length === 0) headerCells = Array.from(headerRow.getElementsByTagName("Data"));
 
-    // Map column names to indices
     let typeCol = 1, dateCol = 2, invoiceCol = 3, amountCol = 6;
     headerCells.forEach((cell, idx) => {
       const val = (cell.textContent || "").trim().toLowerCase();
@@ -59,27 +47,20 @@ function parseXLSRows(text: string): { invoice: string; date: string; amount: nu
       if (val === "amount") amountCol = idx;
     });
 
-    // Process data rows
     for (let i = 1; i < rows.length; i++) {
       let cells = Array.from(rows[i].getElementsByTagNameNS(ns, "Data"));
-      if (cells.length === 0) {
-        cells = Array.from(rows[i].getElementsByTagName("Data"));
-      }
+      if (cells.length === 0) cells = Array.from(rows[i].getElementsByTagName("Data"));
       if (cells.length < 4) continue;
 
       const type = (cells[typeCol]?.textContent || "").trim();
       const dateRaw = (cells[dateCol]?.textContent || "").trim();
       const invoice = (cells[invoiceCol]?.textContent || "").trim();
-      const amountRaw = (cells[amountCol]?.textContent || "").trim();
-      const amount = parseFloat(amountRaw);
+      const amount = parseFloat((cells[amountCol]?.textContent || "").trim());
 
-      // Only process actual Payment rows
-      if (type !== "Payment" && type !== "payment") continue;
+      if (!["payment", "credit memo"].includes(type.toLowerCase())) continue;
       if (!invoice || !amount || isNaN(amount)) continue;
 
-      // Normalize date — strip time component
       const date = dateRaw.includes("T") ? dateRaw.split("T")[0] : dateRaw;
-
       results.push({ invoice, date, amount });
     }
   } catch (err) {
@@ -88,7 +69,6 @@ function parseXLSRows(text: string): { invoice: string; date: string; amount: nu
   return results;
 }
 
-// ── Parse CSV format ─────────────────────────────────────────
 function parseCSVRows(text: string): { invoice: string; date: string; amount: number }[] {
   const results: { invoice: string; date: string; amount: number }[] = [];
   const rows = text.split("\n").slice(1);
@@ -124,8 +104,7 @@ export default function Home() {
   const [newClient, setNewClient] = useState({
     businessName: "", invoice: "", ownerName: "", clientEmail: "",
     fundedDate: "", funded: "", payback: "", payment: "", totalTerm: "",
-    paymentFrequency: "daily",
-    paymentDay: "",
+    paymentFrequency: "daily", paymentDay: "",
   });
 
   const isAdmin = user?.email === ADMIN_EMAIL;
@@ -233,18 +212,28 @@ export default function Home() {
 
   async function addClient() {
     const client = {
-      business_name: newClient.businessName, invoice: newClient.invoice,
-      owner_name: newClient.ownerName, client_email: newClient.clientEmail,
-      funded_date: newClient.fundedDate, funded: Number(newClient.funded),
-      payback: Number(newClient.payback), paid: 0, balance: Number(newClient.payback),
-      payment: Number(newClient.payment), total_term: Number(newClient.totalTerm),
+      business_name: newClient.businessName,
+      invoice: newClient.invoice,
+      owner_name: newClient.ownerName,
+      client_email: newClient.clientEmail,
+      funded_date: newClient.fundedDate,
+      funded: Number(newClient.funded),
+      payback: Number(newClient.payback),
+      paid: 0,
+      balance: Number(newClient.payback),
+      payment: Number(newClient.payment),
+      total_term: Number(newClient.totalTerm),
       payment_frequency: newClient.paymentFrequency,
       payment_day: newClient.paymentDay || null,
       status: "Good Standing",
     };
     const { error } = await supabase.from("clients").insert([client]);
     if (error) { alert(error.message); return; }
-    setNewClient({ businessName: "", invoice: "", ownerName: "", clientEmail: "", fundedDate: "", funded: "", payback: "", payment: "", totalTerm: "", paymentFrequency: "daily", paymentDay: "" });
+    setNewClient({
+      businessName: "", invoice: "", ownerName: "", clientEmail: "",
+      fundedDate: "", funded: "", payback: "", payment: "", totalTerm: "",
+      paymentFrequency: "daily", paymentDay: "",
+    });
     await fetchClients();
     setView("admin");
   }
@@ -259,11 +248,16 @@ export default function Home() {
 
   async function updateClient(client: any) {
     const { error } = await supabase.from("clients").update({
-      business_name: client.business_name, invoice: client.invoice,
-      owner_name: client.owner_name, client_email: client.client_email,
-      funded_date: client.funded_date, funded: Number(client.funded),
-      payback: Number(client.payback), balance: Number(client.balance),
-      payment: Number(client.payment), total_term: Number(client.total_term),
+      business_name: client.business_name,
+      invoice: client.invoice,
+      owner_name: client.owner_name,
+      client_email: client.client_email,
+      funded_date: client.funded_date,
+      funded: Number(client.funded),
+      payback: Number(client.payback),
+      balance: Number(client.balance),
+      payment: Number(client.payment),
+      total_term: Number(client.total_term),
       payment_frequency: client.payment_frequency,
       payment_day: client.payment_day || null,
       status: client.status,
@@ -277,7 +271,8 @@ export default function Home() {
     if (!reportHadPayment) {
       const { data: recentPayments } = await supabase
         .from("payments").select("settlement_date, description")
-        .eq("invoice", client.invoice).order("settlement_date", { ascending: false }).limit(10);
+        .eq("invoice", client.invoice)
+        .order("settlement_date", { ascending: false }).limit(10);
       if (recentPayments) {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
@@ -315,34 +310,22 @@ export default function Home() {
     const reportInvoices: string[] = [];
     const returnedInvoices: string[] = [];
 
-    // Auto-detect format
     const isXML = text.trim().startsWith("<?xml") || text.trim().startsWith("<Workbook") || text.trim().startsWith(" <Workbook");
-    const isCSV = !isXML;
-
-    let parsedRows: { invoice: string; date: string; amount: number }[] = [];
-
-    if (isXML) {
-      parsedRows = parseXLSRows(text);
-    } else {
-      parsedRows = parseCSVRows(text);
-    }
+    const parsedRows = isXML ? parseXLSRows(text) : parseCSVRows(text);
 
     if (parsedRows.length === 0) {
       alert("No valid payment rows found in the file. Please check the format and try again.");
       return;
     }
 
-    // Process each payment row
+    let matched = 0;
+    let skippedDuplicates = 0;
+
     for (const { invoice, date, amount } of parsedRows) {
-      // Find matching client by invoice number
       const client = localClients.find((c: any) =>
         c.invoice.trim().toLowerCase() === invoice.trim().toLowerCase()
       );
-
-      if (!client) {
-        console.warn(`No client found for invoice: ${invoice}`);
-        continue;
-      }
+      if (!client) continue;
 
       reportInvoices.push(invoice);
 
@@ -354,7 +337,7 @@ export default function Home() {
         ? Math.max(Number(client.balance || 0) - amount, 0)
         : Number(client.balance || 0);
 
-      await supabase.from("payments").insert({
+      const { error: insertError } = await supabase.from("payments").insert({
         invoice,
         payment_date: date || todayStr,
         ach_date: date || todayStr,
@@ -366,13 +349,25 @@ export default function Home() {
         running_balance: alreadySettled ? newBalance : null,
       });
 
+      // Duplicate — skip silently
+      if (insertError && insertError.code === "23505") {
+        skippedDuplicates++;
+        continue;
+      }
+      if (insertError) {
+        console.error("Insert error:", insertError);
+        continue;
+      }
+
+      matched++;
+
       if (alreadySettled) {
         await supabase.from("clients").update({ balance: newBalance }).eq("id", client.id);
         client.balance = newBalance;
       }
     }
 
-    // Flag clients not in today's report
+    // Flag missing clients
     for (const client of localClients) {
       if (!reportInvoices.includes(client.invoice)) {
         const day = today.getDay();
@@ -393,7 +388,6 @@ export default function Home() {
       }
     }
 
-    // Update standing for all clients
     for (const client of localClients) {
       const hadPayment = reportInvoices.includes(client.invoice);
       const hadReturn = returnedInvoices.includes(client.invoice);
@@ -401,9 +395,9 @@ export default function Home() {
       await supabase.from("clients").update({ status: newStatus }).eq("id", client.id);
     }
 
-    const matched = reportInvoices.length;
-    const total = parsedRows.length;
-    alert(`Upload complete.\n\n${matched} of ${total} payments matched and recorded.\nAll balances updated.`);
+    let msg = `Upload complete.\n\n${matched} new payments recorded.`;
+    if (skippedDuplicates > 0) msg += `\n${skippedDuplicates} duplicate${skippedDuplicates > 1 ? "s" : ""} skipped (already on file).`;
+    alert(msg);
     await fetchClients();
   }
 
