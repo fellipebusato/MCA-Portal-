@@ -58,7 +58,7 @@ function ProgressBar({ received, minimum }: { received: number; minimum: number 
   );
 }
 
-export default function MonthlyRiskPanel({ clients }: { clients: Client[] }) {
+export default function MonthlyRiskPanel({ clients, orgId }: { clients: Client[]; orgId: string }) {
   const [expanded, setExpanded] = useState(false);
   const [snapshots, setSnapshots] = useState<SnapshotRow[]>([]);
   const [loading, setLoading] = useState(false);
@@ -140,6 +140,7 @@ export default function MonthlyRiskPanel({ clients }: { clients: Client[] }) {
     for (const client of activeClients) {
       const minimum = Math.ceil(Number(client.balance) * 0.03 * 100) / 100;
       await supabase.from("monthly_snapshots").upsert({
+        org_id: orgId,
         invoice: client.invoice,
         snapshot_date: snapshotDate,
         balance_at_snapshot: Number(client.balance),

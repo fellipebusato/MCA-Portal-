@@ -675,21 +675,23 @@ export default function Home() {
 
         {view === "admin" && (
           <AdminDashboard
-            clients={clients}
-            payments={payments}
-            openClient={openClient}
-            handlePaymentUpload={handlePaymentUpload}
-            deleteClient={deleteClient}
-            updateClient={updateClient}
-            uploading={uploading}
-            currentPage={currentPage}
-            totalPages={totalPages}
-            totalClients={totalClients}
-            onPageChange={(page) => setCurrentPage(page)}
-            searchInput={searchInput}
-            onSearchChange={(val) => setSearchInput(val)}
-            filterAttention={filterAttention}
-            onFilterAttention={(val) => { setFilterAttention(val); setCurrentPage(1); }}
+          clients={clients}
+          payments={payments}
+          openClient={openClient}
+          handlePaymentUpload={handlePaymentUpload}
+          deleteClient={deleteClient}
+          updateClient={updateClient}
+          uploading={uploading}
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalClients={totalClients}
+          onPageChange={(page) => setCurrentPage(page)}
+          searchInput={searchInput}
+          onSearchChange={(val) => setSearchInput(val)}
+          filterAttention={filterAttention}
+          onFilterAttention={(val) => { setFilterAttention(val); setCurrentPage(1); }}
+          orgId={orgId}
+        />
           />
         )}
 

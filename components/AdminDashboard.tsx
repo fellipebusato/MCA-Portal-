@@ -24,6 +24,7 @@ type AdminDashboardProps = {
   // Filter
   filterAttention: boolean;
   onFilterAttention: (val: boolean) => void;
+  orgId: string;
 };
 
 function money(amount: number) {
@@ -115,7 +116,7 @@ export default function AdminDashboard({
   deleteClient, updateClient, uploading = false,
   currentPage, totalPages, totalClients, onPageChange,
   searchInput, onSearchChange,
-  filterAttention, onFilterAttention,
+  filterAttention, onFilterAttention, orgId,
 }: AdminDashboardProps) {
   const [editingClient, setEditingClient] = useState<Client | null>(null);
 
@@ -167,7 +168,7 @@ export default function AdminDashboard({
       </div>
 
       {/* Monthly Risk Panel — collapsed by default, internal only */}
-      <MonthlyRiskPanel clients={clients} />
+      <MonthlyRiskPanel clients={clients} orgId={orgId} />
 
       {/* Upload banner */}
       <div className="rounded-xl bg-white border border-gray-100 p-5 flex items-center gap-4">
