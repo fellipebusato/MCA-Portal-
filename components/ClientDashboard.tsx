@@ -356,14 +356,12 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
 
       {/* Payment action box — below calendar */}
       {badStanding && (
-        <div className="rounded-xl border border-red-200 bg-red-50 p-3">
-          <p className="text-xs font-semibold text-red-800 mb-1">Action required</p>
-          <p className="text-[10px] text-red-600 mb-2">Please make up missed payments as soon as possible. You can pay online or via Zelle.</p>
-          <p className="text-[10px] text-red-500 mb-2">⚠️ Online payments carry a 3.5% fee. To pay $100.00, submit $103.50.</p>
+        <div className="rounded-xl border border-red-200 bg-red-50 p-3 space-y-1.5">
           <a href={PAYMENT_LINK} target="_blank" rel="noopener noreferrer"
-            className="block text-center rounded-lg bg-red-600 px-3 py-2 text-[10px] font-medium text-white hover:bg-red-700 transition-colors mb-1.5">
+            className="block text-center rounded-lg bg-red-600 px-3 py-2 text-[10px] font-medium text-white hover:bg-red-700 transition-colors">
             Pay now online →
           </a>
+          <p className="text-[10px] text-red-500">⚠️ Online payments carry a 3.5% fee. To pay $100.00, submit $103.50.</p>
           <div className="rounded-lg border border-red-200 bg-white px-3 py-1.5 text-[10px] text-red-700">
             <span className="block font-medium">Zelle: invoices@cfgms.com</span>
             <span className="block text-red-500">Include invoice # or business name</span>
@@ -498,16 +496,14 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
                   </svg>
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-red-800">Account needs attention — please make a payment ASAP</p>
+                  <p className="text-sm font-medium text-red-800">Account needs attention — Bad Standing</p>
                   <p className="text-xs text-red-600 mt-0.5">
-                    {isWeeklyClient ? "1 or more weekly payments" : "2 or more daily payments"} have been returned or missed.
+                    {isWeeklyClient ? "1 or more weekly payments have" : "2 or more daily payments have"} been returned or missed. Please pay promptly via the link or Zelle to avoid additional fees.
                   </p>
                 </div>
               </div>
             </div>
           )}
-
-
 
         </div>
 
