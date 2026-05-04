@@ -274,7 +274,7 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
   const holidayMovedDays = new Set<string>();
   if (isWeeklyClient && paymentDayName && fundedDate && totalTerm > 0) {
     const targetDow = DAY_NAME_TO_NUM[paymentDayName.toLowerCase()] ?? 5;
-    for (const dateStr of termDays) {
+    for (const dateStr of Array.from(termDays)) {
       const d = new Date(dateStr + "T00:00:00");
       // If this day is not the target day of the week, it was moved
       if (d.getDay() !== targetDow) {
