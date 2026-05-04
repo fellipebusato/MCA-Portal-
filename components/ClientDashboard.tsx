@@ -312,9 +312,13 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
   // Allow 1 month before funded date and 1 month after term end (or +2 years fallback)
   const calMinYear = fundedDate ? fundedDate.getFullYear() : today.getFullYear();
   const calMinMonth = fundedDate ? Math.max(0, fundedDate.getMonth() - 1) : 0;
-  const calMaxDate = termEndDate || new Date(today.getFullYear() + 2, today.getMonth(), 1);
-  const calMaxYear = calMaxDate.getFullYear();
-  const calMaxMonth = Math.min(11, calMaxDate.getMonth() + 1);
+  // Always allow at least 6 months past today regardless of term end
+// This handles pauses, restructures, and extended deals
+const naturalMax = termEndDate || new Date(today.getFullYear() + 2, today.getMonth(), 1);
+const sixMonthsOut = new Date(today.getFullYear(), today.getMonth() + 6, 1);
+const calMaxDate = naturalMax > sixMonthsOut ? naturalMax : sixMonthsOut;
+const calMaxYear = calMaxDate.getFullYear();
+const calMaxMonth = Math.min(11, calMaxDate.getMonth() + 1);
 
   const canGoPrev = calYear > calMinYear || (calYear === calMinYear && calMonth > calMinMonth);
   const canGoNext = calYear < calMaxYear || (calYear === calMaxYear && calMonth < calMaxMonth);
