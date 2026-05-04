@@ -25,10 +25,10 @@ type AdminDashboardProps = {
 };
 
 const PAYMENT_STATUS_OPTIONS = [
-  { value: "active",   label: "Active",          description: "Normal — expected in every upload" },
-  { value: "paused",   label: "On Pause",         description: "Agreed break — skip missed payment flags" },
-  { value: "frozen",   label: "Frozen",           description: "Account blocked — flag immediately" },
-  { value: "paid_off", label: "Paid Off",         description: "Balance zero — exclude from tracking" },
+  { value: "active",     label: "Active",           description: "Normal — expected in every upload" },
+  { value: "paused",     label: "On Pause",         description: "Agreed break — set start and end dates below" },
+  { value: "frozen",     label: "Frozen",           description: "Account blocked — flag immediately" },
+  { value: "paid_off",   label: "Paid Off",         description: "Balance zero — exclude from tracking" },
   { value: "weekly_off", label: "Weekly — Off Day", description: "Weekly client, today is not their day" },
 ];
 
@@ -72,6 +72,19 @@ function isUrgent(date: Date | null): boolean {
   return diffDays > 7;
 }
 
+function getPauseLabel(client: Client): string | null {
+  if (client.payment_status !== "paused") return null;
+  if (!client.pause_end) return "On Pause";
+  const end = new Date(client.pause_end + "T00:00:00");
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const daysLeft = Math.ceil((end.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+  if (daysLeft < 0) return "Pause expired";
+  if (daysLeft === 0) return "Pause ends today";
+  if (daysLeft === 1) return "Pause ends tomorrow";
+  return `Pause ends in ${daysLeft} days`;
+}
+
 function StatusBadge({ status }: { status: string }) {
   const isGood = status === "Good Standing";
   const isDefault = status === "Default";
@@ -87,10 +100,11 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
-function PaymentStatusBadge({ status }: { status: string }) {
+function PaymentStatusBadge({ client }: { client: Client }) {
+  const status = client.payment_status || "active";
   const map: Record<string, { label: string; styles: string }> = {
     active:     { label: "Active",       styles: "bg-gray-50 text-gray-600 border border-gray-200" },
-    paused:     { label: "On Pause",     styles: "bg-blue-50 text-blue-700 border border-blue-200" },
+    paused:     { label: getPauseLabel(client) || "On Pause", styles: "bg-blue-50 text-blue-700 border border-blue-200" },
     frozen:     { label: "Frozen",       styles: "bg-red-50 text-red-700 border border-red-200" },
     paid_off:   { label: "Paid Off",     styles: "bg-emerald-50 text-emerald-700 border border-emerald-200" },
     weekly_off: { label: "Weekly — Off", styles: "bg-purple-50 text-purple-700 border border-purple-200" },
@@ -144,10 +158,12 @@ export default function AdminDashboard({
   const totalBalance = clients.reduce((sum, c) => sum + Number(c.balance || 0), 0);
   const attentionClients = clients.filter((c) => c.status !== "Good Standing");
   const goodClients = clients.filter((c) => c.status === "Good Standing");
-  const pausedClients = clients.filter((c) => (c as any).payment_status === "paused").length;
-  const frozenClients = clients.filter((c) => (c as any).payment_status === "frozen").length;
+  const pausedClients = clients.filter((c) => c.payment_status === "paused").length;
+  const frozenClients = clients.filter((c) => c.payment_status === "frozen").length;
   const dailyClients = clients.filter((c) => c.payment_frequency === "daily").length;
   const weeklyClients = clients.filter((c) => c.payment_frequency === "weekly").length;
+
+  const isPaused = editingClient?.payment_status === "paused";
 
   return (
     <div className="space-y-5">
@@ -276,18 +292,24 @@ export default function AdminDashboard({
               </div>
             )}
 
-            {/* Payment status — the new field */}
+            {/* Payment status */}
             <div className="col-span-2 md:col-span-3">
               <label className="block text-xs text-gray-400 mb-2">Payment status</label>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
                 {PAYMENT_STATUS_OPTIONS.map((opt) => {
-                  const current = (editingClient as any).payment_status || "active";
+                  const current = editingClient.payment_status || "active";
                   const isSelected = current === opt.value;
                   return (
                     <button
                       key={opt.value}
                       type="button"
-                      onClick={() => setEditingClient({ ...editingClient, payment_status: opt.value } as any)}
+                      onClick={() => setEditingClient({
+                        ...editingClient,
+                        payment_status: opt.value as any,
+                        // Clear pause dates if switching away from paused
+                        pause_start: opt.value === "paused" ? editingClient.pause_start : null,
+                        pause_end: opt.value === "paused" ? editingClient.pause_end : null,
+                      })}
                       className={`text-left rounded-lg border px-3 py-2.5 transition-colors ${
                         isSelected
                           ? "border-gray-900 bg-gray-900 text-white"
@@ -300,6 +322,49 @@ export default function AdminDashboard({
                 })}
               </div>
             </div>
+
+            {/* Pause dates — only shown when On Pause is selected */}
+            {isPaused && (
+              <div className="col-span-2 md:col-span-3">
+                <div className="rounded-xl bg-blue-50 border border-blue-100 p-4">
+                  <p className="text-xs font-semibold text-blue-900 mb-3">
+                    Pause schedule
+                    <span className="ml-2 text-[10px] font-normal text-blue-500">
+                      Payments will automatically resume after the end date
+                    </span>
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-blue-800 mb-1">Pause start date</label>
+                      <input
+                        type="date"
+                        className="w-full rounded-lg border border-blue-200 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:border-blue-400 transition-colors"
+                        value={editingClient.pause_start || ""}
+                        onChange={(e) => setEditingClient({ ...editingClient, pause_start: e.target.value || null })}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-blue-800 mb-1">Pause end date</label>
+                      <input
+                        type="date"
+                        className="w-full rounded-lg border border-blue-200 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:border-blue-400 transition-colors"
+                        value={editingClient.pause_end || ""}
+                        onChange={(e) => setEditingClient({ ...editingClient, pause_end: e.target.value || null })}
+                      />
+                      {editingClient.pause_end && (() => {
+                        const end = new Date(editingClient.pause_end + "T00:00:00");
+                        const today = new Date();
+                        today.setHours(0, 0, 0, 0);
+                        const daysLeft = Math.ceil((end.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+                        if (daysLeft < 0) return <p className="text-[10px] text-red-500 mt-1">End date is in the past — client will resume immediately on next upload</p>;
+                        if (daysLeft === 0) return <p className="text-[10px] text-amber-600 mt-1">Ends today — client resumes on next upload</p>;
+                        return <p className="text-[10px] text-blue-500 mt-1">{daysLeft} day{daysLeft !== 1 ? "s" : ""} remaining — resumes automatically after this date</p>;
+                      })()}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="mt-4 flex gap-2">
@@ -333,7 +398,6 @@ export default function AdminDashboard({
             {attentionClients.map((client) => {
               const lastDate = getLastPaymentDate(client.invoice, payments);
               const urgent = isUrgent(lastDate);
-              const paymentStatus = (client as any).payment_status || "active";
               return (
                 <div key={client.id} className="rounded-lg bg-white border border-amber-100 p-4">
                   <div className="flex flex-wrap items-center gap-3">
@@ -362,7 +426,7 @@ export default function AdminDashboard({
                       <p className="text-xs text-gray-400 mt-0.5">Balance</p>
                     </div>
                     <StatusBadge status={client.status} />
-                    {paymentStatus !== "active" && <PaymentStatusBadge status={paymentStatus} />}
+                    {client.payment_status !== "active" && <PaymentStatusBadge client={client} />}
                     {client.client_email && (
                       <a href={buildGeneralEmail(client)} onClick={(e) => e.stopPropagation()}
                         className="flex items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-800 hover:bg-amber-100 transition-colors flex-shrink-0">
@@ -427,7 +491,7 @@ export default function AdminDashboard({
           <tbody>
             {clients.map((client) => {
               const lastDate = getLastPaymentDate(client.invoice, payments);
-              const paymentStatus = (client as any).payment_status || "active";
+              const paymentStatus = client.payment_status || "active";
               const scheduleLabel = client.payment_frequency === "weekly"
                 ? `Weekly${client.payment_day ? ` · ${client.payment_day.charAt(0).toUpperCase() + client.payment_day.slice(1)}s` : ""}`
                 : "Daily";
@@ -450,7 +514,7 @@ export default function AdminDashboard({
                   <td className="px-5 py-3.5 text-sm font-medium text-gray-900">{money(Number(client.balance || 0))}</td>
                   <td className="px-5 py-3.5 text-sm text-gray-500">{scheduleLabel}</td>
                   <td className="px-5 py-3.5">
-                    <PaymentStatusBadge status={paymentStatus} />
+                    <PaymentStatusBadge client={client} />
                   </td>
                   {filterAttention && (
                     <td className="px-5 py-3.5 text-sm font-medium text-amber-600">

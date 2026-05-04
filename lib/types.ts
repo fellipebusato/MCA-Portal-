@@ -28,6 +28,8 @@ export interface Client {
   payment_day: string | null;
   status: "Good Standing" | "Needs Attention" | "Default";
   payment_status: PaymentStatus;
+  pause_start: string | null;
+  pause_end: string | null;
   total_returns: number;
   last_return_date: string | null;
   maturity_date: string | null;

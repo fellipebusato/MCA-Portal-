@@ -88,6 +88,13 @@ function parseCSVRows(text: string): ParsedPaymentRow[] {
   return results;
 }
 
+// Check if a paused client should auto-resume today
+function shouldAutoResume(client: Client, todayStr: string): boolean {
+  if (client.payment_status !== "paused") return false;
+  if (!client.pause_end) return false;
+  return client.pause_end < todayStr; // past the end date
+}
+
 export default function Home() {
   const [user, setUser] = useState<any>(null);
   const [email, setEmail] = useState("");
@@ -362,7 +369,9 @@ export default function Home() {
       payment_frequency: client.payment_frequency,
       payment_day: client.payment_day || null,
       status: client.status,
-      payment_status: (client as any).payment_status || "active",
+      payment_status: client.payment_status || "active",
+      pause_start: client.pause_start || null,
+      pause_end: client.pause_end || null,
     }).eq("id", client.id);
     if (error) { alert(error.message); return; }
     await fetchClients(currentPage, searchQuery, filterAttention);
@@ -410,7 +419,24 @@ export default function Home() {
     const { data: clientsData } = await supabase.from("clients").select("*");
     if (!clientsData) { setUploading(false); return; }
 
-    const localClients = clientsData as Client[];
+    let localClients = clientsData as Client[];
+
+    // ── Auto-resume paused clients whose pause_end has passed ──────────
+    const resuming: string[] = [];
+    for (const client of localClients) {
+      if (shouldAutoResume(client, todayStr)) {
+        await supabase.from("clients").update({
+          payment_status: "active",
+          pause_start: null,
+          pause_end: null,
+        }).eq("id", client.id);
+        resuming.push(client.business_name);
+        (client as any).payment_status = "active";
+        (client as any).pause_start = null;
+        (client as any).pause_end = null;
+      }
+    }
+
     const reportInvoices: string[] = [];
     const returnedInvoices: string[] = [];
 
@@ -465,12 +491,12 @@ export default function Home() {
       }
     }
 
-    // Flag missing clients — but respect payment_status
+    // Flag missing clients — respect payment_status
     for (const client of localClients) {
       if (!reportInvoices.includes(client.invoice)) {
-        const paymentStatus = (client as any).payment_status || "active";
+        const paymentStatus = client.payment_status || "active";
 
-        // Skip clients that are paused, paid off, or frozen — don't auto-flag as missed
+        // Skip non-active clients — paused, frozen, paid_off, weekly_off
         if (["paused", "paid_off", "frozen", "weekly_off"].includes(paymentStatus)) continue;
 
         const day = today.getDay();
@@ -492,8 +518,7 @@ export default function Home() {
     }
 
     for (const client of localClients) {
-      const paymentStatus = (client as any).payment_status || "active";
-      // Don't change standing for paused/frozen/paid_off clients
+      const paymentStatus = client.payment_status || "active";
       if (["paused", "paid_off"].includes(paymentStatus)) continue;
 
       const hadPayment = reportInvoices.includes(client.invoice);
@@ -506,6 +531,7 @@ export default function Home() {
 
     let msg = `Upload complete.\n\n${matched} new payments recorded.`;
     if (skippedDuplicates > 0) msg += `\n${skippedDuplicates} duplicate${skippedDuplicates > 1 ? "s" : ""} skipped (already on file).`;
+    if (resuming.length > 0) msg += `\n\n${resuming.length} client${resuming.length > 1 ? "s" : ""} automatically resumed from pause:\n${resuming.join(", ")}`;
     alert(msg);
     setUploading(false);
     await fetchClients(currentPage, searchQuery, filterAttention);
