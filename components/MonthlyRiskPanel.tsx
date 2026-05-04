@@ -86,7 +86,6 @@ export default function MonthlyRiskPanel({ clients }: { clients: Client[] }) {
 
     setHasData(true);
 
-    // Enrich with current month received amounts from payments
     const today = new Date().toISOString().split("T")[0];
     const enriched: SnapshotRow[] = [];
 
@@ -94,7 +93,6 @@ export default function MonthlyRiskPanel({ clients }: { clients: Client[] }) {
       const client = clients.find(c => c.invoice === snap.invoice);
       if (!client) continue;
 
-      // Sum settled payments this month
       const { data: monthPayments } = await supabase
         .from("payments")
         .select("debit, description")
@@ -125,7 +123,6 @@ export default function MonthlyRiskPanel({ clients }: { clients: Client[] }) {
       });
     }
 
-    // Sort: default first, then at_risk, then safe
     enriched.sort((a, b) => {
       const order = { default: 0, at_risk: 1, safe: 2 };
       return order[a.status] - order[b.status];
@@ -156,6 +153,7 @@ export default function MonthlyRiskPanel({ clients }: { clients: Client[] }) {
     await loadSnapshots();
   }
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (expanded && !snapshots.length) {
       loadSnapshots();
@@ -192,7 +190,6 @@ export default function MonthlyRiskPanel({ clients }: { clients: Client[] }) {
         </div>
 
         <div className="flex items-center gap-3">
-          {/* Summary badges — visible even when collapsed */}
           {hasData && !loading && (
             <div className="hidden sm:flex items-center gap-2">
               {defaultCount > 0 && (
@@ -287,7 +284,7 @@ export default function MonthlyRiskPanel({ clients }: { clients: Client[] }) {
                     </tr>
                   </thead>
                   <tbody>
-                    {filtered.map((row, idx) => (
+                    {filtered.map((row) => (
                       <tr key={row.invoice}
                         className={`border-b border-gray-50 transition-colors hover:bg-gray-50 ${
                           row.status === "default" ? "bg-red-50/30" : row.status === "at_risk" ? "bg-amber-50/20" : ""
@@ -338,7 +335,7 @@ export default function MonthlyRiskPanel({ clients }: { clients: Client[] }) {
               {/* Footer note */}
               <div className="px-5 py-3 border-t border-gray-50">
                 <p className="text-[10px] text-gray-300 leading-relaxed">
-                  This panel is for internal use only and is never visible to clients. The 3% minimum is calculated from each client's balance on the 1st of the month. Received amounts reflect settled payments only.
+                  This panel is for internal use only and is never visible to clients. The 3% minimum is calculated from each client&apos;s balance on the 1st of the month. Received amounts reflect settled payments only.
                 </p>
               </div>
             </>
