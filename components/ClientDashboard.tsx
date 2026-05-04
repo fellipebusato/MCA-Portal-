@@ -54,27 +54,53 @@ function addBusinessDaysToDate(start: Date, days: number): Date {
   return result;
 }
 
+// Daily: every business day — holidays are naturally skipped, term extends
 function buildDailyTermDays(startDate: Date, totalTerm: number): Set<string> {
   const days = new Set<string>();
   const cursor = new Date(startDate);
   let count = 0;
   while (count < totalTerm) {
-    if (isBusinessDay(cursor)) { days.add(toDateStr(cursor)); count++; }
+    if (isBusinessDay(cursor)) {
+      days.add(toDateStr(cursor));
+      count++;
+    }
     cursor.setDate(cursor.getDate() + 1);
   }
   return days;
 }
 
+// Weekly: scheduled on target day, but if holiday → move to next Monday
+// If that Monday is also a holiday, keep moving forward until a business day
 function buildWeeklyTermDays(startDate: Date, totalTerm: number, paymentDayName: string): Set<string> {
   const days = new Set<string>();
   const targetDow = DAY_NAME_TO_NUM[paymentDayName.toLowerCase()] ?? 5;
   const cursor = new Date(startDate);
   let count = 0;
+
+  // Find first occurrence of target day on or after startDate
   while (cursor.getDay() !== targetDow) cursor.setDate(cursor.getDate() + 1);
+
   while (count < totalTerm) {
-    if (!isHoliday(cursor)) { days.add(toDateStr(cursor)); count++; }
-    cursor.setDate(cursor.getDate() + 7);
+    let paymentDate = new Date(cursor);
+
+    if (isHoliday(paymentDate)) {
+      // Move to next Monday (or next business day after Monday if also holiday)
+      paymentDate = new Date(cursor);
+      // Find next Monday
+      do {
+        paymentDate.setDate(paymentDate.getDate() + 1);
+      } while (paymentDate.getDay() !== 1); // 1 = Monday
+      // If Monday is also a holiday, keep moving forward
+      while (!isBusinessDay(paymentDate)) {
+        paymentDate.setDate(paymentDate.getDate() + 1);
+      }
+    }
+
+    days.add(toDateStr(paymentDate));
+    count++;
+    cursor.setDate(cursor.getDate() + 7); // advance to next week's target day
   }
+
   return days;
 }
 
@@ -126,7 +152,7 @@ function buildMissedPaymentEmail(client: any, payments: any[]): string {
   const body = encodeURIComponent(
     `Hello ${client.owner_name || client.business_name},\n\n` +
     `You have missed payment(s) on the following date(s): ${dateList}.\n\n` +
-    `Please log in to your portal for additional instructions and to make up any missed payments:\n\n` +
+    `Please log in to your portal for additional instructions:\n\n` +
     `${PORTAL_URL}\n\n` +
     `You may also pay via Zelle at invoices@cfgms.com — please include your invoice number (${client.invoice}) or business name.\n\n` +
     `Best regards,\nFellipe Busato\nfbusato@cfgms.com\n+1 (917) 920-0881`
@@ -135,11 +161,12 @@ function buildMissedPaymentEmail(client: any, payments: any[]): string {
 }
 
 function MiniCalendar({
-  year, month, termDays, paymentDays, missedDays, today,
+  year, month, termDays, paymentDays, missedDays, holidayMovedDays, today,
   onPrev, onNext, canPrev, canNext
 }: {
   year: number; month: number;
   termDays: Set<string>; paymentDays: Set<string>; missedDays: Set<string>;
+  holidayMovedDays: Set<string>;
   today: Date; onPrev: () => void; onNext: () => void;
   canPrev: boolean; canNext: boolean;
 }) {
@@ -172,13 +199,24 @@ function MiniCalendar({
           const isWknd = isWeekend(date);
           const isHol = isHoliday(date);
           const inTerm = termDays.has(dateStr);
+          const isMoved = holidayMovedDays.has(dateStr);
           const paid = paymentDays.has(dateStr);
           const missed = missedDays.has(dateStr);
+
           let bg = "", textColor = isWknd ? "text-gray-300" : "text-gray-700", title = "";
-          if (isHol) { bg = "bg-yellow-100"; textColor = "text-yellow-700"; title = "Bank holiday"; }
-          else if (paid) { bg = "bg-emerald-100"; textColor = "text-emerald-700"; title = "Payment received"; }
-          else if (missed) { bg = "bg-red-100"; textColor = "text-red-600"; title = "Missed / returned"; }
-          else if (inTerm) { bg = "bg-blue-50"; textColor = "text-blue-700"; title = "Expected payment day"; }
+
+          if (isHol) {
+            bg = "bg-yellow-100"; textColor = "text-yellow-700"; title = "Bank holiday";
+          } else if (paid) {
+            bg = "bg-emerald-100"; textColor = "text-emerald-700"; title = "Payment received";
+          } else if (missed) {
+            bg = "bg-red-100"; textColor = "text-red-600"; title = "Missed / returned";
+          } else if (isMoved) {
+            bg = "bg-orange-100"; textColor = "text-orange-700"; title = "Payment moved from holiday";
+          } else if (inTerm) {
+            bg = "bg-blue-50"; textColor = "text-blue-700"; title = "Expected payment day";
+          }
+
           return (
             <div key={dateStr} title={title}
               className={`aspect-square flex items-center justify-center rounded text-[10px] font-medium ${bg} ${textColor} ${isToday ? "ring-1 ring-gray-900 font-bold" : ""}`}>
@@ -188,7 +226,13 @@ function MiniCalendar({
         })}
       </div>
       <div className="mt-2 grid grid-cols-2 gap-x-2 gap-y-1">
-        {[["bg-blue-50 border border-blue-200","Expected"],["bg-emerald-100","Received"],["bg-red-100","Missed"],["bg-yellow-100","Holiday"]].map(([cls, label]) => (
+        {[
+          ["bg-blue-50 border border-blue-200","Expected"],
+          ["bg-emerald-100","Received"],
+          ["bg-red-100","Missed"],
+          ["bg-yellow-100","Holiday"],
+          ["bg-orange-100","Moved to Mon"],
+        ].map(([cls, label]) => (
           <div key={label} className="flex items-center gap-1">
             <div className={`w-2 h-2 rounded-sm ${cls} flex-shrink-0`} />
             <span className="text-[9px] text-gray-400">{label}</span>
@@ -218,11 +262,26 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
   const fundedDate = selectedClient.funded_date ? new Date(selectedClient.funded_date + "T00:00:00") : null;
   const totalTerm = Number(selectedClient.total_term || 0);
 
+  // Build term days
   const termDays = fundedDate && totalTerm > 0
     ? isWeeklyClient && paymentDayName
       ? buildWeeklyTermDays(fundedDate, totalTerm, paymentDayName)
       : buildDailyTermDays(fundedDate, totalTerm)
     : new Set<string>();
+
+  // For weekly: identify which days are "moved from holiday" (orange)
+  // These are days in termDays that fall on a Monday but the target day is not Monday
+  const holidayMovedDays = new Set<string>();
+  if (isWeeklyClient && paymentDayName && fundedDate && totalTerm > 0) {
+    const targetDow = DAY_NAME_TO_NUM[paymentDayName.toLowerCase()] ?? 5;
+    for (const dateStr of termDays) {
+      const d = new Date(dateStr + "T00:00:00");
+      // If this day is not the target day of the week, it was moved
+      if (d.getDay() !== targetDow) {
+        holidayMovedDays.add(dateStr);
+      }
+    }
+  }
 
   let termEndDate: Date | null = null;
   if (fundedDate && totalTerm > 0) {
@@ -274,12 +333,14 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
         {isWeeklyClient && paymentDayName && (
           <p className="text-[9px] text-blue-500 mt-0.5 font-medium">
             Every {paymentDayName.charAt(0).toUpperCase() + paymentDayName.slice(1)}
+            {holidayMovedDays.size > 0 && ` · ${holidayMovedDays.size} moved to Monday`}
           </p>
         )}
       </div>
       <MiniCalendar
         year={calYear} month={calMonth}
-        termDays={termDays} paymentDays={paymentDays} missedDays={missedDays}
+        termDays={termDays} paymentDays={paymentDays}
+        missedDays={missedDays} holidayMovedDays={holidayMovedDays}
         today={today} onPrev={prevMonth} onNext={nextMonth}
         canPrev={canGoPrev} canNext={canGoNext}
       />
@@ -294,7 +355,7 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
   return (
     <div className="space-y-4">
 
-      {/* Header card */}
+      {/* Header */}
       <div className="rounded-xl bg-white border border-gray-100 p-4 md:p-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
@@ -307,11 +368,9 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
           <div className="flex flex-col gap-2">
             {isAdminView && (
               <div className="flex flex-wrap gap-2">
-                {/* Add payment button in header */}
                 <button
                   onClick={() => setShowAddPayment(v => !v)}
-                  className="flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-100 transition-colors"
-                >
+                  className="flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-100 transition-colors">
                   <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
                     <path d="M5.5 1v9M1 5.5h9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
                   </svg>
@@ -457,7 +516,7 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
           {showCalendar && <div className="lg:hidden">{calendarPanel}</div>}
         </div>
 
-        {/* Calendar desktop sidebar */}
+        {/* Calendar desktop */}
         {showCalendar && (
           <div className="hidden lg:block flex-shrink-0 w-48 sticky top-20">
             {calendarPanel}
@@ -465,7 +524,7 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
         )}
       </div>
 
-      {/* Payment history — full width, with add payment form built in */}
+      {/* Payment history */}
       <PaymentHistory
         payments={payments}
         client={selectedClient}

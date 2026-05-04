@@ -81,7 +81,6 @@ function AddPaymentForm({ client, onSuccess, onCancel }: {
     const currentBalance = Number(client.balance || 0);
     const newBalance = alreadySettled ? Math.max(currentBalance - debit, 0) : currentBalance;
 
-    // Insert payment
     const { error: insertError } = await supabase.from("payments").insert({
       invoice: client.invoice,
       payment_date: achDate,
@@ -95,16 +94,11 @@ function AddPaymentForm({ client, onSuccess, onCancel }: {
     });
 
     if (insertError) {
-      if (insertError.code === "23505") {
-        setError("A payment with this date and amount already exists for this client.");
-      } else {
-        setError(insertError.message);
-      }
+      setError(insertError.code === "23505" ? "A payment with this date and amount already exists." : insertError.message);
       setSaving(false);
       return;
     }
 
-    // Update balance if settled
     if (alreadySettled) {
       await supabase.from("clients").update({ balance: newBalance, status: "Good Standing" }).eq("id", client.id);
     }
@@ -116,37 +110,28 @@ function AddPaymentForm({ client, onSuccess, onCancel }: {
   return (
     <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 mb-4">
       <div className="flex items-center justify-between mb-3">
-        <p className="text-sm font-semibold text-emerald-900">Add manual payment</p>
+        <p className="text-sm font-semibold text-emerald-900">Add payment</p>
         <button onClick={onCancel} className="text-xs text-emerald-700 hover:text-emerald-900">Cancel</button>
       </div>
-
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
         <div>
           <label className="block text-xs font-medium text-emerald-800 mb-1">ACH date</label>
-          <input
-            type="date"
+          <input type="date"
             className="w-full rounded-lg border border-emerald-200 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:border-emerald-400 transition-colors"
-            value={achDate}
-            onChange={(e) => setAchDate(e.target.value)}
-          />
+            value={achDate} onChange={(e) => setAchDate(e.target.value)} />
         </div>
         <div>
           <label className="block text-xs font-medium text-emerald-800 mb-1">Amount ($)</label>
-          <input
-            type="number"
-            placeholder={client.payment ? String(client.payment) : "0.00"}
+          <input type="number" placeholder={client.payment ? String(client.payment) : "0.00"}
             className="w-full rounded-lg border border-emerald-200 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-300 focus:outline-none focus:border-emerald-400 transition-colors"
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && handleSave()}
-          />
+            value={amount} onChange={(e) => setAmount(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleSave()} />
         </div>
         <div>
           <label className="block text-xs font-medium text-emerald-800 mb-1">Settles on</label>
           <div className="w-full rounded-lg border border-emerald-100 bg-white px-3 py-2 text-sm text-gray-600">
             {settlementStr ? (
-              <span>
-                {formatDate(settlementStr)}
+              <span>{formatDate(settlementStr)}
                 <span className={`ml-1.5 text-xs ${alreadySettled ? "text-emerald-600" : "text-blue-500"}`}>
                   {alreadySettled ? "· settled" : "· pending"}
                 </span>
@@ -155,8 +140,6 @@ function AddPaymentForm({ client, onSuccess, onCancel }: {
           </div>
         </div>
       </div>
-
-      {/* Preview */}
       {amount && Number(amount) > 0 && (
         <div className="rounded-lg bg-white border border-emerald-100 px-3 py-2 mb-3 text-xs text-gray-600">
           {alreadySettled
@@ -165,36 +148,145 @@ function AddPaymentForm({ client, onSuccess, onCancel }: {
           }
         </div>
       )}
-
       {error && <p className="text-xs text-red-600 mb-2">{error}</p>}
-
-      <button
-        onClick={handleSave}
-        disabled={saving}
-        className="rounded-lg bg-emerald-700 px-4 py-2 text-xs font-medium text-white hover:bg-emerald-800 transition-colors disabled:opacity-50"
-      >
+      <button onClick={handleSave} disabled={saving}
+        className="rounded-lg bg-emerald-700 px-4 py-2 text-xs font-medium text-white hover:bg-emerald-800 transition-colors disabled:opacity-50">
         {saving ? "Saving..." : "Save payment"}
       </button>
     </div>
   );
 }
 
+function EditPaymentRow({ payment, client, onSuccess, onCancel }: {
+  payment: any; client: any; onSuccess: () => void; onCancel: () => void;
+}) {
+  const [achDate, setAchDate] = useState(payment.ach_date || payment.payment_date || "");
+  const [amount, setAmount] = useState(String(payment.debit || ""));
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  const today = new Date();
+  const parsedDate = achDate ? new Date(achDate + "T00:00:00") : null;
+  const settlementDate = parsedDate ? addBusinessDays(parsedDate, 4) : null;
+  const settlementStr = settlementDate ? toDateStr(settlementDate) : "";
+  const alreadySettled = settlementDate ? settlementDate <= today : false;
+
+  async function handleSave() {
+    if (!achDate || !amount || isNaN(Number(amount)) || Number(amount) <= 0) {
+      setError("Please enter a valid date and amount."); return;
+    }
+    setSaving(true);
+    setError("");
+
+    const debit = Number(amount);
+    const oldDebit = Number(payment.debit || 0);
+    const currentBalance = Number(client.balance || 0);
+
+    // Reverse old settled amount, apply new
+    let newBalance = currentBalance;
+    if (payment.running_balance != null) newBalance = currentBalance + oldDebit;
+    if (alreadySettled) newBalance = Math.max(newBalance - debit, 0);
+
+    const { error: updateError } = await supabase.from("payments").update({
+      ach_date: achDate,
+      payment_date: achDate,
+      settlement_date: settlementStr,
+      debit,
+      running_balance: alreadySettled ? newBalance : null,
+    }).eq("id", payment.id);
+
+    if (updateError) { setError(updateError.message); setSaving(false); return; }
+
+    if (alreadySettled || payment.running_balance != null) {
+      await supabase.from("clients").update({ balance: newBalance }).eq("id", client.id);
+    }
+
+    setSaving(false);
+    onSuccess();
+  }
+
+  return (
+    <tr className="border-b border-blue-50 bg-blue-50">
+      <td className="px-4 py-2" colSpan={7}>
+        <div className="flex flex-wrap items-end gap-3">
+          <div>
+            <label className="block text-[10px] font-medium text-blue-700 mb-1">ACH date</label>
+            <input type="date"
+              className="rounded-lg border border-blue-200 bg-white px-2 py-1.5 text-xs text-gray-900 focus:outline-none"
+              value={achDate} onChange={(e) => setAchDate(e.target.value)} />
+          </div>
+          <div>
+            <label className="block text-[10px] font-medium text-blue-700 mb-1">Amount ($)</label>
+            <input type="number"
+              className="rounded-lg border border-blue-200 bg-white px-2 py-1.5 text-xs text-gray-900 w-28 focus:outline-none"
+              value={amount} onChange={(e) => setAmount(e.target.value)} />
+          </div>
+          <div>
+            <label className="block text-[10px] font-medium text-blue-700 mb-1">Settlement</label>
+            <div className="text-xs text-gray-500 py-1.5">
+              {settlementStr ? `${formatDate(settlementStr)} (${alreadySettled ? "settled" : "pending"})` : "—"}
+            </div>
+          </div>
+          {error && <p className="text-xs text-red-600 self-center">{error}</p>}
+          <div className="flex gap-2 self-end pb-0.5">
+            <button onClick={handleSave} disabled={saving}
+              className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50 transition-colors">
+              {saving ? "Saving..." : "Save"}
+            </button>
+            <button onClick={onCancel}
+              className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 transition-colors">
+              Cancel
+            </button>
+          </div>
+        </div>
+      </td>
+    </tr>
+  );
+}
+
 export default function PaymentHistory({ payments, client, isAdminView, onPaymentAdded }: PaymentHistoryProps) {
-  const [showForm, setShowForm] = useState(false);
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
 
   const hasPending = payments.some((p) => {
     if (!p.settlement_date) return false;
     const s = new Date(p.settlement_date);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const today = new Date(); today.setHours(0,0,0,0);
     const desc = (p.description || "").toLowerCase();
     return s > today && !desc.includes("missed");
   });
 
-  function handlePaymentAdded() {
-    setShowForm(false);
+  function handleSuccess() {
+    setShowAddForm(false);
+    setEditingId(null);
     onPaymentAdded?.();
   }
+
+  async function handleDelete(payment: any) {
+    const confirmed = confirm(
+      `Are you sure you want to delete this payment?\n\n` +
+      `Date: ${formatDate(payment.ach_date || payment.payment_date)}\n` +
+      `Amount: ${money(Number(payment.debit || payment.returns || payment.credit || 0))}\n\n` +
+      `This will also reverse the balance adjustment if the payment had settled.`
+    );
+    if (!confirmed) return;
+
+    setDeletingId(payment.id);
+
+    // Reverse balance if payment was settled
+    if (payment.running_balance != null && payment.debit > 0 && client) {
+      const currentBalance = Number(client.balance || 0);
+      const restoredBalance = currentBalance + Number(payment.debit);
+      await supabase.from("clients").update({ balance: restoredBalance }).eq("id", client.id);
+    }
+
+    await supabase.from("payments").delete().eq("id", payment.id);
+    setDeletingId(null);
+    onPaymentAdded?.();
+  }
+
+  const sortedPayments = [...payments].reverse();
 
   return (
     <div className="rounded-xl bg-white border border-gray-100 overflow-hidden">
@@ -210,37 +302,29 @@ export default function PaymentHistory({ payments, client, isAdminView, onPaymen
               Some payments pending settlement
             </span>
           )}
-          {/* Add payment button — only for admin */}
           {isAdminView && client && (
             <button
-              onClick={() => setShowForm(v => !v)}
+              onClick={() => { setShowAddForm(v => !v); setEditingId(null); }}
               className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
-                showForm
-                  ? "bg-gray-100 text-gray-600"
-                  : "border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
-              }`}
-            >
+                showAddForm ? "bg-gray-100 text-gray-600" : "border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+              }`}>
               <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
                 <path d="M5.5 1v9M1 5.5h9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
               </svg>
-              {showForm ? "Cancel" : "Add payment"}
+              {showAddForm ? "Cancel" : "Add payment"}
             </button>
           )}
         </div>
       </div>
 
       {/* Add payment form */}
-      {showForm && isAdminView && client && (
+      {showAddForm && isAdminView && client && (
         <div className="px-4 md:px-5 pt-4">
-          <AddPaymentForm
-            client={client}
-            onSuccess={handlePaymentAdded}
-            onCancel={() => setShowForm(false)}
-          />
+          <AddPaymentForm client={client} onSuccess={handleSuccess} onCancel={() => setShowAddForm(false)} />
         </div>
       )}
 
-      {/* Settlement explanation */}
+      {/* Pending explanation */}
       {hasPending && (
         <div className="px-4 md:px-5 py-3 border-b border-gray-50">
           <p className="text-xs text-blue-600">
@@ -261,56 +345,86 @@ export default function PaymentHistory({ payments, client, isAdminView, onPaymen
               <th className="px-4 md:px-5 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wide">Debit</th>
               <th className="px-4 md:px-5 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wide">Returns</th>
               <th className="px-4 md:px-5 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wide">Balance</th>
+              {isAdminView && <th className="px-4 md:px-5 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wide">Actions</th>}
             </tr>
           </thead>
           <tbody>
-            {[...payments].reverse().map((p, idx) => {
-              const today = new Date();
-              today.setHours(0, 0, 0, 0);
+            {sortedPayments.map((p, idx) => {
+              const today = new Date(); today.setHours(0,0,0,0);
               const settlDate = p.settlement_date ? new Date(p.settlement_date) : null;
-              if (settlDate) settlDate.setHours(0, 0, 0, 0);
+              if (settlDate) settlDate.setHours(0,0,0,0);
               const isPending = settlDate && settlDate > today && !(p.description || "").toLowerCase().includes("missed");
+              const isEditing = editingId === p.id;
+              const isDeleting = deletingId === p.id;
 
               return (
-                <tr key={p.id || idx} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
-                  <td className="px-4 md:px-5 py-3 text-sm text-gray-700">{formatDate(p.ach_date || p.payment_date)}</td>
-                  <td className="px-4 md:px-5 py-3 text-sm">
-                    {isPending
-                      ? <span className="text-blue-500 font-medium">{formatDate(p.settlement_date)}</span>
-                      : <span className="text-gray-400">{p.settlement_date ? formatDate(p.settlement_date) : "—"}</span>
-                    }
-                  </td>
-                  <td className="px-4 md:px-5 py-3">
-                    {isPending
-                      ? <span className="inline-block rounded-full bg-blue-50 border border-blue-200 px-2.5 py-0.5 text-xs font-medium text-blue-600">Pending settlement</span>
-                      : <TypeBadge description={p.description} />
-                    }
-                  </td>
-                  <td className="px-4 md:px-5 py-3 text-right text-sm">
-                    {p.credit > 0 ? <span className="font-medium text-gray-900">{money(Number(p.credit))}</span> : <span className="text-gray-300">—</span>}
-                  </td>
-                  <td className="px-4 md:px-5 py-3 text-right text-sm">
-                    {p.debit > 0
-                      ? <span className={`font-medium ${isPending ? "text-blue-600" : "text-gray-900"}`}>{money(Number(p.debit))}</span>
-                      : <span className="text-gray-300">—</span>}
-                  </td>
-                  <td className="px-4 md:px-5 py-3 text-right text-sm">
-                    {p.returns > 0 ? <span className="font-medium text-red-600">{money(Number(p.returns))}</span> : <span className="text-gray-300">—</span>}
-                  </td>
-                  <td className="px-4 md:px-5 py-3 text-right text-sm">
-                    {isPending
-                      ? <span className="text-gray-400 italic text-xs">pending</span>
-                      : p.running_balance != null
-                        ? <span className="font-medium text-gray-900">{money(Number(p.running_balance))}</span>
-                        : <span className="text-gray-300">—</span>
-                    }
-                  </td>
-                </tr>
+                <>
+                  <tr key={p.id || idx}
+                    className={`border-b border-gray-50 transition-colors ${isEditing ? "bg-blue-50" : "hover:bg-gray-50"}`}>
+                    <td className="px-4 md:px-5 py-3 text-sm text-gray-700">{formatDate(p.ach_date || p.payment_date)}</td>
+                    <td className="px-4 md:px-5 py-3 text-sm">
+                      {isPending
+                        ? <span className="text-blue-500 font-medium">{formatDate(p.settlement_date)}</span>
+                        : <span className="text-gray-400">{p.settlement_date ? formatDate(p.settlement_date) : "—"}</span>}
+                    </td>
+                    <td className="px-4 md:px-5 py-3">
+                      {isPending
+                        ? <span className="inline-block rounded-full bg-blue-50 border border-blue-200 px-2.5 py-0.5 text-xs font-medium text-blue-600">Pending settlement</span>
+                        : <TypeBadge description={p.description} />}
+                    </td>
+                    <td className="px-4 md:px-5 py-3 text-right text-sm">
+                      {p.credit > 0 ? <span className="font-medium text-gray-900">{money(Number(p.credit))}</span> : <span className="text-gray-300">—</span>}
+                    </td>
+                    <td className="px-4 md:px-5 py-3 text-right text-sm">
+                      {p.debit > 0
+                        ? <span className={`font-medium ${isPending ? "text-blue-600" : "text-gray-900"}`}>{money(Number(p.debit))}</span>
+                        : <span className="text-gray-300">—</span>}
+                    </td>
+                    <td className="px-4 md:px-5 py-3 text-right text-sm">
+                      {p.returns > 0 ? <span className="font-medium text-red-600">{money(Number(p.returns))}</span> : <span className="text-gray-300">—</span>}
+                    </td>
+                    <td className="px-4 md:px-5 py-3 text-right text-sm">
+                      {isPending
+                        ? <span className="text-gray-400 italic text-xs">pending</span>
+                        : p.running_balance != null
+                          ? <span className="font-medium text-gray-900">{money(Number(p.running_balance))}</span>
+                          : <span className="text-gray-300">—</span>}
+                    </td>
+                    {isAdminView && (
+                      <td className="px-4 md:px-5 py-3 text-right">
+                        <div className="flex items-center justify-end gap-1.5">
+                          <button
+                            onClick={() => { setEditingId(isEditing ? null : p.id); setShowAddForm(false); }}
+                            className={`rounded px-2 py-1 text-[10px] font-medium transition-colors ${isEditing ? "bg-blue-100 text-blue-700" : "border border-gray-200 text-gray-500 hover:bg-gray-50"}`}>
+                            {isEditing ? "Cancel" : "Edit"}
+                          </button>
+                          <button
+                            onClick={() => handleDelete(p)}
+                            disabled={isDeleting}
+                            className="rounded px-2 py-1 text-[10px] font-medium border border-red-100 text-red-500 hover:bg-red-50 transition-colors disabled:opacity-40">
+                            {isDeleting ? "..." : "Delete"}
+                          </button>
+                        </div>
+                      </td>
+                    )}
+                  </tr>
+                  {isEditing && client && (
+                    <EditPaymentRow
+                      key={`edit-${p.id}`}
+                      payment={p}
+                      client={client}
+                      onSuccess={handleSuccess}
+                      onCancel={() => setEditingId(null)}
+                    />
+                  )}
+                </>
               );
             })}
             {payments.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-5 py-8 text-center text-sm text-gray-400">No payment history yet.</td>
+                <td colSpan={isAdminView ? 8 : 7} className="px-5 py-8 text-center text-sm text-gray-400">
+                  No payment history yet.
+                </td>
               </tr>
             )}
           </tbody>
