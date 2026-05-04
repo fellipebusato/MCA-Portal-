@@ -7,6 +7,7 @@ type ClientDashboardProps = {
   selectedClient: any;
   payments: any[];
   isAdminView?: boolean;
+  onPaymentAdded?: () => void;
 };
 
 const PAYMENT_LINK = "https://zohosecurepay.com/checkout/iuh0ui5-xp013mz2w5xz9/CFG-Merchant-Solutions-Payment-Portal";
@@ -198,10 +199,11 @@ function MiniCalendar({
   );
 }
 
-export default function ClientDashboard({ selectedClient, payments, isAdminView }: ClientDashboardProps) {
+export default function ClientDashboard({ selectedClient, payments, isAdminView, onPaymentAdded }: ClientDashboardProps) {
   const today = new Date();
   const [calYear, setCalYear] = useState(today.getFullYear());
   const [calMonth, setCalMonth] = useState(today.getMonth());
+  const [showAddPayment, setShowAddPayment] = useState(false);
 
   const percentPaid = 100 - (Number(selectedClient.balance || 0) / Number(selectedClient.payback || 1)) * 100;
   const safePercent = Math.max(0, Math.min(100, percentPaid));
@@ -284,6 +286,11 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView 
     </div>
   ) : null;
 
+  function handlePaymentAdded() {
+    setShowAddPayment(false);
+    onPaymentAdded?.();
+  }
+
   return (
     <div className="space-y-4">
 
@@ -298,23 +305,37 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView 
             </p>
           </div>
           <div className="flex flex-col gap-2">
-            {isAdminView && selectedClient.client_email && (
+            {isAdminView && (
               <div className="flex flex-wrap gap-2">
-                <a href={buildGeneralEmail(selectedClient)}
-                  className="flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 transition-colors">
-                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                    <path d="M1 3l5 3.5L11 3M1 3h10v7H1V3z" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+                {/* Add payment button in header */}
+                <button
+                  onClick={() => setShowAddPayment(v => !v)}
+                  className="flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-100 transition-colors"
+                >
+                  <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
+                    <path d="M5.5 1v9M1 5.5h9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
                   </svg>
-                  Send notice
-                </a>
-                {hasMissedPayments && (
-                  <a href={buildMissedPaymentEmail(selectedClient, payments)}
-                    className="flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-medium text-red-700 hover:bg-red-100 transition-colors">
-                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                      <path d="M1 3l5 3.5L11 3M1 3h10v7H1V3z" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
-                    </svg>
-                    Missed payment notice
-                  </a>
+                  Add payment
+                </button>
+                {selectedClient.client_email && (
+                  <>
+                    <a href={buildGeneralEmail(selectedClient)}
+                      className="flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 transition-colors">
+                      <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                        <path d="M1 3l5 3.5L11 3M1 3h10v7H1V3z" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                      Send notice
+                    </a>
+                    {hasMissedPayments && (
+                      <a href={buildMissedPaymentEmail(selectedClient, payments)}
+                        className="flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-medium text-red-700 hover:bg-red-100 transition-colors">
+                        <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                          <path d="M1 3l5 3.5L11 3M1 3h10v7H1V3z" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+                        </svg>
+                        Missed payment notice
+                      </a>
+                    )}
+                  </>
                 )}
               </div>
             )}
@@ -327,17 +348,11 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView 
         </div>
       </div>
 
-      {/* 
-        LAYOUT STRATEGY:
-        - Mobile/tablet: single column, calendar below standing banner
-        - Desktop (lg+): two columns — left=stats/progress/standing/attention, right=calendar sidebar
-      */}
+      {/* Main layout */}
       <div className="flex flex-col lg:flex-row gap-4 lg:gap-5 lg:items-start">
-
-        {/* LEFT column — stats, progress, standing, attention */}
         <div className="flex-1 min-w-0 space-y-4">
 
-          {/* Stats — 2 cols always */}
+          {/* Stats */}
           <div className="grid grid-cols-2 gap-3">
             <div className="rounded-xl bg-white border border-gray-100 p-4">
               <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">Funded</p>
@@ -358,7 +373,7 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView 
             </div>
           </div>
 
-          {/* Progress bar */}
+          {/* Progress */}
           <div className="rounded-xl bg-white border border-gray-100 p-4">
             <div className="flex items-center justify-between mb-3">
               <p className="text-sm font-medium text-gray-900">Repayment progress</p>
@@ -375,7 +390,7 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView 
             </div>
           </div>
 
-          {/* Standing banner */}
+          {/* Standing */}
           {isGoodStanding ? (
             <div className="rounded-xl bg-emerald-50 border border-emerald-100 p-4 flex items-center gap-3">
               <div className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-100 flex-shrink-0">
@@ -438,27 +453,25 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView 
             </div>
           )}
 
-          {/* Calendar — only shows here on mobile/tablet */}
-          {showCalendar && (
-            <div className="lg:hidden">
-              {calendarPanel}
-            </div>
-          )}
-
+          {/* Calendar mobile */}
+          {showCalendar && <div className="lg:hidden">{calendarPanel}</div>}
         </div>
 
-        {/* RIGHT column — calendar sidebar, desktop only */}
+        {/* Calendar desktop sidebar */}
         {showCalendar && (
           <div className="hidden lg:block flex-shrink-0 w-48 sticky top-20">
             {calendarPanel}
           </div>
         )}
-
       </div>
 
-      {/* Payment history — always full width below */}
-      <PaymentHistory payments={payments} />
-
+      {/* Payment history — full width, with add payment form built in */}
+      <PaymentHistory
+        payments={payments}
+        client={selectedClient}
+        isAdminView={isAdminView}
+        onPaymentAdded={handlePaymentAdded}
+      />
     </div>
   );
 }
