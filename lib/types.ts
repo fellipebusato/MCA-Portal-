@@ -3,6 +3,8 @@
 
 export type PaymentStatus = "active" | "paused" | "frozen" | "paid_off" | "weekly_off";
 
+export type BusinessType = "llc" | "sole_prop" | "corp" | "partnership" | "other";
+
 export interface Organization {
   id: string;
   name: string;
@@ -33,6 +35,14 @@ export interface Client {
   total_returns: number;
   last_return_date: string | null;
   maturity_date: string | null;
+  // Business profile
+  state: string | null;
+  sic_code: string | null;
+  business_type: BusinessType | null;
+  fico_score: number | null;
+  avg_monthly_revenue: number | null;
+  time_in_business_months: number | null;
+  position: number | null;
 }
 
 export interface Payment {
@@ -69,6 +79,14 @@ export interface NewClientForm {
   totalTerm: string;
   paymentFrequency: "daily" | "weekly";
   paymentDay: string;
+  // Business profile
+  state: string;
+  sicCode: string;
+  businessType: string;
+  ficoScore: string;
+  avgMonthlyRevenue: string;
+  timeInBusinessMonths: string;
+  position: string;
 }
 
 export interface ParsedPaymentRow {

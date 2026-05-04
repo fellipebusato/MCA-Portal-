@@ -142,6 +142,10 @@ const EDIT_FIELDS: [string, string, string][] = [
   ["payment", "Payment amount", "text"],
   ["total_term", "Total term (business days)", "text"],
   ["status", "Account standing", "text"],
+  ["fico_score", "FICO / Credit score", "text"],
+  ["avg_monthly_revenue", "Avg monthly revenue ($)", "text"],
+  ["time_in_business_months", "Time in business (months)", "text"],
+  ["sic_code", "SIC code", "text"],
 ];
 
 const DAYS = ["monday", "tuesday", "wednesday", "thursday", "friday"];
@@ -275,6 +279,52 @@ export default function AdminDashboard({
                 <option value="weekly">Weekly</option>
               </select>
             </div>
+
+            {/* Business profile */}
+<div className="col-span-2 md:col-span-3 pt-2 border-t border-gray-100 mt-1">
+  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Business profile</p>
+  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+    <div>
+      <label className="block text-xs text-gray-400 mb-1">State</label>
+      <select
+        className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:border-gray-400 bg-white"
+        value={(editingClient as any).state || ""}
+        onChange={(e) => setEditingClient({ ...editingClient, state: e.target.value } as Client)}>
+        <option value="">Select state</option>
+        {["AL","AK","AZ","AR","CA","CO","CT","DE","FL","GA","HI","ID","IL","IN","IA","KS","KY","LA","ME","MD","MA","MI","MN","MS","MO","MT","NE","NV","NH","NJ","NM","NY","NC","ND","OH","OK","OR","PA","RI","SC","SD","TN","TX","UT","VT","VA","WA","WV","WI","WY","DC"].map(s => (
+          <option key={s} value={s}>{s}</option>
+        ))}
+      </select>
+    </div>
+    <div>
+      <label className="block text-xs text-gray-400 mb-1">Business type</label>
+      <select
+        className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:border-gray-400 bg-white"
+        value={(editingClient as any).business_type || ""}
+        onChange={(e) => setEditingClient({ ...editingClient, business_type: e.target.value } as any)}>
+        <option value="">Select type</option>
+        <option value="llc">LLC</option>
+        <option value="sole_prop">Sole Proprietorship</option>
+        <option value="corp">Corporation</option>
+        <option value="partnership">Partnership</option>
+        <option value="other">Other</option>
+      </select>
+    </div>
+    <div>
+      <label className="block text-xs text-gray-400 mb-1">Position</label>
+      <select
+        className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:border-gray-400 bg-white"
+        value={(editingClient as any).position || ""}
+        onChange={(e) => setEditingClient({ ...editingClient, position: Number(e.target.value) } as any)}>
+        <option value="">Select position</option>
+        <option value="1">1st position</option>
+        <option value="2">2nd position</option>
+        <option value="3">3rd position</option>
+        <option value="4">4th+ position</option>
+      </select>
+    </div>
+  </div>
+</div>
 
             {/* Weekly payment day */}
             {editingClient.payment_frequency === "weekly" && (

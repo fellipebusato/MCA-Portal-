@@ -327,6 +327,13 @@ export default function Home() {
       status: "Good Standing",
       payment_status: "active",
       total_returns: 0,
+      state: newClient.state || null,
+      sic_code: newClient.sicCode || null,
+      business_type: newClient.businessType || null,
+      fico_score: newClient.ficoScore ? Number(newClient.ficoScore) : null,
+      avg_monthly_revenue: newClient.avgMonthlyRevenue ? Number(newClient.avgMonthlyRevenue) : null,
+      time_in_business_months: newClient.timeInBusinessMonths ? Number(newClient.timeInBusinessMonths) : null,
+      position: newClient.position ? Number(newClient.position) : null,
     };
     const { error } = await supabase.from("clients").insert([client]);
     if (error) { alert(error.message); return; }
@@ -334,6 +341,8 @@ export default function Home() {
       businessName: "", invoice: "", ownerName: "", clientEmail: "",
       fundedDate: "", funded: "", payback: "", payment: "", totalTerm: "",
       paymentFrequency: "daily", paymentDay: "",
+      state: "", sicCode: "", businessType: "", ficoScore: "",
+      avgMonthlyRevenue: "", timeInBusinessMonths: "", position: "",
     });
     await fetchClients(1, searchQuery, filterAttention);
     await fetchAllClients();
@@ -372,6 +381,13 @@ export default function Home() {
       payment_status: client.payment_status || "active",
       pause_start: client.pause_start || null,
       pause_end: client.pause_end || null,
+      state: client.state || null,
+      sic_code: client.sic_code || null,
+      business_type: client.business_type || null,
+      fico_score: client.fico_score ? Number(client.fico_score) : null,
+      avg_monthly_revenue: client.avg_monthly_revenue ? Number(client.avg_monthly_revenue) : null,
+      time_in_business_months: client.time_in_business_months ? Number(client.time_in_business_months) : null,
+      position: client.position ? Number(client.position) : null,
     }).eq("id", client.id);
     if (error) { alert(error.message); return; }
     await fetchClients(currentPage, searchQuery, filterAttention);
