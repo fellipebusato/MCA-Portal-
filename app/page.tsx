@@ -206,6 +206,7 @@ export default function Home() {
 
   async function openClient(client: any) {
     setSelectedClient(client);
+    setPayments([]);
     await fetchPayments(client.invoice);
     setView("client");
   }
