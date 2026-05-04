@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import PaymentHistory from "./PaymentHistory";
+import { CONTACT, PORTAL, PAYMENT_LINK } from "@/lib/config";
 
 type ClientDashboardProps = {
   selectedClient: any;
@@ -9,9 +10,6 @@ type ClientDashboardProps = {
   isAdminView?: boolean;
   onPaymentAdded?: () => void;
 };
-
-const PAYMENT_LINK = "https://zohosecurepay.com/checkout/iuh0ui5-xp013mz2w5xz9/CFG-Merchant-Solutions-Payment-Portal";
-const PORTAL_URL = "https://mcaportal-fb.vercel.app";
 
 function money(amount: number) {
   return amount.toLocaleString("en-US", { style: "currency", currency: "USD" });
@@ -24,11 +22,20 @@ function formatDate(date: string) {
   return utc.toLocaleDateString("en-US", { month: "2-digit", day: "2-digit", year: "numeric" });
 }
 
+// Shared holidays 2025–2028 — single source of truth
 const BANK_HOLIDAYS = new Set([
+  // 2025
+  "2025-01-01","2025-01-20","2025-02-17","2025-05-26","2025-06-19",
+  "2025-07-04","2025-09-01","2025-10-13","2025-11-11","2025-11-27","2025-12-25",
+  // 2026
   "2026-01-01","2026-01-19","2026-02-16","2026-05-25","2026-06-19",
   "2026-07-03","2026-09-07","2026-10-12","2026-11-11","2026-11-26","2026-12-25",
+  // 2027
   "2027-01-01","2027-01-18","2027-02-15","2027-05-31","2027-06-18",
   "2027-07-05","2027-09-06","2027-10-11","2027-11-11","2027-11-25","2027-12-24",
+  // 2028
+  "2028-01-01","2028-01-17","2028-02-21","2028-05-27","2028-06-19",
+  "2028-07-04","2028-09-04","2028-10-09","2028-11-11","2028-11-23","2028-12-25",
 ]);
 
 const DAY_NAME_TO_NUM: Record<string, number> = {
@@ -54,7 +61,6 @@ function addBusinessDaysToDate(start: Date, days: number): Date {
   return result;
 }
 
-// Daily: every business day — holidays are naturally skipped, term extends
 function buildDailyTermDays(startDate: Date, totalTerm: number): Set<string> {
   const days = new Set<string>();
   const cursor = new Date(startDate);
@@ -69,28 +75,22 @@ function buildDailyTermDays(startDate: Date, totalTerm: number): Set<string> {
   return days;
 }
 
-// Weekly: scheduled on target day, but if holiday → move to next Monday
-// If that Monday is also a holiday, keep moving forward until a business day
 function buildWeeklyTermDays(startDate: Date, totalTerm: number, paymentDayName: string): Set<string> {
   const days = new Set<string>();
   const targetDow = DAY_NAME_TO_NUM[paymentDayName.toLowerCase()] ?? 5;
   const cursor = new Date(startDate);
   let count = 0;
 
-  // Find first occurrence of target day on or after startDate
   while (cursor.getDay() !== targetDow) cursor.setDate(cursor.getDate() + 1);
 
   while (count < totalTerm) {
     let paymentDate = new Date(cursor);
 
     if (isHoliday(paymentDate)) {
-      // Move to next Monday (or next business day after Monday if also holiday)
       paymentDate = new Date(cursor);
-      // Find next Monday
       do {
         paymentDate.setDate(paymentDate.getDate() + 1);
-      } while (paymentDate.getDay() !== 1); // 1 = Monday
-      // If Monday is also a holiday, keep moving forward
+      } while (paymentDate.getDay() !== 1);
       while (!isBusinessDay(paymentDate)) {
         paymentDate.setDate(paymentDate.getDate() + 1);
       }
@@ -98,7 +98,7 @@ function buildWeeklyTermDays(startDate: Date, totalTerm: number, paymentDayName:
 
     days.add(toDateStr(paymentDate));
     count++;
-    cursor.setDate(cursor.getDate() + 7); // advance to next week's target day
+    cursor.setDate(cursor.getDate() + 7);
   }
 
   return days;
@@ -135,8 +135,8 @@ function buildGeneralEmail(client: any): string {
     `Hello ${client.owner_name || client.business_name},\n\n` +
     `Your account (${client.invoice}) is not in good standing. ` +
     `Please contact me directly or log in to your portal for instructions:\n\n` +
-    `${PORTAL_URL}\n\n` +
-    `Best regards,\nFellipe Busato\nfbusato@cfgms.com\n+1 (917) 920-0881`
+    `${PORTAL.url}\n\n` +
+    `Best regards,\n${CONTACT.name}\n${CONTACT.email}\n${CONTACT.phone}`
   );
   return `mailto:${to}?subject=${subject}&body=${body}`;
 }
@@ -153,9 +153,9 @@ function buildMissedPaymentEmail(client: any, payments: any[]): string {
     `Hello ${client.owner_name || client.business_name},\n\n` +
     `You have missed payment(s) on the following date(s): ${dateList}.\n\n` +
     `Please log in to your portal for additional instructions:\n\n` +
-    `${PORTAL_URL}\n\n` +
+    `${PORTAL.url}\n\n` +
     `You may also pay via Zelle at invoices@cfgms.com — please include your invoice number (${client.invoice}) or business name.\n\n` +
-    `Best regards,\nFellipe Busato\nfbusato@cfgms.com\n+1 (917) 920-0881`
+    `Best regards,\n${CONTACT.name}\n${CONTACT.email}\n${CONTACT.phone}`
   );
   return `mailto:${to}?subject=${subject}&body=${body}`;
 }
@@ -247,11 +247,9 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
   const today = new Date();
   const [calYear, setCalYear] = useState(today.getFullYear());
   const [calMonth, setCalMonth] = useState(today.getMonth());
-  const [showAddPayment, setShowAddPayment] = useState(false);
 
   const percentPaid = 100 - (Number(selectedClient.balance || 0) / Number(selectedClient.payback || 1)) * 100;
   const safePercent = Math.max(0, Math.min(100, percentPaid));
-  const isGoodStanding = selectedClient.status === "Good Standing";
   const isWeeklyClient = selectedClient.payment_frequency === "weekly";
   const paymentDayName = (selectedClient.payment_day || "").toLowerCase();
   const paymentFrequencyLabel = isWeeklyClient
@@ -269,17 +267,13 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
       : buildDailyTermDays(fundedDate, totalTerm)
     : new Set<string>();
 
-  // For weekly: identify which days are "moved from holiday" (orange)
-  // These are days in termDays that fall on a Monday but the target day is not Monday
+  // For weekly: identify holiday-moved days (orange)
   const holidayMovedDays = new Set<string>();
   if (isWeeklyClient && paymentDayName && fundedDate && totalTerm > 0) {
     const targetDow = DAY_NAME_TO_NUM[paymentDayName.toLowerCase()] ?? 5;
     for (const dateStr of Array.from(termDays)) {
       const d = new Date(dateStr + "T00:00:00");
-      // If this day is not the target day of the week, it was moved
-      if (d.getDay() !== targetDow) {
-        holidayMovedDays.add(dateStr);
-      }
+      if (d.getDay() !== targetDow) holidayMovedDays.add(dateStr);
     }
   }
 
@@ -296,21 +290,14 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
   const paymentDays = buildPaymentDays(payments);
   const missedDays = buildMissedDays(payments);
 
-  // Count actual returned/missed payments from payment history
   const returnedPayments = payments.filter(p => {
     const desc = (p.description || "").toLowerCase();
     return desc.includes("return") || desc.includes("missed");
   });
 
-  // Bad standing: 2+ returned/missed for daily, 1+ for weekly
   const badStanding = isWeeklyClient
     ? returnedPayments.length >= 1
     : returnedPayments.length >= 2;
-
-  const missedCount = Array.from(termDays).filter(d => {
-    const date = new Date(d + "T00:00:00");
-    return date <= today && !paymentDays.has(d) && !missedDays.has(d);
-  }).length;
 
   function prevMonth() {
     if (calMonth === 0) { setCalMonth(11); setCalYear(y => y - 1); }
@@ -321,45 +308,24 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
     else setCalMonth(m => m + 1);
   }
 
-  const canGoPrev = calYear > 2026 || (calYear === 2026 && calMonth > 0);
-  const canGoNext = calYear < 2027 || (calYear === 2027 && calMonth < 11);
+  // Calendar nav bounds — dynamic based on funded date and term end date
+  // Allow 1 month before funded date and 1 month after term end (or +2 years fallback)
+  const calMinYear = fundedDate ? fundedDate.getFullYear() : today.getFullYear();
+  const calMinMonth = fundedDate ? Math.max(0, fundedDate.getMonth() - 1) : 0;
+  const calMaxDate = termEndDate || new Date(today.getFullYear() + 2, today.getMonth(), 1);
+  const calMaxYear = calMaxDate.getFullYear();
+  const calMaxMonth = Math.min(11, calMaxDate.getMonth() + 1);
+
+  const canGoPrev = calYear > calMinYear || (calYear === calMinYear && calMonth > calMinMonth);
+  const canGoNext = calYear < calMaxYear || (calYear === calMaxYear && calMonth < calMaxMonth);
+
   const showCalendar = !!(fundedDate);
   const hasMissedPayments = payments.some(p => {
     const desc = (p.description || "").toLowerCase();
     return desc.includes("missed") || desc.includes("return");
   });
 
-  const calendarPanel = showCalendar ? (
-    <div className="space-y-3">
-      <div className="rounded-xl bg-white border border-gray-100 p-4">
-        <div className="mb-2">
-          <p className="text-xs font-semibold text-gray-700">Payment calendar</p>
-          <p className="text-[9px] text-gray-400 mt-0.5">
-            {totalTerm} {isWeeklyClient ? "weekly" : "business day"} term
-            {termEndDate && ` · ends ${formatDate(termEndDate.toISOString().split("T")[0])}`}
-          </p>
-          {isWeeklyClient && paymentDayName && (
-            <p className="text-[9px] text-blue-500 mt-0.5 font-medium">
-              Every {paymentDayName.charAt(0).toUpperCase() + paymentDayName.slice(1)}
-              {holidayMovedDays.size > 0 && ` · ${holidayMovedDays.size} moved to Monday`}
-            </p>
-          )}
-        </div>
-        <MiniCalendar
-          year={calYear} month={calMonth}
-          termDays={termDays} paymentDays={paymentDays}
-          missedDays={missedDays} holidayMovedDays={holidayMovedDays}
-          today={today} onPrev={prevMonth} onNext={nextMonth}
-          canPrev={canGoPrev} canNext={canGoNext}
-        />
-      </div>
-
-
-    </div>
-  ) : null;
-
   function handlePaymentAdded() {
-    setShowAddPayment(false);
     onPaymentAdded?.();
   }
 
@@ -379,14 +345,6 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
           <div className="flex flex-col gap-2">
             {isAdminView && (
               <div className="flex flex-wrap gap-2">
-                <button
-                  onClick={() => setShowAddPayment(v => !v)}
-                  className="flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-100 transition-colors">
-                  <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
-                    <path d="M5.5 1v9M1 5.5h9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-                  </svg>
-                  Add payment
-                </button>
                 {selectedClient.client_email && (
                   <>
                     <a href={buildGeneralEmail(selectedClient)}
@@ -411,14 +369,14 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
             )}
             <div className="sm:text-right">
               <p className="text-xs text-gray-400 mb-0.5">Need help?</p>
-              <p className="text-sm font-medium text-gray-900">fbusato@cfgms.com</p>
-              <p className="text-sm text-gray-500">+1 (917) 920-0881</p>
+              <p className="text-sm font-medium text-gray-900">{CONTACT.email}</p>
+              <p className="text-sm text-gray-500">{CONTACT.phone}</p>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Main layout — stats/progress/standing on left, calendar on right */}
+      {/* Main layout */}
       <div className="flex flex-col lg:flex-row gap-4 lg:gap-5 lg:items-start">
         <div className="flex-1 min-w-0 space-y-4">
 
@@ -460,7 +418,7 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
             </div>
           </div>
 
-          {/* Standing — simple: good unless 2+ daily returns or 1+ weekly return */}
+          {/* Standing */}
           {!badStanding ? (
             <div className="rounded-xl bg-emerald-50 border border-emerald-100 p-4 flex items-center gap-3">
               <div className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-100 flex-shrink-0">
@@ -492,7 +450,7 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
             </div>
           )}
 
-          {/* Payment action box — between notice and payment history */}
+          {/* Payment action box */}
           {badStanding && (
             <div className="rounded-xl border border-red-200 bg-red-50 p-4 space-y-2">
               <a href={PAYMENT_LINK} target="_blank" rel="noopener noreferrer"
@@ -509,15 +467,38 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
 
         </div>
 
-        {/* Calendar — always visible when data exists */}
+        {/* Calendar */}
         {showCalendar && (
           <div className="flex-shrink-0 w-48 sticky top-20">
-            {calendarPanel}
+            <div className="space-y-3">
+              <div className="rounded-xl bg-white border border-gray-100 p-4">
+                <div className="mb-2">
+                  <p className="text-xs font-semibold text-gray-700">Payment calendar</p>
+                  <p className="text-[9px] text-gray-400 mt-0.5">
+                    {totalTerm} {isWeeklyClient ? "weekly" : "business day"} term
+                    {termEndDate && ` · ends ${formatDate(termEndDate.toISOString().split("T")[0])}`}
+                  </p>
+                  {isWeeklyClient && paymentDayName && (
+                    <p className="text-[9px] text-blue-500 mt-0.5 font-medium">
+                      Every {paymentDayName.charAt(0).toUpperCase() + paymentDayName.slice(1)}
+                      {holidayMovedDays.size > 0 && ` · ${holidayMovedDays.size} moved to Monday`}
+                    </p>
+                  )}
+                </div>
+                <MiniCalendar
+                  year={calYear} month={calMonth}
+                  termDays={termDays} paymentDays={paymentDays}
+                  missedDays={missedDays} holidayMovedDays={holidayMovedDays}
+                  today={today} onPrev={prevMonth} onNext={nextMonth}
+                  canPrev={canGoPrev} canNext={canGoNext}
+                />
+              </div>
+            </div>
           </div>
         )}
       </div>
 
-      {/* Payment history */}
+      {/* Payment history — Add Payment button lives here only, not duplicated above */}
       <PaymentHistory
         payments={payments}
         client={selectedClient}

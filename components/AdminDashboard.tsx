@@ -1,31 +1,58 @@
 "use client";
 
 import { useState } from "react";
+import { CONTACT, PORTAL } from "@/lib/config";
 
 type AdminDashboardProps = {
   clients: any[];
+  payments: any[];
   openClient: (client: any) => void;
   handlePaymentUpload: (e: any) => void;
   deleteClient: (client: any) => void;
   updateClient: (client: any) => void;
+  uploading?: boolean;
 };
 
 function money(amount: number) {
   return amount.toLocaleString("en-US", { style: "currency", currency: "USD" });
 }
 
-function daysSinceLastPayment(client: any): number {
-  if (!client.last_payment_date) return 999;
-  const last = new Date(client.last_payment_date);
-  const today = new Date();
-  return Math.floor((today.getTime() - last.getTime()) / (1000 * 60 * 60 * 24));
+// Derives last payment date from the payments array directly —
+// fixes the broken last_payment_date column that doesn't exist on clients table
+function getLastPaymentDate(clientInvoice: string, allPayments: any[]): Date | null {
+  const clientPayments = allPayments.filter((p) => {
+    if (p.invoice?.trim().toLowerCase() !== clientInvoice?.trim().toLowerCase()) return false;
+    const desc = (p.description || "").toLowerCase();
+    return !desc.includes("missed") && !desc.includes("return") && !desc.includes("initial");
+  });
+  if (clientPayments.length === 0) return null;
+  const sorted = [...clientPayments].sort((a, b) => {
+    const da = new Date(a.settlement_date || a.ach_date || a.payment_date).getTime();
+    const db = new Date(b.settlement_date || b.ach_date || b.payment_date).getTime();
+    return db - da;
+  });
+  const latest = sorted[0];
+  const dateStr = latest.settlement_date || latest.ach_date || latest.payment_date;
+  return dateStr ? new Date(dateStr) : null;
 }
 
-function businessDaysSince(days: number): string {
-  if (days === 999) return "No payments recorded";
-  if (days === 0) return "Paid today";
-  if (days === 1) return "1 day ago";
-  return `${days} days ago`;
+function businessDaysSinceDate(date: Date | null): string {
+  if (!date) return "No payments recorded";
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  if (d >= today) return "Paid today";
+  const diffDays = Math.floor((today.getTime() - d.getTime()) / (1000 * 60 * 60 * 24));
+  if (diffDays === 1) return "1 day ago";
+  return `${diffDays} days ago`;
+}
+
+function isUrgent(date: Date | null): boolean {
+  if (!date) return true;
+  const today = new Date();
+  const diffDays = Math.floor((today.getTime() - date.getTime()) / (1000 * 60 * 60 * 24));
+  return diffDays > 7;
 }
 
 function StatusBadge({ status }: { status: string }) {
@@ -50,8 +77,8 @@ function buildGeneralEmail(client: any): string {
     `Hello ${client.owner_name || client.business_name},\n\n` +
     `Your account (${client.invoice}) is not in good standing. ` +
     `Please contact me directly or log in to your portal for instructions:\n\n` +
-    `https://mcaportal-fb.vercel.app\n\n` +
-    `Best regards,\nFellipe Busato\nfbusato@cfgms.com\n+1 (917) 920-0881`
+    `${PORTAL.url}\n\n` +
+    `Best regards,\n${CONTACT.name}\n${CONTACT.email}\n${CONTACT.phone}`
   );
   return `mailto:${to}?subject=${subject}&body=${body}`;
 }
@@ -73,7 +100,8 @@ const EDIT_FIELDS: [string, string, string][] = [
 const DAYS = ["monday", "tuesday", "wednesday", "thursday", "friday"];
 
 export default function AdminDashboard({
-  clients, openClient, handlePaymentUpload, deleteClient, updateClient,
+  clients, payments, openClient, handlePaymentUpload,
+  deleteClient, updateClient, uploading = false,
 }: AdminDashboardProps) {
   const [editingClient, setEditingClient] = useState<any>(null);
   const [filterAttention, setFilterAttention] = useState(false);
@@ -85,7 +113,6 @@ export default function AdminDashboard({
   const dailyClients = clients.filter((c) => c.payment_frequency === "daily").length;
   const weeklyClients = clients.filter((c) => c.payment_frequency === "weekly").length;
 
-  // Filter by attention AND search
   const baseClients = filterAttention ? attentionClients : clients;
   const displayedClients = searchQuery.trim()
     ? baseClients.filter((c) => {
@@ -140,18 +167,40 @@ export default function AdminDashboard({
 
       {/* Upload banner */}
       <div className="rounded-xl bg-white border border-gray-100 p-5 flex items-center gap-4">
-        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-50 flex-shrink-0">
-          <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-            <path d="M9 2v10M5 6l4-4 4 4M2 14h14" stroke="#059669" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
+        <div className={`flex h-10 w-10 items-center justify-center rounded-lg flex-shrink-0 ${uploading ? "bg-blue-50" : "bg-emerald-50"}`}>
+          {uploading ? (
+            <svg className="animate-spin" width="18" height="18" viewBox="0 0 18 18" fill="none">
+              <circle cx="9" cy="9" r="7" stroke="#3b82f6" strokeWidth="2" strokeDasharray="22" strokeDashoffset="8"/>
+            </svg>
+          ) : (
+            <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+              <path d="M9 2v10M5 6l4-4 4 4M2 14h14" stroke="#059669" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          )}
         </div>
         <div className="flex-1">
-          <p className="text-sm font-medium text-gray-900">Upload daily payments report</p>
-          <p className="text-xs text-gray-400 mt-0.5">Upload your ACH Works .xls file. Payments matched by invoice number automatically.</p>
+          <p className="text-sm font-medium text-gray-900">
+            {uploading ? "Processing payments..." : "Upload daily payments report"}
+          </p>
+          <p className="text-xs text-gray-400 mt-0.5">
+            {uploading
+              ? "Matching invoices and updating balances — please wait."
+              : "Upload your ACH Works .xls file. Payments matched by invoice number automatically."}
+          </p>
         </div>
-        <label className="cursor-pointer rounded-lg border border-gray-200 bg-gray-50 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 transition-colors flex-shrink-0">
-          Choose file
-          <input type="file" accept=".csv,.xls,.xlsx" onChange={handlePaymentUpload} className="hidden" />
+        <label className={`cursor-pointer rounded-lg border px-4 py-2 text-sm font-medium transition-colors flex-shrink-0 ${
+          uploading
+            ? "border-gray-100 bg-gray-50 text-gray-300 cursor-not-allowed"
+            : "border-gray-200 bg-gray-50 text-gray-700 hover:bg-gray-100"
+        }`}>
+          {uploading ? "Uploading..." : "Choose file"}
+          <input
+            type="file"
+            accept=".csv,.xls,.xlsx"
+            onChange={handlePaymentUpload}
+            disabled={uploading}
+            className="hidden"
+          />
         </label>
       </div>
 
@@ -226,15 +275,15 @@ export default function AdminDashboard({
           </div>
           <div className="space-y-3">
             {attentionClients.map((client) => {
-              const days = daysSinceLastPayment(client);
-              const isUrgent = days > 7;
+              const lastDate = getLastPaymentDate(client.invoice, payments);
+              const urgent = isUrgent(lastDate);
               return (
                 <div key={client.id} className="rounded-lg bg-white border border-amber-100 p-4">
                   <div className="flex flex-wrap items-center gap-3">
-                    <div className={`flex h-10 w-10 items-center justify-center rounded-full flex-shrink-0 ${isUrgent ? "bg-red-100" : "bg-amber-100"}`}>
+                    <div className={`flex h-10 w-10 items-center justify-center rounded-full flex-shrink-0 ${urgent ? "bg-red-100" : "bg-amber-100"}`}>
                       <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-                        <path d="M9 6v4M9 12v.5" stroke={isUrgent ? "#dc2626" : "#92400e"} strokeWidth="1.8" strokeLinecap="round"/>
-                        <circle cx="9" cy="9" r="7.5" stroke={isUrgent ? "#dc2626" : "#92400e"} strokeWidth="1.2"/>
+                        <path d="M9 6v4M9 12v.5" stroke={urgent ? "#dc2626" : "#92400e"} strokeWidth="1.8" strokeLinecap="round"/>
+                        <circle cx="9" cy="9" r="7.5" stroke={urgent ? "#dc2626" : "#92400e"} strokeWidth="1.2"/>
                       </svg>
                     </div>
                     <div className="flex-1 min-w-0 cursor-pointer" onClick={() => openClient(client)}>
@@ -246,7 +295,9 @@ export default function AdminDashboard({
                       </p>
                     </div>
                     <div className="text-right">
-                      <p className={`text-sm font-semibold ${isUrgent ? "text-red-600" : "text-amber-600"}`}>{businessDaysSince(days)}</p>
+                      <p className={`text-sm font-semibold ${urgent ? "text-red-600" : "text-amber-600"}`}>
+                        {businessDaysSinceDate(lastDate)}
+                      </p>
                       <p className="text-xs text-gray-400 mt-0.5">Last payment</p>
                     </div>
                     <div className="text-right">
@@ -272,7 +323,7 @@ export default function AdminDashboard({
         </div>
       )}
 
-      {/* Client roster with search */}
+      {/* Client roster */}
       <div className="rounded-xl bg-white border border-gray-100 overflow-hidden">
         <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between gap-3">
           <h3 className="text-sm font-semibold text-gray-900 flex-shrink-0">
@@ -280,7 +331,6 @@ export default function AdminDashboard({
             {searchQuery && ` — ${displayedClients.length} result${displayedClients.length !== 1 ? "s" : ""}`}
           </h3>
           <div className="flex items-center gap-2 ml-auto">
-            {/* Search input */}
             <div className="relative">
               <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" width="13" height="13" viewBox="0 0 13 13" fill="none">
                 <circle cx="5.5" cy="5.5" r="4.5" stroke="currentColor" strokeWidth="1.3"/>
@@ -322,7 +372,7 @@ export default function AdminDashboard({
           </thead>
           <tbody>
             {displayedClients.map((client) => {
-              const days = daysSinceLastPayment(client);
+              const lastDate = getLastPaymentDate(client.invoice, payments);
               const scheduleLabel = client.payment_frequency === "weekly"
                 ? `Weekly${client.payment_day ? ` · ${client.payment_day.charAt(0).toUpperCase() + client.payment_day.slice(1)}s` : ""}`
                 : "Daily";
@@ -338,7 +388,9 @@ export default function AdminDashboard({
                   <td className="px-5 py-3.5 text-sm font-medium text-gray-900">{money(Number(client.balance || 0))}</td>
                   <td className="px-5 py-3.5 text-sm text-gray-500">{scheduleLabel}</td>
                   {filterAttention && (
-                    <td className="px-5 py-3.5 text-sm font-medium text-amber-600">{businessDaysSince(days)}</td>
+                    <td className="px-5 py-3.5 text-sm font-medium text-amber-600">
+                      {businessDaysSinceDate(lastDate)}
+                    </td>
                   )}
                   <td className="px-5 py-3.5"><StatusBadge status={client.status} /></td>
                   <td className="px-5 py-3.5">

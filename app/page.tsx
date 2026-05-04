@@ -90,6 +90,7 @@ export default function Home() {
   const [clients, setClients] = useState<any[]>([]);
   const [payments, setPayments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [uploading, setUploading] = useState(false);
   const [selectedClient, setSelectedClient] = useState<any>(null);
   const [view, setView] = useState<"admin" | "client" | "add">("admin");
   const [clientRecord, setClientRecord] = useState<any>(null);
@@ -307,13 +308,14 @@ export default function Home() {
   async function handlePaymentUpload(e: any) {
     const file = e.target.files[0];
     if (!file) return;
+    setUploading(true);
 
     const text = await file.text();
     const today = new Date();
     const todayStr = toDateString(today);
 
     const { data: clientsData } = await supabase.from("clients").select("*");
-    if (!clientsData) return;
+    if (!clientsData) { setUploading(false); return; }
 
     const localClients = clientsData.map((c: any) => ({ ...c }));
     const reportInvoices: string[] = [];
@@ -324,6 +326,7 @@ export default function Home() {
 
     if (parsedRows.length === 0) {
       alert("No valid payment rows found in the file. Please check the format and try again.");
+      setUploading(false);
       return;
     }
 
@@ -406,6 +409,7 @@ export default function Home() {
     let msg = `Upload complete.\n\n${matched} new payments recorded.`;
     if (skippedDuplicates > 0) msg += `\n${skippedDuplicates} duplicate${skippedDuplicates > 1 ? "s" : ""} skipped (already on file).`;
     alert(msg);
+    setUploading(false);
     await fetchClients();
   }
 
@@ -571,7 +575,15 @@ export default function Home() {
           )}
         </div>
         {view === "admin" && (
-          <AdminDashboard clients={clients} openClient={openClient} handlePaymentUpload={handlePaymentUpload} deleteClient={deleteClient} updateClient={updateClient} />
+          <AdminDashboard
+            clients={clients}
+            payments={payments}
+            openClient={openClient}
+            handlePaymentUpload={handlePaymentUpload}
+            deleteClient={deleteClient}
+            updateClient={updateClient}
+            uploading={uploading}
+          />
         )}
         {view === "client" && selectedClient && (
           <ClientDashboard
