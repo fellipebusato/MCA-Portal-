@@ -296,14 +296,21 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
   const paymentDays = buildPaymentDays(payments);
   const missedDays = buildMissedDays(payments);
 
+  // Count actual returned/missed payments from payment history
+  const returnedPayments = payments.filter(p => {
+    const desc = (p.description || "").toLowerCase();
+    return desc.includes("return") || desc.includes("missed");
+  });
+
+  // Bad standing: 2+ returned/missed for daily, 1+ for weekly
+  const badStanding = isWeeklyClient
+    ? returnedPayments.length >= 1
+    : returnedPayments.length >= 2;
+
   const missedCount = Array.from(termDays).filter(d => {
     const date = new Date(d + "T00:00:00");
     return date <= today && !paymentDays.has(d) && !missedDays.has(d);
   }).length;
-
-  const behindLabel = isWeeklyClient
-    ? `${missedCount} ${missedCount === 1 ? "week" : "weeks"} behind schedule`
-    : `${missedCount} ${missedCount === 1 ? "day" : "days"} behind schedule`;
 
   function prevMonth() {
     if (calMonth === 0) { setCalMonth(11); setCalYear(y => y - 1); }
@@ -323,27 +330,46 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
   });
 
   const calendarPanel = showCalendar ? (
-    <div className="rounded-xl bg-white border border-gray-100 p-4">
-      <div className="mb-2">
-        <p className="text-xs font-semibold text-gray-700">Payment calendar</p>
-        <p className="text-[9px] text-gray-400 mt-0.5">
-          {totalTerm} {isWeeklyClient ? "weekly" : "business day"} term
-          {termEndDate && ` · ends ${formatDate(termEndDate.toISOString().split("T")[0])}`}
-        </p>
-        {isWeeklyClient && paymentDayName && (
-          <p className="text-[9px] text-blue-500 mt-0.5 font-medium">
-            Every {paymentDayName.charAt(0).toUpperCase() + paymentDayName.slice(1)}
-            {holidayMovedDays.size > 0 && ` · ${holidayMovedDays.size} moved to Monday`}
+    <div className="space-y-3">
+      <div className="rounded-xl bg-white border border-gray-100 p-4">
+        <div className="mb-2">
+          <p className="text-xs font-semibold text-gray-700">Payment calendar</p>
+          <p className="text-[9px] text-gray-400 mt-0.5">
+            {totalTerm} {isWeeklyClient ? "weekly" : "business day"} term
+            {termEndDate && ` · ends ${formatDate(termEndDate.toISOString().split("T")[0])}`}
           </p>
-        )}
+          {isWeeklyClient && paymentDayName && (
+            <p className="text-[9px] text-blue-500 mt-0.5 font-medium">
+              Every {paymentDayName.charAt(0).toUpperCase() + paymentDayName.slice(1)}
+              {holidayMovedDays.size > 0 && ` · ${holidayMovedDays.size} moved to Monday`}
+            </p>
+          )}
+        </div>
+        <MiniCalendar
+          year={calYear} month={calMonth}
+          termDays={termDays} paymentDays={paymentDays}
+          missedDays={missedDays} holidayMovedDays={holidayMovedDays}
+          today={today} onPrev={prevMonth} onNext={nextMonth}
+          canPrev={canGoPrev} canNext={canGoNext}
+        />
       </div>
-      <MiniCalendar
-        year={calYear} month={calMonth}
-        termDays={termDays} paymentDays={paymentDays}
-        missedDays={missedDays} holidayMovedDays={holidayMovedDays}
-        today={today} onPrev={prevMonth} onNext={nextMonth}
-        canPrev={canGoPrev} canNext={canGoNext}
-      />
+
+      {/* Payment action box — below calendar */}
+      {badStanding && (
+        <div className="rounded-xl border border-red-200 bg-red-50 p-3">
+          <p className="text-xs font-semibold text-red-800 mb-1">Action required</p>
+          <p className="text-[10px] text-red-600 mb-2">Please make up missed payments as soon as possible. You can pay online or via Zelle.</p>
+          <p className="text-[10px] text-red-500 mb-2">⚠️ Online payments carry a 3.5% fee. To pay $100.00, submit $103.50.</p>
+          <a href={PAYMENT_LINK} target="_blank" rel="noopener noreferrer"
+            className="block text-center rounded-lg bg-red-600 px-3 py-2 text-[10px] font-medium text-white hover:bg-red-700 transition-colors mb-1.5">
+            Pay now online →
+          </a>
+          <div className="rounded-lg border border-red-200 bg-white px-3 py-1.5 text-[10px] text-red-700">
+            <span className="block font-medium">Zelle: invoices@cfgms.com</span>
+            <span className="block text-red-500">Include invoice # or business name</span>
+          </div>
+        </div>
+      )}
     </div>
   ) : null;
 
@@ -449,8 +475,8 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
             </div>
           </div>
 
-          {/* Standing */}
-          {isGoodStanding ? (
+          {/* Standing — simple: good unless 2+ daily returns or 1+ weekly return */}
+          {!badStanding ? (
             <div className="rounded-xl bg-emerald-50 border border-emerald-100 p-4 flex items-center gap-3">
               <div className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-100 flex-shrink-0">
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
@@ -463,8 +489,7 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
               </div>
             </div>
           ) : (
-            <a href={PAYMENT_LINK} target="_blank" rel="noopener noreferrer"
-              className="block rounded-xl bg-red-50 border border-red-100 p-4 hover:bg-red-100 transition-colors">
+            <div className="rounded-xl bg-red-50 border border-red-100 p-4">
               <div className="flex items-center gap-3">
                 <div className="flex h-8 w-8 items-center justify-center rounded-full bg-red-100 flex-shrink-0">
                   <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
@@ -472,45 +497,17 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
                     <circle cx="8" cy="8" r="6.5" stroke="#dc2626" strokeWidth="1.2"/>
                   </svg>
                 </div>
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-red-800">Account needs attention — tap to make a payment</p>
-                  <p className="text-xs text-red-600 mt-0.5">One or more payments require action.</p>
-                </div>
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                  <path d="M6 4l4 4-4 4" stroke="#dc2626" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-              </div>
-            </a>
-          )}
-
-          {/* Days behind */}
-          {missedCount > 0 && (
-            <div className="rounded-xl border border-red-200 bg-red-50 p-4">
-              <div className="flex items-start gap-3">
-                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-red-100 flex-shrink-0 mt-0.5">
-                  <svg width="16" height="16" viewBox="0 0 18 18" fill="none">
-                    <path d="M9 6v4M9 12v.5" stroke="#dc2626" strokeWidth="1.8" strokeLinecap="round"/>
-                    <circle cx="9" cy="9" r="7.5" stroke="#dc2626" strokeWidth="1.2"/>
-                  </svg>
-                </div>
-                <div className="flex-1">
-                  <p className="text-sm font-semibold text-red-800">You are {behindLabel}</p>
-                  <p className="text-xs text-red-600 mt-1">Please make up missed payments as soon as possible. You can pay online or via Zelle.</p>
-                  <p className="text-xs text-red-500 mt-1">⚠️ Payments through the online link carry a 3.5% processing fee. To pay $100.00, you will need to submit $103.50.</p>
-                  <div className="flex flex-col sm:flex-row gap-2 mt-3">
-                    <a href={PAYMENT_LINK} target="_blank" rel="noopener noreferrer"
-                      className="inline-flex items-center justify-center rounded-lg bg-red-600 px-4 py-2.5 text-xs font-medium text-white hover:bg-red-700 transition-colors">
-                      Pay now online →
-                    </a>
-                    <div className="inline-block rounded-lg border border-red-200 bg-white px-4 py-2.5 text-xs font-medium text-red-700">
-                      <span className="block">Zelle: invoices@cfgms.com</span>
-                      <span className="block text-red-500 mt-0.5">Include your invoice # or business name</span>
-                    </div>
-                  </div>
+                <div>
+                  <p className="text-sm font-medium text-red-800">Account needs attention — please make a payment ASAP</p>
+                  <p className="text-xs text-red-600 mt-0.5">
+                    {isWeeklyClient ? "1 or more weekly payments" : "2 or more daily payments"} have been returned or missed.
+                  </p>
                 </div>
               </div>
             </div>
           )}
+
+
 
         </div>
 
