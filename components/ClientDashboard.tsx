@@ -118,10 +118,7 @@ function buildMissedPaymentEmail(client: any, payments: any[]): string {
   const to = client.client_email || "";
   const subject = encodeURIComponent(`Missed Payment Notice — ${client.invoice}`);
   const missedDates = payments
-    .filter((p) => {
-      const desc = (p.description || "").toLowerCase();
-      return desc.includes("missed") || desc.includes("return");
-    })
+    .filter((p) => { const desc = (p.description || "").toLowerCase(); return desc.includes("missed") || desc.includes("return"); })
     .map((p) => { const d = p.ach_date || p.payment_date; return d ? formatDate(d) : null; })
     .filter(Boolean);
   const dateList = missedDates.length > 0 ? missedDates.join(", ") : "recent dates";
@@ -157,19 +154,15 @@ function MiniCalendar({
   return (
     <div>
       <div className="flex items-center justify-between mb-2">
-        <button onClick={onPrev} disabled={!canPrev}
-          className="text-gray-400 hover:text-gray-700 disabled:opacity-20 px-2 py-1 text-base transition-colors">‹</button>
+        <button onClick={onPrev} disabled={!canPrev} className="text-gray-400 hover:text-gray-700 disabled:opacity-20 px-2 py-1 text-base transition-colors">‹</button>
         <span className="text-xs font-semibold text-gray-700">{monthNames[month]} {year}</span>
-        <button onClick={onNext} disabled={!canNext}
-          className="text-gray-400 hover:text-gray-700 disabled:opacity-20 px-2 py-1 text-base transition-colors">›</button>
+        <button onClick={onNext} disabled={!canNext} className="text-gray-400 hover:text-gray-700 disabled:opacity-20 px-2 py-1 text-base transition-colors">›</button>
       </div>
-
       <div className="grid grid-cols-7 mb-0.5">
         {["S","M","T","W","T","F","S"].map((d, i) => (
           <div key={i} className="text-center text-[9px] text-gray-400 font-medium py-0.5">{d}</div>
         ))}
       </div>
-
       <div className="grid grid-cols-7 gap-px">
         {days.map((date, idx) => {
           if (!date) return <div key={`pad-${idx}`} className="aspect-square" />;
@@ -193,7 +186,6 @@ function MiniCalendar({
           );
         })}
       </div>
-
       <div className="mt-2 grid grid-cols-2 gap-x-2 gap-y-1">
         {[["bg-blue-50 border border-blue-200","Expected payment"],["bg-emerald-100","Payment received"],["bg-red-100","Missed / returned"],["bg-yellow-100","Bank holiday"]].map(([cls, label]) => (
           <div key={label} className="flex items-center gap-1">
@@ -269,6 +261,29 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView 
     return desc.includes("missed") || desc.includes("return");
   });
 
+  const calendarSidebar = showCalendar ? (
+    <div className="flex-shrink-0 w-52 rounded-xl bg-white border border-gray-100 p-4 sticky top-20">
+      <div className="mb-2">
+        <p className="text-xs font-semibold text-gray-700">Payment calendar</p>
+        <p className="text-[9px] text-gray-400 mt-0.5">
+          {totalTerm} {isWeeklyClient ? "weekly" : "business day"} term
+          {termEndDate && ` · ends ${formatDate(termEndDate.toISOString().split("T")[0])}`}
+        </p>
+        {isWeeklyClient && paymentDayName && (
+          <p className="text-[9px] text-blue-500 mt-0.5 font-medium">
+            Every {paymentDayName.charAt(0).toUpperCase() + paymentDayName.slice(1)}
+          </p>
+        )}
+      </div>
+      <MiniCalendar
+        year={calYear} month={calMonth}
+        termDays={termDays} paymentDays={paymentDays} missedDays={missedDays}
+        today={today} onPrev={prevMonth} onNext={nextMonth}
+        canPrev={canGoPrev} canNext={canGoNext}
+      />
+    </div>
+  ) : null;
+
   return (
     <div className="space-y-4">
 
@@ -283,7 +298,6 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView 
             </p>
           </div>
           <div className="flex flex-col gap-2">
-            {/* Email buttons — admin only */}
             {isAdminView && selectedClient.client_email && (
               <div className="flex flex-wrap gap-2">
                 <a href={buildGeneralEmail(selectedClient)}
@@ -313,7 +327,7 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView 
         </div>
       </div>
 
-      {/* Stats grid — 2 cols on mobile, 4 on desktop */}
+      {/* Stats — 2 cols on mobile, 4 on desktop */}
       <div className="grid grid-cols-2 gap-3 md:gap-4">
         <div className="rounded-xl bg-white border border-gray-100 p-4">
           <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">Funded</p>
@@ -385,31 +399,28 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView 
         </a>
       )}
 
-      {/* Calendar — full width on mobile, sidebar on desktop */}
+      {/* Calendar — full width on mobile/tablet */}
       {showCalendar && (
-        <>
-          {/* Mobile/tablet: full width card */}
-          <div className="rounded-xl bg-white border border-gray-100 p-4 lg:hidden">
-            <div className="mb-3">
-              <p className="text-sm font-semibold text-gray-900">Payment calendar</p>
-              <p className="text-xs text-gray-400 mt-0.5">
-                {totalTerm} {isWeeklyClient ? "weekly" : "business day"} term
-                {termEndDate && ` · ends ${formatDate(termEndDate.toISOString().split("T")[0])}`}
+        <div className="rounded-xl bg-white border border-gray-100 p-4 lg:hidden">
+          <div className="mb-3">
+            <p className="text-sm font-semibold text-gray-900">Payment calendar</p>
+            <p className="text-xs text-gray-400 mt-0.5">
+              {totalTerm} {isWeeklyClient ? "weekly" : "business day"} term
+              {termEndDate && ` · ends ${formatDate(termEndDate.toISOString().split("T")[0])}`}
+            </p>
+            {isWeeklyClient && paymentDayName && (
+              <p className="text-xs text-blue-500 mt-0.5 font-medium">
+                Every {paymentDayName.charAt(0).toUpperCase() + paymentDayName.slice(1)}
               </p>
-              {isWeeklyClient && paymentDayName && (
-                <p className="text-xs text-blue-500 mt-0.5 font-medium">
-                  Every {paymentDayName.charAt(0).toUpperCase() + paymentDayName.slice(1)}
-                </p>
-              )}
-            </div>
-            <MiniCalendar
-              year={calYear} month={calMonth}
-              termDays={termDays} paymentDays={paymentDays} missedDays={missedDays}
-              today={today} onPrev={prevMonth} onNext={nextMonth}
-              canPrev={canGoPrev} canNext={canGoNext}
-            />
+            )}
           </div>
-        </>
+          <MiniCalendar
+            year={calYear} month={calMonth}
+            termDays={termDays} paymentDays={paymentDays} missedDays={missedDays}
+            today={today} onPrev={prevMonth} onNext={nextMonth}
+            canPrev={canGoPrev} canNext={canGoNext}
+          />
+        </div>
       )}
 
       {/* Days behind */}
@@ -441,40 +452,19 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView 
         </div>
       )}
 
-      {/* Desktop: two-column layout for calendar + payment history */}
+      {/* Desktop: payment history on left, calendar sidebar on right */}
       {showCalendar ? (
         <div className="hidden lg:flex gap-5 items-start">
-          {/* Calendar sidebar */}
-          <div className="flex-shrink-0 w-52 rounded-xl bg-white border border-gray-100 p-4 sticky top-20">
-            <div className="mb-2">
-              <p className="text-xs font-semibold text-gray-700">Payment calendar</p>
-              <p className="text-[9px] text-gray-400 mt-0.5">
-                {totalTerm} {isWeeklyClient ? "weekly" : "business day"} term
-                {termEndDate && ` · ends ${formatDate(termEndDate.toISOString().split("T")[0])}`}
-              </p>
-              {isWeeklyClient && paymentDayName && (
-                <p className="text-[9px] text-blue-500 mt-0.5 font-medium">
-                  Every {paymentDayName.charAt(0).toUpperCase() + paymentDayName.slice(1)}
-                </p>
-              )}
-            </div>
-            <MiniCalendar
-              year={calYear} month={calMonth}
-              termDays={termDays} paymentDays={paymentDays} missedDays={missedDays}
-              today={today} onPrev={prevMonth} onNext={nextMonth}
-              canPrev={canGoPrev} canNext={canGoNext}
-            />
-          </div>
-          {/* Payment history beside calendar on desktop */}
           <div className="flex-1 min-w-0">
             <PaymentHistory payments={payments} />
           </div>
+          {calendarSidebar}
         </div>
       ) : (
         <PaymentHistory payments={payments} />
       )}
 
-      {/* Mobile: payment history full width */}
+      {/* Mobile: payment history full width below calendar */}
       {showCalendar && (
         <div className="lg:hidden">
           <PaymentHistory payments={payments} />
