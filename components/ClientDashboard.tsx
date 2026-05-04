@@ -354,20 +354,7 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
         />
       </div>
 
-      {/* Payment action box — below calendar */}
-      {badStanding && (
-        <div className="rounded-xl border border-red-200 bg-red-50 p-3 space-y-1.5">
-          <a href={PAYMENT_LINK} target="_blank" rel="noopener noreferrer"
-            className="block text-center rounded-lg bg-red-600 px-3 py-2 text-[10px] font-medium text-white hover:bg-red-700 transition-colors">
-            Pay now online →
-          </a>
-          <p className="text-[10px] text-red-500">⚠️ Online payments carry a 3.5% fee. To pay $100.00, submit $103.50.</p>
-          <div className="rounded-lg border border-red-200 bg-white px-3 py-1.5 text-[10px] text-red-700">
-            <span className="block font-medium">Zelle: invoices@cfgms.com</span>
-            <span className="block text-red-500">Include invoice # or business name</span>
-          </div>
-        </div>
-      )}
+
     </div>
   ) : null;
 
@@ -501,6 +488,21 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
                     {isWeeklyClient ? "1 or more weekly payments have" : "2 or more daily payments have"} been returned or missed. Please pay promptly via the link or Zelle to avoid additional fees.
                   </p>
                 </div>
+              </div>
+            </div>
+          )}
+
+          {/* Payment action box — between notice and payment history */}
+          {badStanding && (
+            <div className="rounded-xl border border-red-200 bg-red-50 p-4 space-y-2">
+              <a href={PAYMENT_LINK} target="_blank" rel="noopener noreferrer"
+                className="block text-center rounded-lg bg-red-600 px-4 py-2.5 text-xs font-medium text-white hover:bg-red-700 transition-colors">
+                Pay now online →
+              </a>
+              <p className="text-xs text-red-500">⚠️ Online payments carry a 3.5% fee. To pay $100.00, submit $103.50.</p>
+              <div className="rounded-lg border border-red-200 bg-white px-3 py-2 text-xs text-red-700">
+                <span className="block font-medium">Zelle: invoices@cfgms.com</span>
+                <span className="block text-red-500 mt-0.5">Include your invoice # or business name</span>
               </div>
             </div>
           )}
