@@ -26,6 +26,9 @@ export interface Organization {
     payment_frequency: "daily" | "weekly";
     payment_day: string | null;
     status: "Good Standing" | "Needs Attention" | "Default";
+    total_returns: number;
+    last_return_date: string | null;
+    maturity_date: string | null;
   }
   
   export interface Payment {

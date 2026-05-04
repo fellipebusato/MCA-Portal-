@@ -191,6 +191,7 @@ export default function Home() {
     }
   }, [user, isAdmin]);
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (user) {
       if (isAdmin) fetchClients(1, "", false);
@@ -198,6 +199,7 @@ export default function Home() {
     }
   }, [user]);
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (user && isAdmin) {
       fetchClients(currentPage, searchQuery, filterAttention);
