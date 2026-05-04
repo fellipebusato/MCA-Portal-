@@ -316,7 +316,7 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
 
   const canGoPrev = calYear > 2026 || (calYear === 2026 && calMonth > 0);
   const canGoNext = calYear < 2027 || (calYear === 2027 && calMonth < 11);
-  const showCalendar = !!(fundedDate);
+  const showCalendar = true;
   const hasMissedPayments = payments.some(p => {
     const desc = (p.description || "").toLowerCase();
     return desc.includes("missed") || desc.includes("return");
