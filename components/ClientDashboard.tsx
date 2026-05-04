@@ -3,63 +3,23 @@
 import { useState } from "react";
 import PaymentHistory from "./PaymentHistory";
 import { CONTACT, PORTAL, PAYMENT_LINK } from "@/lib/config";
+import {
+  BANK_HOLIDAYS, toDateStr, isWeekend, isHoliday, isBusinessDay,
+  addBusinessDays, formatDate, money,
+} from "@/lib/holidays";
+import type { Client, Payment } from "@/lib/types";
 
 type ClientDashboardProps = {
-  selectedClient: any;
-  payments: any[];
+  selectedClient: Client;
+  payments: Payment[];
   isAdminView?: boolean;
   onPaymentAdded?: () => void;
 };
-
-function money(amount: number) {
-  return amount.toLocaleString("en-US", { style: "currency", currency: "USD" });
-}
-
-function formatDate(date: string) {
-  if (!date) return "—";
-  const d = new Date(date);
-  const utc = new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
-  return utc.toLocaleDateString("en-US", { month: "2-digit", day: "2-digit", year: "numeric" });
-}
-
-// Shared holidays 2025–2028 — single source of truth
-const BANK_HOLIDAYS = new Set([
-  // 2025
-  "2025-01-01","2025-01-20","2025-02-17","2025-05-26","2025-06-19",
-  "2025-07-04","2025-09-01","2025-10-13","2025-11-11","2025-11-27","2025-12-25",
-  // 2026
-  "2026-01-01","2026-01-19","2026-02-16","2026-05-25","2026-06-19",
-  "2026-07-03","2026-09-07","2026-10-12","2026-11-11","2026-11-26","2026-12-25",
-  // 2027
-  "2027-01-01","2027-01-18","2027-02-15","2027-05-31","2027-06-18",
-  "2027-07-05","2027-09-06","2027-10-11","2027-11-11","2027-11-25","2027-12-24",
-  // 2028
-  "2028-01-01","2028-01-17","2028-02-21","2028-05-27","2028-06-19",
-  "2028-07-04","2028-09-04","2028-10-09","2028-11-11","2028-11-23","2028-12-25",
-]);
 
 const DAY_NAME_TO_NUM: Record<string, number> = {
   sunday: 0, monday: 1, tuesday: 2, wednesday: 3,
   thursday: 4, friday: 5, saturday: 6,
 };
-
-function isWeekend(date: Date): boolean { return date.getDay() === 0 || date.getDay() === 6; }
-function isHoliday(date: Date): boolean { return BANK_HOLIDAYS.has(toDateStr(date)); }
-function isBusinessDay(date: Date): boolean { return !isWeekend(date) && !isHoliday(date); }
-
-function toDateStr(date: Date): string {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
-}
-
-function addBusinessDaysToDate(start: Date, days: number): Date {
-  const result = new Date(start);
-  let added = 0;
-  while (added < days) {
-    result.setDate(result.getDate() + 1);
-    if (isBusinessDay(result)) added++;
-  }
-  return result;
-}
 
 function buildDailyTermDays(startDate: Date, totalTerm: number): Set<string> {
   const days = new Set<string>();
@@ -85,26 +45,19 @@ function buildWeeklyTermDays(startDate: Date, totalTerm: number, paymentDayName:
 
   while (count < totalTerm) {
     let paymentDate = new Date(cursor);
-
     if (isHoliday(paymentDate)) {
       paymentDate = new Date(cursor);
-      do {
-        paymentDate.setDate(paymentDate.getDate() + 1);
-      } while (paymentDate.getDay() !== 1);
-      while (!isBusinessDay(paymentDate)) {
-        paymentDate.setDate(paymentDate.getDate() + 1);
-      }
+      do { paymentDate.setDate(paymentDate.getDate() + 1); } while (paymentDate.getDay() !== 1);
+      while (!isBusinessDay(paymentDate)) { paymentDate.setDate(paymentDate.getDate() + 1); }
     }
-
     days.add(toDateStr(paymentDate));
     count++;
     cursor.setDate(cursor.getDate() + 7);
   }
-
   return days;
 }
 
-function buildPaymentDays(payments: any[]): Set<string> {
+function buildPaymentDays(payments: Payment[]): Set<string> {
   const days = new Set<string>();
   for (const p of payments) {
     const desc = (p.description || "").toLowerCase();
@@ -116,7 +69,7 @@ function buildPaymentDays(payments: any[]): Set<string> {
   return days;
 }
 
-function buildMissedDays(payments: any[]): Set<string> {
+function buildMissedDays(payments: Payment[]): Set<string> {
   const days = new Set<string>();
   for (const p of payments) {
     const desc = (p.description || "").toLowerCase();
@@ -128,7 +81,7 @@ function buildMissedDays(payments: any[]): Set<string> {
   return days;
 }
 
-function buildGeneralEmail(client: any): string {
+function buildGeneralEmail(client: Client): string {
   const to = client.client_email || "";
   const subject = encodeURIComponent(`Your MCA Account — Action Required`);
   const body = encodeURIComponent(
@@ -141,7 +94,7 @@ function buildGeneralEmail(client: any): string {
   return `mailto:${to}?subject=${subject}&body=${body}`;
 }
 
-function buildMissedPaymentEmail(client: any, payments: any[]): string {
+function buildMissedPaymentEmail(client: Client, payments: Payment[]): string {
   const to = client.client_email || "";
   const subject = encodeURIComponent(`Missed Payment Notice — ${client.invoice}`);
   const missedDates = payments
@@ -260,14 +213,12 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
   const fundedDate = selectedClient.funded_date ? new Date(selectedClient.funded_date + "T00:00:00") : null;
   const totalTerm = Number(selectedClient.total_term || 0);
 
-  // Build term days
   const termDays = fundedDate && totalTerm > 0
     ? isWeeklyClient && paymentDayName
       ? buildWeeklyTermDays(fundedDate, totalTerm, paymentDayName)
       : buildDailyTermDays(fundedDate, totalTerm)
     : new Set<string>();
 
-  // For weekly: identify holiday-moved days (orange)
   const holidayMovedDays = new Set<string>();
   if (isWeeklyClient && paymentDayName && fundedDate && totalTerm > 0) {
     const targetDow = DAY_NAME_TO_NUM[paymentDayName.toLowerCase()] ?? 5;
@@ -283,7 +234,7 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
       const sortedDays = Array.from(termDays).sort();
       if (sortedDays.length > 0) termEndDate = new Date(sortedDays[sortedDays.length - 1] + "T00:00:00");
     } else {
-      termEndDate = addBusinessDaysToDate(fundedDate, totalTerm);
+      termEndDate = addBusinessDays(fundedDate, totalTerm);
     }
   }
 
@@ -308,17 +259,13 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
     else setCalMonth(m => m + 1);
   }
 
-  // Calendar nav bounds — dynamic based on funded date and term end date
-  // Allow 1 month before funded date and 1 month after term end (or +2 years fallback)
   const calMinYear = fundedDate ? fundedDate.getFullYear() : today.getFullYear();
   const calMinMonth = fundedDate ? Math.max(0, fundedDate.getMonth() - 1) : 0;
-  // Always allow at least 6 months past today regardless of term end
-// This handles pauses, restructures, and extended deals
-const naturalMax = termEndDate || new Date(today.getFullYear() + 2, today.getMonth(), 1);
-const sixMonthsOut = new Date(today.getFullYear(), today.getMonth() + 6, 1);
-const calMaxDate = naturalMax > sixMonthsOut ? naturalMax : sixMonthsOut;
-const calMaxYear = calMaxDate.getFullYear();
-const calMaxMonth = Math.min(11, calMaxDate.getMonth() + 1);
+  const naturalMax = termEndDate || new Date(today.getFullYear() + 2, today.getMonth(), 1);
+  const sixMonthsOut = new Date(today.getFullYear(), today.getMonth() + 6, 1);
+  const calMaxDate = naturalMax > sixMonthsOut ? naturalMax : sixMonthsOut;
+  const calMaxYear = calMaxDate.getFullYear();
+  const calMaxMonth = Math.min(11, calMaxDate.getMonth() + 1);
 
   const canGoPrev = calYear > calMinYear || (calYear === calMinYear && calMonth > calMinMonth);
   const canGoNext = calYear < calMaxYear || (calYear === calMaxYear && calMonth < calMaxMonth);
@@ -328,10 +275,6 @@ const calMaxMonth = Math.min(11, calMaxDate.getMonth() + 1);
     const desc = (p.description || "").toLowerCase();
     return desc.includes("missed") || desc.includes("return");
   });
-
-  function handlePaymentAdded() {
-    onPaymentAdded?.();
-  }
 
   return (
     <div className="space-y-4">
@@ -502,12 +445,12 @@ const calMaxMonth = Math.min(11, calMaxDate.getMonth() + 1);
         )}
       </div>
 
-      {/* Payment history — Add Payment button lives here only, not duplicated above */}
+      {/* Payment history */}
       <PaymentHistory
         payments={payments}
         client={selectedClient}
         isAdminView={isAdminView}
-        onPaymentAdded={handlePaymentAdded}
+        onPaymentAdded={() => onPaymentAdded?.()}
       />
     </div>
   );

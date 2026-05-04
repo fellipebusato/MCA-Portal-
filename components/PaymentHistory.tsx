@@ -2,51 +2,15 @@
 
 import { useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { addBusinessDays, toDateStr, formatDate, money } from "@/lib/holidays";
+import type { Client, Payment } from "@/lib/types";
 
 type PaymentHistoryProps = {
-  payments: any[];
-  client?: any;
+  payments: Payment[];
+  client?: Client;
   isAdminView?: boolean;
   onPaymentAdded?: () => void;
 };
-
-const BANK_HOLIDAYS = new Set([
-  "2026-01-01","2026-01-19","2026-02-16","2026-05-25","2026-06-19",
-  "2026-07-03","2026-09-07","2026-10-12","2026-11-11","2026-11-26","2026-12-25",
-  "2027-01-01","2027-01-18","2027-02-15","2027-05-31","2027-06-18",
-  "2027-07-05","2027-09-06","2027-10-11","2027-11-11","2027-11-25","2027-12-24",
-]);
-
-function isWeekend(date: Date): boolean { return date.getDay() === 0 || date.getDay() === 6; }
-function isHoliday(date: Date): boolean {
-  const str = `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,"0")}-${String(date.getDate()).padStart(2,"0")}`;
-  return BANK_HOLIDAYS.has(str);
-}
-
-function addBusinessDays(date: Date, days: number): Date {
-  const result = new Date(date);
-  let added = 0;
-  while (added < days) {
-    result.setDate(result.getDate() + 1);
-    if (!isWeekend(result) && !isHoliday(result)) added++;
-  }
-  return result;
-}
-
-function toDateStr(date: Date): string {
-  return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,"0")}-${String(date.getDate()).padStart(2,"0")}`;
-}
-
-function formatDate(date: string) {
-  if (!date) return "—";
-  const d = new Date(date);
-  const utc = new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
-  return utc.toLocaleDateString("en-US", { month: "2-digit", day: "2-digit", year: "numeric" });
-}
-
-function money(n: number) {
-  return n.toLocaleString("en-US", { style: "currency", currency: "USD" });
-}
 
 function TypeBadge({ description }: { description: string }) {
   const desc = (description || "").toLowerCase();
@@ -57,7 +21,7 @@ function TypeBadge({ description }: { description: string }) {
 }
 
 function AddPaymentForm({ client, onSuccess, onCancel }: {
-  client: any; onSuccess: () => void; onCancel: () => void;
+  client: Client; onSuccess: () => void; onCancel: () => void;
 }) {
   const [achDate, setAchDate] = useState(toDateStr(new Date()));
   const [amount, setAmount] = useState("");
@@ -158,7 +122,7 @@ function AddPaymentForm({ client, onSuccess, onCancel }: {
 }
 
 function EditPaymentRow({ payment, client, onSuccess, onCancel }: {
-  payment: any; client: any; onSuccess: () => void; onCancel: () => void;
+  payment: Payment; client: Client; onSuccess: () => void; onCancel: () => void;
 }) {
   const [achDate, setAchDate] = useState(payment.ach_date || payment.payment_date || "");
   const [amount, setAmount] = useState(String(payment.debit || ""));
@@ -182,7 +146,6 @@ function EditPaymentRow({ payment, client, onSuccess, onCancel }: {
     const oldDebit = Number(payment.debit || 0);
     const currentBalance = Number(client.balance || 0);
 
-    // Reverse old settled amount, apply new
     let newBalance = currentBalance;
     if (payment.running_balance != null) newBalance = currentBalance + oldDebit;
     if (alreadySettled) newBalance = Math.max(newBalance - debit, 0);
@@ -263,7 +226,7 @@ export default function PaymentHistory({ payments, client, isAdminView, onPaymen
     onPaymentAdded?.();
   }
 
-  async function handleDelete(payment: any) {
+  async function handleDelete(payment: Payment) {
     const confirmed = confirm(
       `Are you sure you want to delete this payment?\n\n` +
       `Date: ${formatDate(payment.ach_date || payment.payment_date)}\n` +
@@ -274,7 +237,6 @@ export default function PaymentHistory({ payments, client, isAdminView, onPaymen
 
     setDeletingId(payment.id);
 
-    // Reverse balance if payment was settled
     if (payment.running_balance != null && payment.debit > 0 && client) {
       const currentBalance = Number(client.balance || 0);
       const restoredBalance = currentBalance + Number(payment.debit);
@@ -317,14 +279,12 @@ export default function PaymentHistory({ payments, client, isAdminView, onPaymen
         </div>
       </div>
 
-      {/* Add payment form */}
       {showAddForm && isAdminView && client && (
         <div className="px-4 md:px-5 pt-4">
           <AddPaymentForm client={client} onSuccess={handleSuccess} onCancel={() => setShowAddForm(false)} />
         </div>
       )}
 
-      {/* Pending explanation */}
       {hasPending && (
         <div className="px-4 md:px-5 py-3 border-b border-gray-50">
           <p className="text-xs text-blue-600">
@@ -333,7 +293,6 @@ export default function PaymentHistory({ payments, client, isAdminView, onPaymen
         </div>
       )}
 
-      {/* Table */}
       <div className="overflow-x-auto">
         <table className="w-full min-w-[600px]">
           <thead>
