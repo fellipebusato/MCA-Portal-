@@ -3,6 +3,11 @@
 
 export const ADMIN_EMAIL = "fbusato@cfgms.com";
 
+export const ORG = {
+  name: "FB Client Portal",
+  ownerEmail: "fbusato@cfgms.com",
+};
+
 export const CONTACT = {
   name: "Fellipe Busato",
   email: "fbusato@cfgms.com",
