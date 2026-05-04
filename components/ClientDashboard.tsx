@@ -512,13 +512,13 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
             </div>
           )}
 
-          {/* Calendar — shows below content on small screens only */}
-          {showCalendar && <div className="md:hidden">{calendarPanel}</div>}
+          {/* Calendar — shows below content on phones */}
+          {showCalendar && <div className="sm:hidden">{calendarPanel}</div>}
         </div>
 
-        {/* Calendar — sidebar, always visible on md+ screens */}
+        {/* Calendar — sidebar always visible on sm+ (anything wider than 640px) */}
         {showCalendar && (
-          <div className="hidden md:block flex-shrink-0 w-48 sticky top-20">
+          <div className="hidden sm:block flex-shrink-0 w-44 sticky top-20">
             {calendarPanel}
           </div>
         )}

@@ -564,7 +564,7 @@ export default function Home() {
           <AdminDashboard clients={clients} openClient={openClient} handlePaymentUpload={handlePaymentUpload} deleteClient={deleteClient} updateClient={updateClient} />
         )}
         {view === "client" && selectedClient && (
-          <ClientDashboard selectedClient={selectedClient} payments={payments} isAdminView={true} onPaymentAdded={() => { fetchPayments(selectedClient.invoice); fetchClients(); }} />
+          <ClientDashboard selectedClient={selectedClient} payments={payments} isAdminView={true} onPaymentAdded={async () => { await fetchPayments(selectedClient.invoice); const { data } = await supabase.from("clients").select("*").eq("id", selectedClient.id).single(); if (data) { setSelectedClient(data); setClients((prev: any[]) => prev.map((c: any) => c.id === data.id ? data : c)); } }} />
         )}
         {view === "add" && (
           <AddClientForm newClient={newClient} setNewClient={setNewClient} addClient={addClient} />
