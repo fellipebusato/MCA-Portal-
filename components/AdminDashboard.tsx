@@ -2,14 +2,16 @@
 
 import { useState } from "react";
 import { CONTACT, PORTAL } from "@/lib/config";
+import MonthlyRiskPanel from "@/components/MonthlyRiskPanel";
+import type { Client, Payment } from "@/lib/types";
 
 type AdminDashboardProps = {
-  clients: any[];
-  payments: any[];
-  openClient: (client: any) => void;
+  clients: Client[];
+  payments: Payment[];
+  openClient: (client: Client) => void;
   handlePaymentUpload: (e: any) => void;
-  deleteClient: (client: any) => void;
-  updateClient: (client: any) => void;
+  deleteClient: (client: Client) => void;
+  updateClient: (client: Client) => void;
   uploading?: boolean;
   // Pagination
   currentPage: number;
@@ -28,7 +30,7 @@ function money(amount: number) {
   return amount.toLocaleString("en-US", { style: "currency", currency: "USD" });
 }
 
-function getLastPaymentDate(clientInvoice: string, allPayments: any[]): Date | null {
+function getLastPaymentDate(clientInvoice: string, allPayments: Payment[]): Date | null {
   const clientPayments = allPayments.filter((p) => {
     if (p.invoice?.trim().toLowerCase() !== clientInvoice?.trim().toLowerCase()) return false;
     const desc = (p.description || "").toLowerCase();
@@ -79,7 +81,7 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
-function buildGeneralEmail(client: any): string {
+function buildGeneralEmail(client: Client): string {
   const to = client.client_email || "";
   const subject = encodeURIComponent(`Your MCA Account — Action Required`);
   const body = encodeURIComponent(
@@ -115,11 +117,8 @@ export default function AdminDashboard({
   searchInput, onSearchChange,
   filterAttention, onFilterAttention,
 }: AdminDashboardProps) {
-  const [editingClient, setEditingClient] = useState<any>(null);
+  const [editingClient, setEditingClient] = useState<Client | null>(null);
 
-  // Stats — computed from current page clients
-  // For total balance and standing counts we use all clients on this page
-  // Full portfolio stats would need a separate aggregation query — good for future
   const totalBalance = clients.reduce((sum, c) => sum + Number(c.balance || 0), 0);
   const attentionClients = clients.filter((c) => c.status !== "Good Standing");
   const goodClients = clients.filter((c) => c.status === "Good Standing");
@@ -148,8 +147,7 @@ export default function AdminDashboard({
           className={`rounded-xl border p-5 cursor-pointer transition-colors ${
             filterAttention ? "bg-amber-50 border-amber-200" : "bg-white border-gray-100 hover:border-amber-200"
           }`}
-          onClick={() => onFilterAttention(!filterAttention)}
-        >
+          onClick={() => onFilterAttention(!filterAttention)}>
           <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">Needs attention</p>
           <p className={`text-2xl font-semibold ${attentionClients.length > 0 ? "text-amber-600" : "text-gray-900"}`}>
             {attentionClients.length}
@@ -167,6 +165,9 @@ export default function AdminDashboard({
           </p>
         </div>
       </div>
+
+      {/* Monthly Risk Panel — collapsed by default, internal only */}
+      <MonthlyRiskPanel clients={clients} />
 
       {/* Upload banner */}
       <div className="rounded-xl bg-white border border-gray-100 p-5 flex items-center gap-4">
@@ -197,13 +198,7 @@ export default function AdminDashboard({
             : "border-gray-200 bg-gray-50 text-gray-700 hover:bg-gray-100"
         }`}>
           {uploading ? "Uploading..." : "Choose file"}
-          <input
-            type="file"
-            accept=".csv,.xls,.xlsx"
-            onChange={handlePaymentUpload}
-            disabled={uploading}
-            className="hidden"
-          />
+          <input type="file" accept=".csv,.xls,.xlsx" onChange={handlePaymentUpload} disabled={uploading} className="hidden" />
         </label>
       </div>
 
@@ -220,8 +215,8 @@ export default function AdminDashboard({
                 <label className="block text-xs text-gray-400 mb-1">{label}</label>
                 <input type={type}
                   className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:border-gray-400"
-                  value={editingClient[field] || ""}
-                  onChange={(e) => setEditingClient({ ...editingClient, [field]: e.target.value })} />
+                  value={(editingClient as any)[field] || ""}
+                  onChange={(e) => setEditingClient({ ...editingClient, [field]: e.target.value } as Client)} />
               </div>
             ))}
             <div>
@@ -229,7 +224,7 @@ export default function AdminDashboard({
               <select
                 className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:border-gray-400 bg-white"
                 value={editingClient.payment_frequency || "daily"}
-                onChange={(e) => setEditingClient({ ...editingClient, payment_frequency: e.target.value })}>
+                onChange={(e) => setEditingClient({ ...editingClient, payment_frequency: e.target.value as "daily" | "weekly" })}>
                 <option value="daily">Daily</option>
                 <option value="weekly">Weekly</option>
               </select>
@@ -331,9 +326,7 @@ export default function AdminDashboard({
         <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between gap-3">
           <h3 className="text-sm font-semibold text-gray-900 flex-shrink-0">
             {filterAttention ? "Needs attention" : "Client roster"}
-            <span className="ml-2 text-xs font-normal text-gray-400">
-              {totalClients} total
-            </span>
+            <span className="ml-2 text-xs font-normal text-gray-400">{totalClients} total</span>
           </h3>
           <div className="flex items-center gap-2 ml-auto">
             <div className="relative">
@@ -350,9 +343,7 @@ export default function AdminDashboard({
               />
               {searchInput && (
                 <button onClick={() => onSearchChange("")}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                  ×
-                </button>
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">×</button>
               )}
             </div>
           </div>
@@ -420,26 +411,17 @@ export default function AdminDashboard({
           </tbody>
         </table>
 
-        {/* Pagination controls */}
+        {/* Pagination */}
         {totalPages > 1 && (
           <div className="px-5 py-4 border-t border-gray-100 flex items-center justify-between">
             <p className="text-xs text-gray-400">
               Page {currentPage} of {totalPages} · {totalClients} clients total
             </p>
             <div className="flex items-center gap-1">
-              <button
-                onClick={() => onPageChange(1)}
-                disabled={currentPage === 1}
-                className="rounded px-2 py-1.5 text-xs font-medium text-gray-500 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
-                «
-              </button>
-              <button
-                onClick={() => onPageChange(currentPage - 1)}
-                disabled={currentPage === 1}
-                className="rounded px-3 py-1.5 text-xs font-medium text-gray-500 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
-                ← Prev
-              </button>
-              {/* Page number buttons — show max 5 around current page */}
+              <button onClick={() => onPageChange(1)} disabled={currentPage === 1}
+                className="rounded px-2 py-1.5 text-xs font-medium text-gray-500 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">«</button>
+              <button onClick={() => onPageChange(currentPage - 1)} disabled={currentPage === 1}
+                className="rounded px-3 py-1.5 text-xs font-medium text-gray-500 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">← Prev</button>
               {Array.from({ length: totalPages }, (_, i) => i + 1)
                 .filter(p => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 2)
                 .reduce<(number | "...")[]>((acc, p, i, arr) => {
@@ -451,30 +433,16 @@ export default function AdminDashboard({
                   p === "..." ? (
                     <span key={`ellipsis-${i}`} className="px-2 text-xs text-gray-300">…</span>
                   ) : (
-                    <button
-                      key={p}
-                      onClick={() => onPageChange(p as number)}
+                    <button key={p} onClick={() => onPageChange(p as number)}
                       className={`rounded px-3 py-1.5 text-xs font-medium transition-colors ${
-                        currentPage === p
-                          ? "bg-gray-900 text-white"
-                          : "text-gray-500 hover:bg-gray-100"
-                      }`}>
-                      {p}
-                    </button>
+                        currentPage === p ? "bg-gray-900 text-white" : "text-gray-500 hover:bg-gray-100"
+                      }`}>{p}</button>
                   )
                 )}
-              <button
-                onClick={() => onPageChange(currentPage + 1)}
-                disabled={currentPage === totalPages}
-                className="rounded px-3 py-1.5 text-xs font-medium text-gray-500 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
-                Next →
-              </button>
-              <button
-                onClick={() => onPageChange(totalPages)}
-                disabled={currentPage === totalPages}
-                className="rounded px-2 py-1.5 text-xs font-medium text-gray-500 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
-                »
-              </button>
+              <button onClick={() => onPageChange(currentPage + 1)} disabled={currentPage === totalPages}
+                className="rounded px-3 py-1.5 text-xs font-medium text-gray-500 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">Next →</button>
+              <button onClick={() => onPageChange(totalPages)} disabled={currentPage === totalPages}
+                className="rounded px-2 py-1.5 text-xs font-medium text-gray-500 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">»</button>
             </div>
           </div>
         )}
