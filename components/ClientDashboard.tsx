@@ -407,8 +407,8 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
         </div>
       </div>
 
-      {/* Main layout */}
-      <div className="flex flex-col lg:flex-row gap-4 lg:gap-5 lg:items-start">
+      {/* Main layout — stats/progress/standing on left, calendar on right */}
+      <div className="flex flex-col md:flex-row gap-4 md:gap-5 md:items-start">
         <div className="flex-1 min-w-0 space-y-4">
 
           {/* Stats */}
@@ -512,13 +512,13 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
             </div>
           )}
 
-          {/* Calendar below content on mobile/tablet */}
-          {showCalendar && <div className="lg:hidden">{calendarPanel}</div>}
+          {/* Calendar — shows below content on small screens only */}
+          {showCalendar && <div className="md:hidden">{calendarPanel}</div>}
         </div>
 
-        {/* Calendar sidebar on desktop */}
+        {/* Calendar — sidebar, always visible on md+ screens */}
         {showCalendar && (
-          <div className="hidden lg:flex lg:flex-shrink-0 lg:w-48 lg:sticky lg:top-20">
+          <div className="hidden md:block flex-shrink-0 w-48 sticky top-20">
             {calendarPanel}
           </div>
         )}
