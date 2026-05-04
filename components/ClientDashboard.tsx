@@ -613,7 +613,8 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
             )
           )}
 
-          {/* Payment panel — always visible */}
+          {/* Payment panel — hidden for bad standing when milestone block already shows payment options */}
+          {!(badStanding && milestone) && (
           <div className={`rounded-xl border p-4 space-y-3 ${badStanding ? "border-red-200 bg-red-50" : "border-gray-200 bg-white"}`}>
             {!badStanding && (
               <div>
@@ -637,7 +638,7 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
               </span>
             </div>
           </div>
-
+          )}
         </div>
 
         {/* Calendar */}
