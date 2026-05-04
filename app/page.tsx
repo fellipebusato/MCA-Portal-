@@ -115,7 +115,6 @@ export default function Home() {
   const [forgotStatus, setForgotStatus] = useState<"idle" | "loading" | "sent" | "error">("idle");
   const [forgotMessage, setForgotMessage] = useState("");
 
-  // Search with debounce
   const [searchInput, setSearchInput] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -167,7 +166,6 @@ export default function Home() {
     setLoading(false);
   }, [selectedClient]);
 
-  // Fetch ALL clients (unpaginated) for returns import matching
   async function fetchAllClients(): Promise<Client[]> {
     const { data } = await supabase.from("clients").select("*");
     const all = (data || []) as Client[];
@@ -175,7 +173,6 @@ export default function Home() {
     return all;
   }
 
-  // Fetch org ID
   async function fetchOrgId() {
     const { data } = await supabase
       .from("organizations").select("id").limit(1).single();
@@ -467,7 +464,6 @@ export default function Home() {
       }
     }
 
-    // Flag missing clients
     for (const client of localClients) {
       if (!reportInvoices.includes(client.invoice)) {
         const day = today.getDay();
@@ -495,7 +491,6 @@ export default function Home() {
       await supabase.from("clients").update({ status: newStatus }).eq("id", client.id);
     }
 
-    // Run monthly snapshots if it's the 1st of the month
     await ensureMonthlySnapshots(localClients, orgId);
 
     let msg = `Upload complete.\n\n${matched} new payments recorded.`;
@@ -675,23 +670,22 @@ export default function Home() {
 
         {view === "admin" && (
           <AdminDashboard
-          clients={clients}
-          payments={payments}
-          openClient={openClient}
-          handlePaymentUpload={handlePaymentUpload}
-          deleteClient={deleteClient}
-          updateClient={updateClient}
-          uploading={uploading}
-          currentPage={currentPage}
-          totalPages={totalPages}
-          totalClients={totalClients}
-          onPageChange={(page) => setCurrentPage(page)}
-          searchInput={searchInput}
-          onSearchChange={(val) => setSearchInput(val)}
-          filterAttention={filterAttention}
-          onFilterAttention={(val) => { setFilterAttention(val); setCurrentPage(1); }}
-          orgId={orgId}
-        />
+            clients={clients}
+            payments={payments}
+            openClient={openClient}
+            handlePaymentUpload={handlePaymentUpload}
+            deleteClient={deleteClient}
+            updateClient={updateClient}
+            uploading={uploading}
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalClients={totalClients}
+            onPageChange={(page) => setCurrentPage(page)}
+            searchInput={searchInput}
+            onSearchChange={(val) => setSearchInput(val)}
+            filterAttention={filterAttention}
+            onFilterAttention={(val) => { setFilterAttention(val); setCurrentPage(1); }}
+            orgId={orgId}
           />
         )}
 
