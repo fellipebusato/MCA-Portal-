@@ -146,7 +146,7 @@ export default function MonthlyRiskPanel({ clients, orgId }: { clients: Client[]
         balance_at_snapshot: Number(client.balance),
         minimum_required: minimum,
         received_this_month: 0,
-      }, { onConflict: "invoice,snapshot_date", ignoreDuplicates: true });
+      }, { onConflict: "invoice,snapshot_date" });
     }
 
     setSnapshotTaken(true);
