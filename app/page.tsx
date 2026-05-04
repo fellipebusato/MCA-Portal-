@@ -128,6 +128,8 @@ export default function Home() {
     businessName: "", invoice: "", ownerName: "", clientEmail: "",
     fundedDate: "", funded: "", payback: "", payment: "", totalTerm: "",
     paymentFrequency: "daily", paymentDay: "",
+    state: "", sicCode: "", businessType: "", ficoScore: "",
+    avgMonthlyRevenue: "", timeInBusinessMonths: "", position: "",
   });
 
   const isAdmin = user?.email === ADMIN_EMAIL;
