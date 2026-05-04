@@ -7,7 +7,10 @@ import ClientDashboard from "@/components/ClientDashboard";
 import AddClientForm from "@/components/AddClientForm";
 import ConsentPage from "@/components/ConsentPage";
 import Footer from "@/components/Footer";
+import ReturnsImport from "@/components/ReturnsImport";
 import { ADMIN_EMAIL, PORTAL, CONTACT } from "@/lib/config";
+import { ensureMonthlySnapshots } from "@/lib/snapshots";
+import type { Client, Payment, NewClientForm, ParsedPaymentRow } from "@/lib/types";
 
 const PAGE_SIZE = 25;
 
@@ -26,8 +29,8 @@ function toDateString(date: Date): string {
   return date.toISOString().split("T")[0];
 }
 
-function parseXLSRows(text: string): { invoice: string; date: string; amount: number }[] {
-  const results: { invoice: string; date: string; amount: number }[] = [];
+function parseXLSRows(text: string): ParsedPaymentRow[] {
+  const results: ParsedPaymentRow[] = [];
   try {
     const parser = new DOMParser();
     const xmlDoc = parser.parseFromString(text, "text/xml");
@@ -71,8 +74,8 @@ function parseXLSRows(text: string): { invoice: string; date: string; amount: nu
   return results;
 }
 
-function parseCSVRows(text: string): { invoice: string; date: string; amount: number }[] {
-  const results: { invoice: string; date: string; amount: number }[] = [];
+function parseCSVRows(text: string): ParsedPaymentRow[] {
+  const results: ParsedPaymentRow[] = [];
   const rows = text.split("\n").slice(1);
   for (const row of rows) {
     const cols = row.split(",");
@@ -89,20 +92,21 @@ export default function Home() {
   const [user, setUser] = useState<any>(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [clients, setClients] = useState<any[]>([]);
-  const [payments, setPayments] = useState<any[]>([]);
+  const [clients, setClients] = useState<Client[]>([]);
+  const [allClients, setAllClients] = useState<Client[]>([]);
+  const [payments, setPayments] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
-  const [selectedClient, setSelectedClient] = useState<any>(null);
-  const [view, setView] = useState<"admin" | "client" | "add">("admin");
-  const [clientRecord, setClientRecord] = useState<any>(null);
+  const [selectedClient, setSelectedClient] = useState<Client | null>(null);
+  const [view, setView] = useState<"admin" | "client" | "add" | "returns">("admin");
+  const [clientRecord, setClientRecord] = useState<Client | null>(null);
   const [hasConsented, setHasConsented] = useState(false);
   const [checkingConsent, setCheckingConsent] = useState(false);
+  const [orgId, setOrgId] = useState<string>("");
 
-  // Pagination state
+  // Pagination
   const [currentPage, setCurrentPage] = useState(1);
   const [totalClients, setTotalClients] = useState(0);
-  const [searchQuery, setSearchQuery] = useState("");
   const [filterAttention, setFilterAttention] = useState(false);
   const totalPages = Math.max(1, Math.ceil(totalClients / PAGE_SIZE));
 
@@ -111,7 +115,11 @@ export default function Home() {
   const [forgotStatus, setForgotStatus] = useState<"idle" | "loading" | "sent" | "error">("idle");
   const [forgotMessage, setForgotMessage] = useState("");
 
-  const [newClient, setNewClient] = useState({
+  // Search with debounce
+  const [searchInput, setSearchInput] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const [newClient, setNewClient] = useState<NewClientForm>({
     businessName: "", invoice: "", ownerName: "", clientEmail: "",
     fundedDate: "", funded: "", payback: "", payment: "", totalTerm: "",
     paymentFrequency: "daily", paymentDay: "",
@@ -119,7 +127,6 @@ export default function Home() {
 
   const isAdmin = user?.email === ADMIN_EMAIL;
 
-  // ── Fetch clients with server-side pagination and search ──
   const fetchClients = useCallback(async (
     page: number = 1,
     search: string = "",
@@ -132,14 +139,12 @@ export default function Home() {
 
     let query = supabase.from("clients").select("*", { count: "exact" });
 
-    // Server-side search across business name, invoice, and owner name
     if (search.trim()) {
       query = query.or(
         `business_name.ilike.%${search.trim()}%,invoice.ilike.%${search.trim()}%,owner_name.ilike.%${search.trim()}%`
       );
     }
 
-    // Filter attention-only clients
     if (attentionOnly) {
       query = query.neq("status", "Good Standing");
     }
@@ -150,12 +155,11 @@ export default function Home() {
 
     if (error) { alert(error.message); setLoading(false); return; }
 
-    setClients(data || []);
+    setClients((data || []) as Client[]);
     setTotalClients(count || 0);
 
-    // Load payments for first client on page if none selected
     if (data?.[0] && !selectedClient) {
-      setSelectedClient(data[0]);
+      setSelectedClient(data[0] as Client);
       await fetchPayments(data[0].invoice);
     }
 
@@ -163,7 +167,29 @@ export default function Home() {
     setLoading(false);
   }, [selectedClient]);
 
+  // Fetch ALL clients (unpaginated) for returns import matching
+  async function fetchAllClients(): Promise<Client[]> {
+    const { data } = await supabase.from("clients").select("*");
+    const all = (data || []) as Client[];
+    setAllClients(all);
+    return all;
+  }
+
+  // Fetch org ID
+  async function fetchOrgId() {
+    const { data } = await supabase
+      .from("organizations").select("id").limit(1).single();
+    if (data) setOrgId(data.id);
+  }
+
   useEffect(() => { checkUser(); }, []);
+
+  useEffect(() => {
+    if (user && isAdmin) {
+      fetchOrgId();
+      fetchAllClients();
+    }
+  }, [user, isAdmin]);
 
   useEffect(() => {
     if (user) {
@@ -172,19 +198,16 @@ export default function Home() {
     }
   }, [user]);
 
-  // Re-fetch when page, search, or filter changes
   useEffect(() => {
     if (user && isAdmin) {
       fetchClients(currentPage, searchQuery, filterAttention);
     }
   }, [currentPage, searchQuery, filterAttention]);
 
-  // Debounce search — wait 400ms after typing stops before querying
-  const [searchInput, setSearchInput] = useState("");
   useEffect(() => {
     const timer = setTimeout(() => {
       setSearchQuery(searchInput);
-      setCurrentPage(1); // reset to page 1 on new search
+      setCurrentPage(1);
     }, 400);
     return () => clearTimeout(timer);
   }, [searchInput]);
@@ -252,7 +275,7 @@ export default function Home() {
     const { data, error } = await supabase
       .from("clients").select("*").eq("client_email", userEmail).single();
     if (error || !data) { setClientRecord(null); setLoading(false); setCheckingConsent(false); return; }
-    setClientRecord(data);
+    setClientRecord(data as Client);
     await fetchPayments(data.invoice);
     setView("client");
     setLoading(false);
@@ -265,10 +288,10 @@ export default function Home() {
       .order("payment_date", { ascending: true })
       .order("id", { ascending: true });
     if (error) { alert(error.message); return; }
-    setPayments(data || []);
+    setPayments((data || []) as Payment[]);
   }
 
-  async function openClient(client: any) {
+  async function openClient(client: Client) {
     setSelectedClient(client);
     await fetchPayments(client.invoice);
     setView("client");
@@ -297,6 +320,7 @@ export default function Home() {
       payment_frequency: frequency,
       payment_day: newClient.paymentDay || null,
       status: "Good Standing",
+      total_returns: 0,
     };
     const { error } = await supabase.from("clients").insert([client]);
     if (error) { alert(error.message); return; }
@@ -306,23 +330,25 @@ export default function Home() {
       paymentFrequency: "daily", paymentDay: "",
     });
     await fetchClients(1, searchQuery, filterAttention);
+    await fetchAllClients();
     setView("admin");
   }
 
-  async function deleteClient(client: any) {
+  async function deleteClient(client: Client) {
     if (!confirm(`Delete ${client.business_name} and all payment history?`)) return;
     await supabase.from("payments").delete().eq("invoice", client.invoice);
+    await supabase.from("returns").delete().eq("invoice", client.invoice);
     const { error } = await supabase.from("clients").delete().eq("id", client.id);
     if (error) { alert(error.message); return; }
-    // If we deleted the last item on this page, go back one page
     const newTotal = totalClients - 1;
     const maxPage = Math.max(1, Math.ceil(newTotal / PAGE_SIZE));
     const targetPage = Math.min(currentPage, maxPage);
     setCurrentPage(targetPage);
     await fetchClients(targetPage, searchQuery, filterAttention);
+    await fetchAllClients();
   }
 
-  async function updateClient(client: any) {
+  async function updateClient(client: Client) {
     const { error } = await supabase.from("clients").update({
       business_name: client.business_name,
       invoice: client.invoice,
@@ -340,9 +366,10 @@ export default function Home() {
     }).eq("id", client.id);
     if (error) { alert(error.message); return; }
     await fetchClients(currentPage, searchQuery, filterAttention);
+    await fetchAllClients();
   }
 
-  async function evaluateStanding(client: any, reportHadPayment: boolean, hadReturn: boolean): Promise<string> {
+  async function evaluateStanding(client: Client, reportHadPayment: boolean, hadReturn: boolean): Promise<string> {
     if (hadReturn) return "Needs Attention";
     if (!reportHadPayment) {
       const { data: recentPayments } = await supabase
@@ -380,11 +407,10 @@ export default function Home() {
     const today = new Date();
     const todayStr = toDateString(today);
 
-    // Fetch ALL clients for upload matching — not paginated
     const { data: clientsData } = await supabase.from("clients").select("*");
     if (!clientsData) { setUploading(false); return; }
 
-    const localClients = clientsData.map((c: any) => ({ ...c }));
+    const localClients = clientsData as Client[];
     const reportInvoices: string[] = [];
     const returnedInvoices: string[] = [];
 
@@ -401,7 +427,7 @@ export default function Home() {
     let skippedDuplicates = 0;
 
     for (const { invoice, date, amount } of parsedRows) {
-      const client = localClients.find((c: any) =>
+      const client = localClients.find(c =>
         c.invoice.trim().toLowerCase() === invoice.trim().toLowerCase()
       );
       if (!client) continue;
@@ -428,20 +454,14 @@ export default function Home() {
         running_balance: alreadySettled ? newBalance : null,
       });
 
-      if (insertError && insertError.code === "23505") {
-        skippedDuplicates++;
-        continue;
-      }
-      if (insertError) {
-        console.error("Insert error:", insertError);
-        continue;
-      }
+      if (insertError && insertError.code === "23505") { skippedDuplicates++; continue; }
+      if (insertError) { console.error("Insert error:", insertError); continue; }
 
       matched++;
 
       if (alreadySettled) {
         await supabase.from("clients").update({ balance: newBalance }).eq("id", client.id);
-        client.balance = newBalance;
+        (client as any).balance = newBalance;
       }
     }
 
@@ -473,11 +493,15 @@ export default function Home() {
       await supabase.from("clients").update({ status: newStatus }).eq("id", client.id);
     }
 
+    // Run monthly snapshots if it's the 1st of the month
+    await ensureMonthlySnapshots(localClients, orgId);
+
     let msg = `Upload complete.\n\n${matched} new payments recorded.`;
     if (skippedDuplicates > 0) msg += `\n${skippedDuplicates} duplicate${skippedDuplicates > 1 ? "s" : ""} skipped (already on file).`;
     alert(msg);
     setUploading(false);
     await fetchClients(currentPage, searchQuery, filterAttention);
+    await fetchAllClients();
   }
 
   // ── Loading ──────────────────────────────────────────────
@@ -614,6 +638,10 @@ export default function Home() {
               className={`rounded-lg px-3.5 py-2 text-sm font-medium transition-colors ${view === "admin" ? "bg-gray-900 text-white" : "text-gray-600 hover:bg-gray-100"}`}>
               Dashboard
             </button>
+            <button onClick={() => setView("returns")}
+              className={`rounded-lg px-3.5 py-2 text-sm font-medium transition-colors ${view === "returns" ? "bg-red-600 text-white" : "text-red-600 hover:bg-red-50 border border-red-200"}`}>
+              Import returns
+            </button>
             <button onClick={() => setView("add")}
               className={`rounded-lg px-3.5 py-2 text-sm font-medium transition-colors ${view === "add" ? "bg-gray-900 text-white" : "text-gray-600 hover:bg-gray-100"}`}>
               + Add client
@@ -633,6 +661,7 @@ export default function Home() {
       <div className="mx-auto max-w-6xl w-full px-6 py-6 flex-1">
         <div className="mb-5">
           {view === "admin" && <h1 className="text-lg font-semibold text-gray-900">Dashboard</h1>}
+          {view === "returns" && <h1 className="text-lg font-semibold text-gray-900">Import returned payments</h1>}
           {view === "add" && <h1 className="text-lg font-semibold text-gray-900">Add client</h1>}
           {view === "client" && selectedClient && (
             <div className="flex items-center gap-2">
@@ -641,6 +670,7 @@ export default function Home() {
             </div>
           )}
         </div>
+
         {view === "admin" && (
           <AdminDashboard
             clients={clients}
@@ -650,22 +680,29 @@ export default function Home() {
             deleteClient={deleteClient}
             updateClient={updateClient}
             uploading={uploading}
-            // Pagination props
             currentPage={currentPage}
             totalPages={totalPages}
             totalClients={totalClients}
             onPageChange={(page) => setCurrentPage(page)}
-            // Search props — controlled in page.tsx, passed down
             searchInput={searchInput}
             onSearchChange={(val) => setSearchInput(val)}
-            // Filter props
             filterAttention={filterAttention}
-            onFilterAttention={(val) => {
-              setFilterAttention(val);
-              setCurrentPage(1);
+            onFilterAttention={(val) => { setFilterAttention(val); setCurrentPage(1); }}
+          />
+        )}
+
+        {view === "returns" && (
+          <ReturnsImport
+            clients={allClients}
+            orgId={orgId}
+            onImportComplete={async () => {
+              await fetchClients(currentPage, searchQuery, filterAttention);
+              await fetchAllClients();
+              setView("admin");
             }}
           />
         )}
+
         {view === "client" && selectedClient && (
           <ClientDashboard
             selectedClient={selectedClient}
@@ -675,12 +712,13 @@ export default function Home() {
               await fetchPayments(selectedClient.invoice);
               const { data } = await supabase.from("clients").select("*").eq("id", selectedClient.id).single();
               if (data) {
-                setSelectedClient(data);
-                setClients((prev: any[]) => prev.map((c: any) => c.id === data.id ? data : c));
+                setSelectedClient(data as Client);
+                setClients(prev => prev.map(c => c.id === data.id ? data as Client : c));
               }
             }}
           />
         )}
+
         {view === "add" && (
           <AddClientForm newClient={newClient} setNewClient={setNewClient} addClient={addClient} />
         )}
