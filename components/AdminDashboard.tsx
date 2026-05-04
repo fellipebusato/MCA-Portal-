@@ -13,19 +13,24 @@ type AdminDashboardProps = {
   deleteClient: (client: Client) => void;
   updateClient: (client: Client) => void;
   uploading?: boolean;
-  // Pagination
   currentPage: number;
   totalPages: number;
   totalClients: number;
   onPageChange: (page: number) => void;
-  // Search
   searchInput: string;
   onSearchChange: (val: string) => void;
-  // Filter
   filterAttention: boolean;
   onFilterAttention: (val: boolean) => void;
   orgId: string;
 };
+
+const PAYMENT_STATUS_OPTIONS = [
+  { value: "active",   label: "Active",          description: "Normal — expected in every upload" },
+  { value: "paused",   label: "On Pause",         description: "Agreed break — skip missed payment flags" },
+  { value: "frozen",   label: "Frozen",           description: "Account blocked — flag immediately" },
+  { value: "paid_off", label: "Paid Off",         description: "Balance zero — exclude from tracking" },
+  { value: "weekly_off", label: "Weekly — Off Day", description: "Weekly client, today is not their day" },
+];
 
 function money(amount: number) {
   return amount.toLocaleString("en-US", { style: "currency", currency: "USD" });
@@ -82,6 +87,22 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
+function PaymentStatusBadge({ status }: { status: string }) {
+  const map: Record<string, { label: string; styles: string }> = {
+    active:     { label: "Active",       styles: "bg-gray-50 text-gray-600 border border-gray-200" },
+    paused:     { label: "On Pause",     styles: "bg-blue-50 text-blue-700 border border-blue-200" },
+    frozen:     { label: "Frozen",       styles: "bg-red-50 text-red-700 border border-red-200" },
+    paid_off:   { label: "Paid Off",     styles: "bg-emerald-50 text-emerald-700 border border-emerald-200" },
+    weekly_off: { label: "Weekly — Off", styles: "bg-purple-50 text-purple-700 border border-purple-200" },
+  };
+  const config = map[status] || map.active;
+  return (
+    <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${config.styles}`}>
+      {config.label}
+    </span>
+  );
+}
+
 function buildGeneralEmail(client: Client): string {
   const to = client.client_email || "";
   const subject = encodeURIComponent(`Your MCA Account — Action Required`);
@@ -106,7 +127,7 @@ const EDIT_FIELDS: [string, string, string][] = [
   ["balance", "Current balance", "text"],
   ["payment", "Payment amount", "text"],
   ["total_term", "Total term (business days)", "text"],
-  ["status", "Status", "text"],
+  ["status", "Account standing", "text"],
 ];
 
 const DAYS = ["monday", "tuesday", "wednesday", "thursday", "friday"];
@@ -123,6 +144,8 @@ export default function AdminDashboard({
   const totalBalance = clients.reduce((sum, c) => sum + Number(c.balance || 0), 0);
   const attentionClients = clients.filter((c) => c.status !== "Good Standing");
   const goodClients = clients.filter((c) => c.status === "Good Standing");
+  const pausedClients = clients.filter((c) => (c as any).payment_status === "paused").length;
+  const frozenClients = clients.filter((c) => (c as any).payment_status === "frozen").length;
   const dailyClients = clients.filter((c) => c.payment_frequency === "daily").length;
   const weeklyClients = clients.filter((c) => c.payment_frequency === "weekly").length;
 
@@ -135,7 +158,11 @@ export default function AdminDashboard({
           onClick={() => { onFilterAttention(false); onSearchChange(""); }}>
           <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">Total clients</p>
           <p className="text-2xl font-semibold text-gray-900">{totalClients}</p>
-          <p className="text-xs text-gray-400 mt-1">{dailyClients} daily · {weeklyClients} weekly</p>
+          <p className="text-xs text-gray-400 mt-1">
+            {dailyClients} daily · {weeklyClients} weekly
+            {pausedClients > 0 && ` · ${pausedClients} paused`}
+            {frozenClients > 0 && ` · ${frozenClients} frozen`}
+          </p>
         </div>
         <div className="rounded-xl bg-white border border-gray-100 p-5">
           <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">Open balance</p>
@@ -167,7 +194,7 @@ export default function AdminDashboard({
         </div>
       </div>
 
-      {/* Monthly Risk Panel — collapsed by default, internal only */}
+      {/* Monthly Risk Panel */}
       <MonthlyRiskPanel clients={clients} orgId={orgId} />
 
       {/* Upload banner */}
@@ -220,6 +247,8 @@ export default function AdminDashboard({
                   onChange={(e) => setEditingClient({ ...editingClient, [field]: e.target.value } as Client)} />
               </div>
             ))}
+
+            {/* Payment frequency */}
             <div>
               <label className="block text-xs text-gray-400 mb-1">Payment frequency</label>
               <select
@@ -230,6 +259,8 @@ export default function AdminDashboard({
                 <option value="weekly">Weekly</option>
               </select>
             </div>
+
+            {/* Weekly payment day */}
             {editingClient.payment_frequency === "weekly" && (
               <div>
                 <label className="block text-xs text-gray-400 mb-1">Weekly payment day</label>
@@ -244,7 +275,33 @@ export default function AdminDashboard({
                 </select>
               </div>
             )}
+
+            {/* Payment status — the new field */}
+            <div className="col-span-2 md:col-span-3">
+              <label className="block text-xs text-gray-400 mb-2">Payment status</label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                {PAYMENT_STATUS_OPTIONS.map((opt) => {
+                  const current = (editingClient as any).payment_status || "active";
+                  const isSelected = current === opt.value;
+                  return (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => setEditingClient({ ...editingClient, payment_status: opt.value } as any)}
+                      className={`text-left rounded-lg border px-3 py-2.5 transition-colors ${
+                        isSelected
+                          ? "border-gray-900 bg-gray-900 text-white"
+                          : "border-gray-200 bg-white text-gray-700 hover:border-gray-400"
+                      }`}>
+                      <p className={`text-xs font-semibold ${isSelected ? "text-white" : "text-gray-900"}`}>{opt.label}</p>
+                      <p className={`text-[10px] mt-0.5 ${isSelected ? "text-gray-300" : "text-gray-400"}`}>{opt.description}</p>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
           </div>
+
           <div className="mt-4 flex gap-2">
             <button onClick={() => { updateClient(editingClient); setEditingClient(null); }}
               className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 transition-colors">
@@ -276,6 +333,7 @@ export default function AdminDashboard({
             {attentionClients.map((client) => {
               const lastDate = getLastPaymentDate(client.invoice, payments);
               const urgent = isUrgent(lastDate);
+              const paymentStatus = (client as any).payment_status || "active";
               return (
                 <div key={client.id} className="rounded-lg bg-white border border-amber-100 p-4">
                   <div className="flex flex-wrap items-center gap-3">
@@ -304,6 +362,7 @@ export default function AdminDashboard({
                       <p className="text-xs text-gray-400 mt-0.5">Balance</p>
                     </div>
                     <StatusBadge status={client.status} />
+                    {paymentStatus !== "active" && <PaymentStatusBadge status={paymentStatus} />}
                     {client.client_email && (
                       <a href={buildGeneralEmail(client)} onClick={(e) => e.stopPropagation()}
                         className="flex items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-800 hover:bg-amber-100 transition-colors flex-shrink-0">
@@ -357,22 +416,31 @@ export default function AdminDashboard({
               <th className="px-5 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wide">Invoice</th>
               <th className="px-5 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wide">Balance</th>
               <th className="px-5 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wide">Schedule</th>
+              <th className="px-5 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wide">Payment status</th>
               {filterAttention && (
                 <th className="px-5 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wide">Last payment</th>
               )}
-              <th className="px-5 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wide">Status</th>
+              <th className="px-5 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wide">Standing</th>
               <th className="px-5 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wide">Actions</th>
             </tr>
           </thead>
           <tbody>
             {clients.map((client) => {
               const lastDate = getLastPaymentDate(client.invoice, payments);
+              const paymentStatus = (client as any).payment_status || "active";
               const scheduleLabel = client.payment_frequency === "weekly"
                 ? `Weekly${client.payment_day ? ` · ${client.payment_day.charAt(0).toUpperCase() + client.payment_day.slice(1)}s` : ""}`
                 : "Daily";
+              const rowBg = paymentStatus === "paused"
+                ? "bg-blue-50/30"
+                : paymentStatus === "frozen"
+                ? "bg-red-50/30"
+                : paymentStatus === "paid_off"
+                ? "bg-emerald-50/20"
+                : "";
               return (
                 <tr key={client.id}
-                  className="border-b border-gray-50 hover:bg-gray-50 transition-colors cursor-pointer"
+                  className={`border-b border-gray-50 hover:bg-gray-50 transition-colors cursor-pointer ${rowBg}`}
                   onClick={() => openClient(client)}>
                   <td className="px-5 py-3.5">
                     <p className="text-sm font-medium text-gray-900">{client.business_name}</p>
@@ -381,6 +449,9 @@ export default function AdminDashboard({
                   <td className="px-5 py-3.5 text-sm text-gray-600">{client.invoice}</td>
                   <td className="px-5 py-3.5 text-sm font-medium text-gray-900">{money(Number(client.balance || 0))}</td>
                   <td className="px-5 py-3.5 text-sm text-gray-500">{scheduleLabel}</td>
+                  <td className="px-5 py-3.5">
+                    <PaymentStatusBadge status={paymentStatus} />
+                  </td>
                   {filterAttention && (
                     <td className="px-5 py-3.5 text-sm font-medium text-amber-600">
                       {businessDaysSinceDate(lastDate)}
@@ -404,7 +475,7 @@ export default function AdminDashboard({
             })}
             {clients.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-5 py-10 text-center text-sm text-gray-400">
+                <td colSpan={8} className="px-5 py-10 text-center text-sm text-gray-400">
                   {searchInput ? `No clients matching "${searchInput}"` : filterAttention ? "No clients need attention right now." : "No clients yet."}
                 </td>
               </tr>

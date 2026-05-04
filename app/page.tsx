@@ -104,7 +104,6 @@ export default function Home() {
   const [checkingConsent, setCheckingConsent] = useState(false);
   const [orgId, setOrgId] = useState<string>("");
 
-  // Pagination
   const [currentPage, setCurrentPage] = useState(1);
   const [totalClients, setTotalClients] = useState(0);
   const [filterAttention, setFilterAttention] = useState(false);
@@ -319,6 +318,7 @@ export default function Home() {
       payment_frequency: frequency,
       payment_day: newClient.paymentDay || null,
       status: "Good Standing",
+      payment_status: "active",
       total_returns: 0,
     };
     const { error } = await supabase.from("clients").insert([client]);
@@ -362,6 +362,7 @@ export default function Home() {
       payment_frequency: client.payment_frequency,
       payment_day: client.payment_day || null,
       status: client.status,
+      payment_status: (client as any).payment_status || "active",
     }).eq("id", client.id);
     if (error) { alert(error.message); return; }
     await fetchClients(currentPage, searchQuery, filterAttention);
@@ -464,8 +465,14 @@ export default function Home() {
       }
     }
 
+    // Flag missing clients — but respect payment_status
     for (const client of localClients) {
       if (!reportInvoices.includes(client.invoice)) {
+        const paymentStatus = (client as any).payment_status || "active";
+
+        // Skip clients that are paused, paid off, or frozen — don't auto-flag as missed
+        if (["paused", "paid_off", "frozen", "weekly_off"].includes(paymentStatus)) continue;
+
         const day = today.getDay();
         if (client.payment_frequency === "weekly" && day !== 5) continue;
 
@@ -485,6 +492,10 @@ export default function Home() {
     }
 
     for (const client of localClients) {
+      const paymentStatus = (client as any).payment_status || "active";
+      // Don't change standing for paused/frozen/paid_off clients
+      if (["paused", "paid_off"].includes(paymentStatus)) continue;
+
       const hadPayment = reportInvoices.includes(client.invoice);
       const hadReturn = returnedInvoices.includes(client.invoice);
       const newStatus = await evaluateStanding(client, hadPayment, hadReturn);
