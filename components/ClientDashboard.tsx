@@ -514,9 +514,9 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
 
         </div>
 
-        {/* Calendar — desktop only, hidden on mobile and tablet */}
+        {/* Calendar — always visible when data exists */}
         {showCalendar && (
-          <div className="hidden lg:block flex-shrink-0 w-48 sticky top-20">
+          <div className="flex-shrink-0 w-48 sticky top-20">
             {calendarPanel}
           </div>
         )}
