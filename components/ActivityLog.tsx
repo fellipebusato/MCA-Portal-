@@ -70,19 +70,19 @@ function EventCard({ event, isAdmin }: { event: ActivityEvent; isAdmin: boolean 
   );
 }
 
-export function logActivity(
-  invoice: string,
-  event_type: string,
-  title: string,
-  description?: string
-): Promise<any> {
-  return supabase.from("activity_log").insert({
-    invoice,
-    event_type,
-    title,
-    description: description || null,
-  });
-}
+export async function logActivity(
+    invoice: string,
+    event_type: string,
+    title: string,
+    description?: string
+  ): Promise<void> {
+    await supabase.from("activity_log").insert({
+      invoice,
+      event_type,
+      title,
+      description: description || null,
+    });
+  }
 
 export default function ActivityLog({ invoice, isAdminView = false, refreshTrigger = 0 }: ActivityLogProps) {
   const [expanded, setExpanded] = useState(false);
