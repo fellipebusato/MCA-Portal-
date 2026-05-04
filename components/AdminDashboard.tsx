@@ -11,14 +11,23 @@ type AdminDashboardProps = {
   deleteClient: (client: any) => void;
   updateClient: (client: any) => void;
   uploading?: boolean;
+  // Pagination
+  currentPage: number;
+  totalPages: number;
+  totalClients: number;
+  onPageChange: (page: number) => void;
+  // Search
+  searchInput: string;
+  onSearchChange: (val: string) => void;
+  // Filter
+  filterAttention: boolean;
+  onFilterAttention: (val: boolean) => void;
 };
 
 function money(amount: number) {
   return amount.toLocaleString("en-US", { style: "currency", currency: "USD" });
 }
 
-// Derives last payment date from the payments array directly —
-// fixes the broken last_payment_date column that doesn't exist on clients table
 function getLastPaymentDate(clientInvoice: string, allPayments: any[]): Date | null {
   const clientPayments = allPayments.filter((p) => {
     if (p.invoice?.trim().toLowerCase() !== clientInvoice?.trim().toLowerCase()) return false;
@@ -102,28 +111,20 @@ const DAYS = ["monday", "tuesday", "wednesday", "thursday", "friday"];
 export default function AdminDashboard({
   clients, payments, openClient, handlePaymentUpload,
   deleteClient, updateClient, uploading = false,
+  currentPage, totalPages, totalClients, onPageChange,
+  searchInput, onSearchChange,
+  filterAttention, onFilterAttention,
 }: AdminDashboardProps) {
   const [editingClient, setEditingClient] = useState<any>(null);
-  const [filterAttention, setFilterAttention] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
 
+  // Stats — computed from current page clients
+  // For total balance and standing counts we use all clients on this page
+  // Full portfolio stats would need a separate aggregation query — good for future
   const totalBalance = clients.reduce((sum, c) => sum + Number(c.balance || 0), 0);
   const attentionClients = clients.filter((c) => c.status !== "Good Standing");
   const goodClients = clients.filter((c) => c.status === "Good Standing");
   const dailyClients = clients.filter((c) => c.payment_frequency === "daily").length;
   const weeklyClients = clients.filter((c) => c.payment_frequency === "weekly").length;
-
-  const baseClients = filterAttention ? attentionClients : clients;
-  const displayedClients = searchQuery.trim()
-    ? baseClients.filter((c) => {
-        const q = searchQuery.toLowerCase();
-        return (
-          c.business_name?.toLowerCase().includes(q) ||
-          c.invoice?.toLowerCase().includes(q) ||
-          c.owner_name?.toLowerCase().includes(q)
-        );
-      })
-    : baseClients;
 
   return (
     <div className="space-y-5">
@@ -131,36 +132,38 @@ export default function AdminDashboard({
       {/* Stat cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="rounded-xl bg-white border border-gray-100 p-5 cursor-pointer hover:border-gray-200 transition-colors"
-          onClick={() => { setFilterAttention(false); setSearchQuery(""); }}>
+          onClick={() => { onFilterAttention(false); onSearchChange(""); }}>
           <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">Total clients</p>
-          <p className="text-2xl font-semibold text-gray-900">{clients.length}</p>
+          <p className="text-2xl font-semibold text-gray-900">{totalClients}</p>
           <p className="text-xs text-gray-400 mt-1">{dailyClients} daily · {weeklyClients} weekly</p>
         </div>
         <div className="rounded-xl bg-white border border-gray-100 p-5">
           <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">Open balance</p>
           <p className="text-2xl font-semibold text-gray-900">{money(totalBalance)}</p>
-          <p className="text-xs text-gray-400 mt-1">Across all clients</p>
+          <p className="text-xs text-gray-400 mt-1">
+            {totalPages > 1 ? `Page ${currentPage} of ${totalPages}` : "Across all clients"}
+          </p>
         </div>
         <div
           className={`rounded-xl border p-5 cursor-pointer transition-colors ${
             filterAttention ? "bg-amber-50 border-amber-200" : "bg-white border-gray-100 hover:border-amber-200"
           }`}
-          onClick={() => { setFilterAttention(true); setSearchQuery(""); }}
+          onClick={() => onFilterAttention(!filterAttention)}
         >
           <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">Needs attention</p>
           <p className={`text-2xl font-semibold ${attentionClients.length > 0 ? "text-amber-600" : "text-gray-900"}`}>
             {attentionClients.length}
           </p>
           <p className="text-xs text-amber-600 mt-1 font-medium">
-            {attentionClients.length > 0 ? "Click to review →" : "All accounts current"}
+            {filterAttention ? "← Show all" : attentionClients.length > 0 ? "Click to filter →" : "All accounts current"}
           </p>
         </div>
         <div className="rounded-xl bg-white border border-gray-100 p-5 cursor-pointer hover:border-gray-200 transition-colors"
-          onClick={() => { setFilterAttention(false); setSearchQuery(""); }}>
+          onClick={() => { onFilterAttention(false); onSearchChange(""); }}>
           <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">Good standing</p>
           <p className="text-2xl font-semibold text-emerald-600">{goodClients.length}</p>
           <p className="text-xs text-gray-400 mt-1">
-            {clients.length > 0 ? `${Math.round((goodClients.length / clients.length) * 100)}% of portfolio` : "—"}
+            {clients.length > 0 ? `${Math.round((goodClients.length / clients.length) * 100)}% this page` : "—"}
           </p>
         </div>
       </div>
@@ -269,7 +272,7 @@ export default function AdminDashboard({
               </h3>
               <p className="text-xs text-amber-700 mt-0.5">These clients have missed payments or returned transactions.</p>
             </div>
-            <button onClick={() => setFilterAttention(false)} className="text-xs text-amber-600 hover:text-amber-800 font-medium">
+            <button onClick={() => onFilterAttention(false)} className="text-xs text-amber-600 hover:text-amber-800 font-medium">
               ← Show all clients
             </button>
           </div>
@@ -327,8 +330,10 @@ export default function AdminDashboard({
       <div className="rounded-xl bg-white border border-gray-100 overflow-hidden">
         <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between gap-3">
           <h3 className="text-sm font-semibold text-gray-900 flex-shrink-0">
-            {filterAttention ? `Needs attention (${displayedClients.length})` : "Client roster"}
-            {searchQuery && ` — ${displayedClients.length} result${displayedClients.length !== 1 ? "s" : ""}`}
+            {filterAttention ? "Needs attention" : "Client roster"}
+            <span className="ml-2 text-xs font-normal text-gray-400">
+              {totalClients} total
+            </span>
           </h3>
           <div className="flex items-center gap-2 ml-auto">
             <div className="relative">
@@ -340,19 +345,16 @@ export default function AdminDashboard({
                 type="text"
                 placeholder="Search name or invoice..."
                 className="pl-7 pr-3 py-1.5 text-xs rounded-lg border border-gray-200 focus:outline-none focus:border-gray-400 transition-colors w-48 text-gray-700 placeholder:text-gray-300"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                value={searchInput}
+                onChange={(e) => onSearchChange(e.target.value)}
               />
-              {searchQuery && (
-                <button onClick={() => setSearchQuery("")}
+              {searchInput && (
+                <button onClick={() => onSearchChange("")}
                   className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
                   ×
                 </button>
               )}
             </div>
-            {filterAttention && (
-              <button onClick={() => setFilterAttention(false)} className="text-xs text-gray-400 hover:text-gray-600 flex-shrink-0">Show all →</button>
-            )}
           </div>
         </div>
 
@@ -371,7 +373,7 @@ export default function AdminDashboard({
             </tr>
           </thead>
           <tbody>
-            {displayedClients.map((client) => {
+            {clients.map((client) => {
               const lastDate = getLastPaymentDate(client.invoice, payments);
               const scheduleLabel = client.payment_frequency === "weekly"
                 ? `Weekly${client.payment_day ? ` · ${client.payment_day.charAt(0).toUpperCase() + client.payment_day.slice(1)}s` : ""}`
@@ -408,15 +410,74 @@ export default function AdminDashboard({
                 </tr>
               );
             })}
-            {displayedClients.length === 0 && (
+            {clients.length === 0 && (
               <tr>
                 <td colSpan={7} className="px-5 py-10 text-center text-sm text-gray-400">
-                  {searchQuery ? `No clients matching "${searchQuery}"` : filterAttention ? "No clients need attention right now." : "No clients yet."}
+                  {searchInput ? `No clients matching "${searchInput}"` : filterAttention ? "No clients need attention right now." : "No clients yet."}
                 </td>
               </tr>
             )}
           </tbody>
         </table>
+
+        {/* Pagination controls */}
+        {totalPages > 1 && (
+          <div className="px-5 py-4 border-t border-gray-100 flex items-center justify-between">
+            <p className="text-xs text-gray-400">
+              Page {currentPage} of {totalPages} · {totalClients} clients total
+            </p>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => onPageChange(1)}
+                disabled={currentPage === 1}
+                className="rounded px-2 py-1.5 text-xs font-medium text-gray-500 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+                «
+              </button>
+              <button
+                onClick={() => onPageChange(currentPage - 1)}
+                disabled={currentPage === 1}
+                className="rounded px-3 py-1.5 text-xs font-medium text-gray-500 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+                ← Prev
+              </button>
+              {/* Page number buttons — show max 5 around current page */}
+              {Array.from({ length: totalPages }, (_, i) => i + 1)
+                .filter(p => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 2)
+                .reduce<(number | "...")[]>((acc, p, i, arr) => {
+                  if (i > 0 && p - (arr[i - 1] as number) > 1) acc.push("...");
+                  acc.push(p);
+                  return acc;
+                }, [])
+                .map((p, i) =>
+                  p === "..." ? (
+                    <span key={`ellipsis-${i}`} className="px-2 text-xs text-gray-300">…</span>
+                  ) : (
+                    <button
+                      key={p}
+                      onClick={() => onPageChange(p as number)}
+                      className={`rounded px-3 py-1.5 text-xs font-medium transition-colors ${
+                        currentPage === p
+                          ? "bg-gray-900 text-white"
+                          : "text-gray-500 hover:bg-gray-100"
+                      }`}>
+                      {p}
+                    </button>
+                  )
+                )}
+              <button
+                onClick={() => onPageChange(currentPage + 1)}
+                disabled={currentPage === totalPages}
+                className="rounded px-3 py-1.5 text-xs font-medium text-gray-500 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+                Next →
+              </button>
+              <button
+                onClick={() => onPageChange(totalPages)}
+                disabled={currentPage === totalPages}
+                className="rounded px-2 py-1.5 text-xs font-medium text-gray-500 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+                »
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
 import AdminDashboard from "@/components/AdminDashboard";
 import ClientDashboard from "@/components/ClientDashboard";
@@ -8,6 +8,8 @@ import AddClientForm from "@/components/AddClientForm";
 import ConsentPage from "@/components/ConsentPage";
 import Footer from "@/components/Footer";
 import { ADMIN_EMAIL, PORTAL, CONTACT } from "@/lib/config";
+
+const PAGE_SIZE = 25;
 
 function addBusinessDays(date: Date, days: number): Date {
   const result = new Date(date);
@@ -97,6 +99,13 @@ export default function Home() {
   const [hasConsented, setHasConsented] = useState(false);
   const [checkingConsent, setCheckingConsent] = useState(false);
 
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalClients, setTotalClients] = useState(0);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filterAttention, setFilterAttention] = useState(false);
+  const totalPages = Math.max(1, Math.ceil(totalClients / PAGE_SIZE));
+
   const [showForgot, setShowForgot] = useState(false);
   const [forgotEmail, setForgotEmail] = useState("");
   const [forgotStatus, setForgotStatus] = useState<"idle" | "loading" | "sent" | "error">("idle");
@@ -110,13 +119,75 @@ export default function Home() {
 
   const isAdmin = user?.email === ADMIN_EMAIL;
 
+  // ── Fetch clients with server-side pagination and search ──
+  const fetchClients = useCallback(async (
+    page: number = 1,
+    search: string = "",
+    attentionOnly: boolean = false
+  ) => {
+    setLoading(true);
+
+    const from = (page - 1) * PAGE_SIZE;
+    const to = from + PAGE_SIZE - 1;
+
+    let query = supabase.from("clients").select("*", { count: "exact" });
+
+    // Server-side search across business name, invoice, and owner name
+    if (search.trim()) {
+      query = query.or(
+        `business_name.ilike.%${search.trim()}%,invoice.ilike.%${search.trim()}%,owner_name.ilike.%${search.trim()}%`
+      );
+    }
+
+    // Filter attention-only clients
+    if (attentionOnly) {
+      query = query.neq("status", "Good Standing");
+    }
+
+    query = query.order("id", { ascending: true }).range(from, to);
+
+    const { data, error, count } = await query;
+
+    if (error) { alert(error.message); setLoading(false); return; }
+
+    setClients(data || []);
+    setTotalClients(count || 0);
+
+    // Load payments for first client on page if none selected
+    if (data?.[0] && !selectedClient) {
+      setSelectedClient(data[0]);
+      await fetchPayments(data[0].invoice);
+    }
+
+    setView("admin");
+    setLoading(false);
+  }, [selectedClient]);
+
   useEffect(() => { checkUser(); }, []);
+
   useEffect(() => {
     if (user) {
-      if (isAdmin) fetchClients();
+      if (isAdmin) fetchClients(1, "", false);
       else checkConsent(user.email);
     }
   }, [user]);
+
+  // Re-fetch when page, search, or filter changes
+  useEffect(() => {
+    if (user && isAdmin) {
+      fetchClients(currentPage, searchQuery, filterAttention);
+    }
+  }, [currentPage, searchQuery, filterAttention]);
+
+  // Debounce search — wait 400ms after typing stops before querying
+  const [searchInput, setSearchInput] = useState("");
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setSearchQuery(searchInput);
+      setCurrentPage(1); // reset to page 1 on new search
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [searchInput]);
 
   async function checkUser() {
     const { data } = await supabase.auth.getUser();
@@ -173,6 +244,7 @@ export default function Home() {
     await supabase.auth.signOut();
     setUser(null); setClients([]); setPayments([]);
     setSelectedClient(null); setClientRecord(null); setHasConsented(false);
+    setCurrentPage(1); setSearchQuery(""); setSearchInput(""); setFilterAttention(false);
   }
 
   async function fetchClientByEmail(userEmail: string) {
@@ -185,17 +257,6 @@ export default function Home() {
     setView("client");
     setLoading(false);
     setCheckingConsent(false);
-  }
-
-  async function fetchClients() {
-    setLoading(true);
-    const { data, error } = await supabase.from("clients").select("*").order("id", { ascending: true });
-    if (error) { alert(error.message); setLoading(false); return; }
-    setClients(data || []);
-    setSelectedClient(data?.[0] || null);
-    if (data?.[0]) await fetchPayments(data[0].invoice);
-    setView("admin");
-    setLoading(false);
   }
 
   async function fetchPayments(invoice: string) {
@@ -244,7 +305,7 @@ export default function Home() {
       fundedDate: "", funded: "", payback: "", payment: "", totalTerm: "",
       paymentFrequency: "daily", paymentDay: "",
     });
-    await fetchClients();
+    await fetchClients(1, searchQuery, filterAttention);
     setView("admin");
   }
 
@@ -253,7 +314,12 @@ export default function Home() {
     await supabase.from("payments").delete().eq("invoice", client.invoice);
     const { error } = await supabase.from("clients").delete().eq("id", client.id);
     if (error) { alert(error.message); return; }
-    await fetchClients();
+    // If we deleted the last item on this page, go back one page
+    const newTotal = totalClients - 1;
+    const maxPage = Math.max(1, Math.ceil(newTotal / PAGE_SIZE));
+    const targetPage = Math.min(currentPage, maxPage);
+    setCurrentPage(targetPage);
+    await fetchClients(targetPage, searchQuery, filterAttention);
   }
 
   async function updateClient(client: any) {
@@ -273,7 +339,7 @@ export default function Home() {
       status: client.status,
     }).eq("id", client.id);
     if (error) { alert(error.message); return; }
-    await fetchClients();
+    await fetchClients(currentPage, searchQuery, filterAttention);
   }
 
   async function evaluateStanding(client: any, reportHadPayment: boolean, hadReturn: boolean): Promise<string> {
@@ -314,6 +380,7 @@ export default function Home() {
     const today = new Date();
     const todayStr = toDateString(today);
 
+    // Fetch ALL clients for upload matching — not paginated
     const { data: clientsData } = await supabase.from("clients").select("*");
     if (!clientsData) { setUploading(false); return; }
 
@@ -410,7 +477,7 @@ export default function Home() {
     if (skippedDuplicates > 0) msg += `\n${skippedDuplicates} duplicate${skippedDuplicates > 1 ? "s" : ""} skipped (already on file).`;
     alert(msg);
     setUploading(false);
-    await fetchClients();
+    await fetchClients(currentPage, searchQuery, filterAttention);
   }
 
   // ── Loading ──────────────────────────────────────────────
@@ -583,6 +650,20 @@ export default function Home() {
             deleteClient={deleteClient}
             updateClient={updateClient}
             uploading={uploading}
+            // Pagination props
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalClients={totalClients}
+            onPageChange={(page) => setCurrentPage(page)}
+            // Search props — controlled in page.tsx, passed down
+            searchInput={searchInput}
+            onSearchChange={(val) => setSearchInput(val)}
+            // Filter props
+            filterAttention={filterAttention}
+            onFilterAttention={(val) => {
+              setFilterAttention(val);
+              setCurrentPage(1);
+            }}
           />
         )}
         {view === "client" && selectedClient && (
