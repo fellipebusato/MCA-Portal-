@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { money } from "@/lib/holidays";
+import { logActivity } from "@/components/ActivityLog";
 import type { Client } from "@/lib/types";
 
 type ReturnRow = {
@@ -34,7 +35,6 @@ const RETURN_CODES: Record<string, string> = {
 };
 
 function parseReturnDate(raw: string): string {
-  // Handles M/D/YYYY format from the CFG email
   const parts = raw.trim().split("/");
   if (parts.length !== 3) return raw;
   const [m, d, y] = parts;
@@ -45,7 +45,6 @@ function parseReturnEmail(text: string): ReturnRow[] {
   const results: ReturnRow[] = [];
   const lines = text.split("\n").map(l => l.trim()).filter(Boolean);
 
-  // Find the header line
   const headerIdx = lines.findIndex(l =>
     l.toLowerCase().includes("merchant") && l.toLowerCase().includes("inv")
   );
@@ -53,38 +52,30 @@ function parseReturnEmail(text: string): ReturnRow[] {
 
   for (let i = headerIdx + 1; i < lines.length; i++) {
     const line = lines[i];
-    // Split on 2+ spaces or tabs — the email table uses spacing to separate columns
     const cols = line.split(/\t|\s{2,}/).map(c => c.trim()).filter(Boolean);
     if (cols.length < 6) continue;
 
-    // Try to find the invoice number — it contains "INV"
     const invIdx = cols.findIndex(c => c.toUpperCase().includes("INV"));
     if (invIdx === -1) continue;
 
-    // Strip "Invoice #" prefix
     const rawInv = cols[invIdx].replace(/invoice\s*#/gi, "").trim();
 
-    // Amount is always the last column
     const amountRaw = cols[cols.length - 1].replace(/[,$]/g, "").trim();
     const amount = parseFloat(amountRaw);
     if (isNaN(amount)) continue;
 
-    // Return code is second to last before amount, looks like R01, R02 etc
     const codeIdx = cols.findIndex(c => /^R\d{2}$/.test(c));
     if (codeIdx === -1) continue;
 
     const returnCode = cols[codeIdx];
 
-    // Dates are before the return code — find by M/D/YYYY pattern
     const dateCols = cols.filter(c => /^\d{1,2}\/\d{1,2}\/\d{4}$/.test(c));
     if (dateCols.length < 2) continue;
 
     const returnDate = parseReturnDate(dateCols[0]);
     const settleDate = parseReturnDate(dateCols[1]);
 
-    // Merchant name is everything before the invoice column
     const merchant = cols.slice(0, invIdx).join(" ").trim();
-    // Processor is between invoice and dates — usually "ACHWorks"
     const processor = cols[invIdx + 1] || "ACHWorks";
 
     results.push({
@@ -144,7 +135,7 @@ export default function ReturnsImport({
 
       const client = row.client;
 
-      // Check for duplicate — same invoice, return date, amount
+      // Check for duplicate
       const { data: existing } = await supabase
         .from("returns")
         .select("id")
@@ -157,7 +148,6 @@ export default function ReturnsImport({
 
       // Insert return record
       const { error: returnError } = await supabase.from("returns").insert({
-        org_id: orgId,
         invoice: row.invoice,
         merchant_name: row.merchant,
         return_date: row.returnDate,
@@ -168,7 +158,7 @@ export default function ReturnsImport({
 
       if (returnError) { console.error("Return insert error:", returnError); continue; }
 
-      // Insert into payments table as a return record
+      // Insert into payments table
       await supabase.from("payments").insert({
         invoice: row.invoice,
         payment_date: row.returnDate,
@@ -181,13 +171,11 @@ export default function ReturnsImport({
         running_balance: Number(client.balance),
       });
 
-      // Balance does NOT change on return — payment pushed to end of term
-      // Extend total_term by 1 (daily) or 5 (weekly)
+      // Extend total_term — balance unchanged
       const termExtension = client.payment_frequency === "weekly" ? 5 : 1;
       const newTotalTerm = Number(client.total_term) + termExtension;
       const newTotalReturns = Number(client.total_returns || 0) + 1;
 
-      // Standing logic: 5+ daily returns OR 1+ weekly return = Needs Attention
       const needsAttention = client.payment_frequency === "weekly"
         ? newTotalReturns >= 1
         : newTotalReturns >= 5;
@@ -198,6 +186,14 @@ export default function ReturnsImport({
         last_return_date: row.returnDate,
         status: needsAttention ? "Needs Attention" : client.status,
       }).eq("id", client.id);
+
+      // Log to activity log
+      await logActivity(
+        row.invoice,
+        "return",
+        `Payment returned — ${row.returnCode}`,
+        `${money(row.returnAmount)} returned on ${row.returnDate} · ${RETURN_CODES[row.returnCode] || "Unknown reason"} · Term extended +${termExtension} day${termExtension > 1 ? "s" : ""}`
+      );
 
       imported++;
     }
@@ -249,9 +245,7 @@ export default function ReturnsImport({
             className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
             Parse returns →
           </button>
-          <p className="text-xs text-gray-400">
-            You will review before anything is saved
-          </p>
+          <p className="text-xs text-gray-400">You will review before anything is saved</p>
         </div>
       </div>
     );
@@ -271,7 +265,6 @@ export default function ReturnsImport({
           </p>
         </div>
 
-        {/* Matched returns */}
         {matched.length > 0 && (
           <div className="px-5 py-4">
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
@@ -310,11 +303,10 @@ export default function ReturnsImport({
           </div>
         )}
 
-        {/* Not found */}
         {notFound.length > 0 && (
           <div className="px-5 py-4 border-t border-gray-50">
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
-              Invoice not found in portal ({notFound.length}) — will be skipped
+              Invoice not found — will be skipped ({notFound.length})
             </p>
             <div className="space-y-1.5">
               {notFound.map((row, idx) => (

@@ -8,6 +8,7 @@ import AddClientForm from "@/components/AddClientForm";
 import ConsentPage from "@/components/ConsentPage";
 import Footer from "@/components/Footer";
 import ReturnsImport from "@/components/ReturnsImport";
+import { logActivity } from "@/components/ActivityLog";
 import { ADMIN_EMAIL, PORTAL, CONTACT } from "@/lib/config";
 import { ensureMonthlySnapshots } from "@/lib/snapshots";
 import type { Client, Payment, NewClientForm, ParsedPaymentRow } from "@/lib/types";
@@ -88,11 +89,10 @@ function parseCSVRows(text: string): ParsedPaymentRow[] {
   return results;
 }
 
-// Check if a paused client should auto-resume today
 function shouldAutoResume(client: Client, todayStr: string): boolean {
   if (client.payment_status !== "paused") return false;
   if (!client.pause_end) return false;
-  return client.pause_end < todayStr; // past the end date
+  return client.pause_end < todayStr;
 }
 
 export default function Home() {
@@ -337,8 +337,18 @@ export default function Home() {
       time_in_business_months: newClient.timeInBusinessMonths ? Number(newClient.timeInBusinessMonths) : null,
       position: newClient.position ? Number(newClient.position) : null,
     };
+
     const { error } = await supabase.from("clients").insert([client]);
     if (error) { alert(error.message); return; }
+
+    // Log the funding event
+    await logActivity(
+      newClient.invoice,
+      "funded",
+      "Account funded",
+      `Funded $${Number(newClient.funded).toLocaleString()} · Payback $${payback.toLocaleString()} · ${frequency === "weekly" ? `Weekly (${newClient.paymentDay}s)` : "Daily"} payments of $${payment.toLocaleString()} · ${calculatedTerm} business day term`
+    );
+
     setNewClient({
       businessName: "", invoice: "", ownerName: "", clientEmail: "",
       fundedDate: "", funded: "", payback: "", payment: "", totalTerm: "",
@@ -355,6 +365,7 @@ export default function Home() {
     if (!confirm(`Delete ${client.business_name} and all payment history?`)) return;
     await supabase.from("payments").delete().eq("invoice", client.invoice);
     await supabase.from("returns").delete().eq("invoice", client.invoice);
+    await supabase.from("activity_log").delete().eq("invoice", client.invoice);
     const { error } = await supabase.from("clients").delete().eq("id", client.id);
     if (error) { alert(error.message); return; }
     const newTotal = totalClients - 1;
@@ -366,6 +377,8 @@ export default function Home() {
   }
 
   async function updateClient(client: Client) {
+    const prevClient = clients.find(c => c.id === client.id);
+
     const { error } = await supabase.from("clients").update({
       business_name: client.business_name,
       invoice: client.invoice,
@@ -391,7 +404,46 @@ export default function Home() {
       time_in_business_months: client.time_in_business_months ? Number(client.time_in_business_months) : null,
       position: client.position ? Number(client.position) : null,
     }).eq("id", client.id);
+
     if (error) { alert(error.message); return; }
+
+    // Log pause changes
+    if (client.payment_status === "paused" && prevClient?.payment_status !== "paused") {
+      await logActivity(
+        client.invoice,
+        "pause_start",
+        "Payment pause set",
+        `Pause period: ${client.pause_start || "start"} through ${client.pause_end || "open-ended"}`
+      );
+    } else if (client.payment_status === "active" && prevClient?.payment_status === "paused") {
+      await logActivity(
+        client.invoice,
+        "pause_end",
+        "Payments manually resumed",
+        "Account returned to active status by admin"
+      );
+    }
+
+    // Log term changes
+    if (prevClient && Number(client.total_term) !== Number(prevClient.total_term)) {
+      await logActivity(
+        client.invoice,
+        "term_change",
+        "Term updated",
+        `Term changed from ${prevClient.total_term} to ${client.total_term} business days`
+      );
+    }
+
+    // Log status changes
+    if (prevClient && client.status !== prevClient.status) {
+      await logActivity(
+        client.invoice,
+        "status_change",
+        `Standing changed to ${client.status}`,
+        `Previous standing: ${prevClient.status}`
+      );
+    }
+
     await fetchClients(currentPage, searchQuery, filterAttention);
     await fetchAllClients();
   }
@@ -439,7 +491,7 @@ export default function Home() {
 
     let localClients = clientsData as Client[];
 
-    // ── Auto-resume paused clients whose pause_end has passed ──────────
+    // Auto-resume paused clients whose pause_end has passed
     const resuming: string[] = [];
     for (const client of localClients) {
       if (shouldAutoResume(client, todayStr)) {
@@ -449,6 +501,14 @@ export default function Home() {
           pause_end: null,
         }).eq("id", client.id);
         resuming.push(client.business_name);
+
+        await logActivity(
+          client.invoice,
+          "pause_end",
+          "Payments automatically resumed",
+          `Pause period ended — account returned to active status on ${todayStr}`
+        );
+
         (client as any).payment_status = "active";
         (client as any).pause_start = null;
         (client as any).pause_end = null;
@@ -513,8 +573,6 @@ export default function Home() {
     for (const client of localClients) {
       if (!reportInvoices.includes(client.invoice)) {
         const paymentStatus = client.payment_status || "active";
-
-        // Skip non-active clients — paused, frozen, paid_off, weekly_off
         if (["paused", "paid_off", "frozen", "weekly_off"].includes(paymentStatus)) continue;
 
         const day = today.getDay();

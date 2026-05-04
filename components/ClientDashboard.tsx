@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import PaymentHistory from "./PaymentHistory";
+import ActivityLog from "./ActivityLog";
 import { CONTACT, PORTAL, PAYMENT_LINK } from "@/lib/config";
 import {
   BANK_HOLIDAYS, toDateStr, isWeekend, isHoliday, isBusinessDay,
@@ -200,6 +201,7 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
   const today = new Date();
   const [calYear, setCalYear] = useState(today.getFullYear());
   const [calMonth, setCalMonth] = useState(today.getMonth());
+  const [activityRefresh, setActivityRefresh] = useState(0);
 
   const percentPaid = 100 - (Number(selectedClient.balance || 0) / Number(selectedClient.payback || 1)) * 100;
   const safePercent = Math.max(0, Math.min(100, percentPaid));
@@ -275,6 +277,11 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
     const desc = (p.description || "").toLowerCase();
     return desc.includes("missed") || desc.includes("return");
   });
+
+  function handlePaymentAdded() {
+    setActivityRefresh(r => r + 1);
+    onPaymentAdded?.();
+  }
 
   return (
     <div className="space-y-4">
@@ -450,8 +457,16 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
         payments={payments}
         client={selectedClient}
         isAdminView={isAdminView}
-        onPaymentAdded={() => onPaymentAdded?.()}
+        onPaymentAdded={handlePaymentAdded}
       />
+
+      {/* Activity log */}
+      <ActivityLog
+        invoice={selectedClient.invoice}
+        isAdminView={isAdminView}
+        refreshTrigger={activityRefresh}
+      />
+
     </div>
   );
 }
