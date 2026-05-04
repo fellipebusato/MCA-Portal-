@@ -5,7 +5,7 @@ import PaymentHistory from "./PaymentHistory";
 import ActivityLog from "./ActivityLog";
 import { CONTACT, PORTAL, PAYMENT_LINK } from "@/lib/config";
 import {
-  BANK_HOLIDAYS, toDateStr, isWeekend, isHoliday, isBusinessDay,
+  toDateStr, isWeekend, isHoliday, isBusinessDay,
   addBusinessDays, formatDate, money,
 } from "@/lib/holidays";
 import type { Client, Payment } from "@/lib/types";
@@ -22,15 +22,16 @@ const DAY_NAME_TO_NUM: Record<string, number> = {
   thursday: 4, friday: 5, saturday: 6,
 };
 
+const DAY_NUM_TO_NAME = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+
+// ── Business day helpers ─────────────────────────────────────────────────────
+
 function buildDailyTermDays(startDate: Date, totalTerm: number): Set<string> {
   const days = new Set<string>();
   const cursor = new Date(startDate);
   let count = 0;
   while (count < totalTerm) {
-    if (isBusinessDay(cursor)) {
-      days.add(toDateStr(cursor));
-      count++;
-    }
+    if (isBusinessDay(cursor)) { days.add(toDateStr(cursor)); count++; }
     cursor.setDate(cursor.getDate() + 1);
   }
   return days;
@@ -41,13 +42,10 @@ function buildWeeklyTermDays(startDate: Date, totalTerm: number, paymentDayName:
   const targetDow = DAY_NAME_TO_NUM[paymentDayName.toLowerCase()] ?? 5;
   const cursor = new Date(startDate);
   let count = 0;
-
   while (cursor.getDay() !== targetDow) cursor.setDate(cursor.getDate() + 1);
-
   while (count < totalTerm) {
     let paymentDate = new Date(cursor);
     if (isHoliday(paymentDate)) {
-      paymentDate = new Date(cursor);
       do { paymentDate.setDate(paymentDate.getDate() + 1); } while (paymentDate.getDay() !== 1);
       while (!isBusinessDay(paymentDate)) { paymentDate.setDate(paymentDate.getDate() + 1); }
     }
@@ -82,6 +80,96 @@ function buildMissedDays(payments: Payment[]): Set<string> {
   return days;
 }
 
+// ── Next payment date ────────────────────────────────────────────────────────
+
+function getNextPaymentDate(client: Client): { date: Date; label: string } | null {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  if (client.payment_frequency === "daily") {
+    // Next business day after today
+    const next = new Date(today);
+    next.setDate(next.getDate() + 1);
+    while (!isBusinessDay(next)) next.setDate(next.getDate() + 1);
+    const diff = Math.ceil((next.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+    const label = diff === 1 ? `Tomorrow, ${DAY_NUM_TO_NAME[next.getDay()]}` : DAY_NUM_TO_NAME[next.getDay()];
+    return { date: next, label };
+  }
+
+  if (client.payment_frequency === "weekly" && client.payment_day) {
+    const targetDow = DAY_NAME_TO_NUM[client.payment_day.toLowerCase()] ?? 5;
+    const next = new Date(today);
+    next.setDate(next.getDate() + 1);
+    while (next.getDay() !== targetDow) next.setDate(next.getDate() + 1);
+    // If holiday, move to next Monday
+    if (isHoliday(next)) {
+      do { next.setDate(next.getDate() + 1); } while (next.getDay() !== 1);
+      while (!isBusinessDay(next)) next.setDate(next.getDate() + 1);
+    }
+    const daysUntil = Math.ceil((next.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+    const label = daysUntil === 1 ? "Tomorrow" : daysUntil <= 7 ? `This ${DAY_NUM_TO_NAME[next.getDay()]}` : `${DAY_NUM_TO_NAME[next.getDay()]} ${formatDate(toDateStr(next))}`;
+    return { date: next, label };
+  }
+
+  return null;
+}
+
+// ── Pending payments (not yet settled) ──────────────────────────────────────
+
+function getPendingPayments(payments: Payment[]): { count: number; total: number } {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  let count = 0;
+  let total = 0;
+  for (const p of payments) {
+    if (!p.settlement_date) continue;
+    const desc = (p.description || "").toLowerCase();
+    if (desc.includes("missed") || desc.includes("return")) continue;
+    const settlDate = new Date(p.settlement_date);
+    settlDate.setHours(0, 0, 0, 0);
+    if (settlDate > today && p.debit > 0) {
+      count++;
+      total += Number(p.debit);
+    }
+  }
+  return { count, total };
+}
+
+// ── Milestone helpers ────────────────────────────────────────────────────────
+
+function getMilestone(percentPaid: number): { pct: number; emoji: string; title: string; message: string; showCTA: boolean } | null {
+  if (percentPaid >= 75 && percentPaid < 100) {
+    return {
+      pct: 75,
+      emoji: "🏁",
+      title: "75% paid — almost there!",
+      message: "Strong finish. Your payment track record is building and will help with future funding.",
+      showCTA: false,
+    };
+  }
+  if (percentPaid >= 50 && percentPaid < 75) {
+    return {
+      pct: 50,
+      emoji: "🎉",
+      title: "50% paid — milestone reached!",
+      message: "You've paid half your balance. At this stage you may be eligible for additional funding or a refinance.",
+      showCTA: true,
+    };
+  }
+  if (percentPaid >= 25 && percentPaid < 50) {
+    return {
+      pct: 25,
+      emoji: "💪",
+      title: "25% paid — great start!",
+      message: "You're a quarter of the way there. Keep the momentum going.",
+      showCTA: false,
+    };
+  }
+  return null;
+}
+
+// ── Email builders ───────────────────────────────────────────────────────────
+
 function buildGeneralEmail(client: Client): string {
   const to = client.client_email || "";
   const subject = encodeURIComponent(`Your MCA Account — Action Required`);
@@ -113,6 +201,8 @@ function buildMissedPaymentEmail(client: Client, payments: Payment[]): string {
   );
   return `mailto:${to}?subject=${subject}&body=${body}`;
 }
+
+// ── Mini Calendar ────────────────────────────────────────────────────────────
 
 function MiniCalendar({
   year, month, termDays, paymentDays, missedDays, holidayMovedDays, today,
@@ -156,21 +246,12 @@ function MiniCalendar({
           const isMoved = holidayMovedDays.has(dateStr);
           const paid = paymentDays.has(dateStr);
           const missed = missedDays.has(dateStr);
-
           let bg = "", textColor = isWknd ? "text-gray-300" : "text-gray-700", title = "";
-
-          if (isHol) {
-            bg = "bg-yellow-100"; textColor = "text-yellow-700"; title = "Bank holiday";
-          } else if (paid) {
-            bg = "bg-emerald-100"; textColor = "text-emerald-700"; title = "Payment received";
-          } else if (missed) {
-            bg = "bg-red-100"; textColor = "text-red-600"; title = "Missed / returned";
-          } else if (isMoved) {
-            bg = "bg-orange-100"; textColor = "text-orange-700"; title = "Payment moved from holiday";
-          } else if (inTerm) {
-            bg = "bg-blue-50"; textColor = "text-blue-700"; title = "Expected payment day";
-          }
-
+          if (isHol) { bg = "bg-yellow-100"; textColor = "text-yellow-700"; title = "Bank holiday"; }
+          else if (paid) { bg = "bg-emerald-100"; textColor = "text-emerald-700"; title = "Payment received"; }
+          else if (missed) { bg = "bg-red-100"; textColor = "text-red-600"; title = "Missed / returned"; }
+          else if (isMoved) { bg = "bg-orange-100"; textColor = "text-orange-700"; title = "Payment moved from holiday"; }
+          else if (inTerm) { bg = "bg-blue-50"; textColor = "text-blue-700"; title = "Expected payment day"; }
           return (
             <div key={dateStr} title={title}
               className={`aspect-square flex items-center justify-center rounded text-[10px] font-medium ${bg} ${textColor} ${isToday ? "ring-1 ring-gray-900 font-bold" : ""}`}>
@@ -197,10 +278,13 @@ function MiniCalendar({
   );
 }
 
+// ── Main Component ───────────────────────────────────────────────────────────
+
 export default function ClientDashboard({ selectedClient, payments, isAdminView, onPaymentAdded }: ClientDashboardProps) {
   const today = new Date();
   const [calYear, setCalYear] = useState(today.getFullYear());
   const [calMonth, setCalMonth] = useState(today.getMonth());
+  const [showDealDetails, setShowDealDetails] = useState(false);
   const [activityRefresh, setActivityRefresh] = useState(0);
 
   const percentPaid = 100 - (Number(selectedClient.balance || 0) / Number(selectedClient.payback || 1)) * 100;
@@ -211,7 +295,22 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
     ? `Weekly · ${paymentDayName ? paymentDayName.charAt(0).toUpperCase() + paymentDayName.slice(1) + "s" : ""}`
     : "Daily";
   const totalPaid = Number(selectedClient.payback || 0) - Number(selectedClient.balance || 0);
+  const costOfCapital = Number(selectedClient.payback || 0) - Number(selectedClient.funded || 0);
+  const factorRate = Number(selectedClient.funded || 0) > 0
+    ? (Number(selectedClient.payback || 0) / Number(selectedClient.funded || 0)).toFixed(2)
+    : "—";
 
+  // Pending payments
+  const { count: pendingCount, total: pendingTotal } = getPendingPayments(payments);
+  const pendingBalance = Math.max(0, Number(selectedClient.balance || 0) - pendingTotal);
+
+  // Next payment
+  const nextPayment = getNextPaymentDate(selectedClient);
+
+  // Milestone
+  const milestone = getMilestone(safePercent);
+
+  // Calendar setup
   const fundedDate = selectedClient.funded_date ? new Date(selectedClient.funded_date + "T00:00:00") : null;
   const totalTerm = Number(selectedClient.total_term || 0);
 
@@ -252,15 +351,6 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
     ? returnedPayments.length >= 1
     : returnedPayments.length >= 2;
 
-  function prevMonth() {
-    if (calMonth === 0) { setCalMonth(11); setCalYear(y => y - 1); }
-    else setCalMonth(m => m - 1);
-  }
-  function nextMonth() {
-    if (calMonth === 11) { setCalMonth(0); setCalYear(y => y + 1); }
-    else setCalMonth(m => m + 1);
-  }
-
   const calMinYear = fundedDate ? fundedDate.getFullYear() : today.getFullYear();
   const calMinMonth = fundedDate ? Math.max(0, fundedDate.getMonth() - 1) : 0;
   const naturalMax = termEndDate || new Date(today.getFullYear() + 2, today.getMonth(), 1);
@@ -272,11 +362,19 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
   const canGoPrev = calYear > calMinYear || (calYear === calMinYear && calMonth > calMinMonth);
   const canGoNext = calYear < calMaxYear || (calYear === calMaxYear && calMonth < calMaxMonth);
 
-  const showCalendar = !!(fundedDate);
   const hasMissedPayments = payments.some(p => {
     const desc = (p.description || "").toLowerCase();
     return desc.includes("missed") || desc.includes("return");
   });
+
+  function prevMonth() {
+    if (calMonth === 0) { setCalMonth(11); setCalYear(y => y - 1); }
+    else setCalMonth(m => m - 1);
+  }
+  function nextMonth() {
+    if (calMonth === 11) { setCalMonth(0); setCalYear(y => y + 1); }
+    else setCalMonth(m => m + 1);
+  }
 
   function handlePaymentAdded() {
     setActivityRefresh(r => r + 1);
@@ -330,28 +428,91 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
         </div>
       </div>
 
+      {/* Milestone banner */}
+      {milestone && (
+        <div className={`rounded-xl border p-4 flex items-start gap-3 ${
+          milestone.pct === 50
+            ? "bg-blue-50 border-blue-200"
+            : "bg-emerald-50 border-emerald-100"
+        }`}>
+          <span className="text-xl flex-shrink-0">{milestone.emoji}</span>
+          <div className="flex-1">
+            <p className={`text-sm font-semibold ${milestone.pct === 50 ? "text-blue-900" : "text-emerald-800"}`}>
+              {milestone.title}
+            </p>
+            <p className={`text-xs mt-0.5 ${milestone.pct === 50 ? "text-blue-700" : "text-emerald-600"}`}>
+              {milestone.message}
+            </p>
+            {milestone.showCTA && (
+              <a href={`mailto:${CONTACT.email}?subject=Refinancing inquiry — ${selectedClient.invoice}&body=Hello ${CONTACT.name},%0A%0AI have reached 50%25 of my payback on account ${selectedClient.invoice} and would like to discuss additional funding or refinancing options.%0A%0AThank you`}
+                className="inline-flex items-center gap-1 mt-2 rounded-lg bg-blue-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-800 transition-colors">
+                Contact Fellipe to discuss →
+              </a>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Main layout */}
       <div className="flex flex-col lg:flex-row gap-4 lg:gap-5 lg:items-start">
         <div className="flex-1 min-w-0 space-y-4">
 
           {/* Stats */}
           <div className="grid grid-cols-2 gap-3">
+
+            {/* Funded */}
             <div className="rounded-xl bg-white border border-gray-100 p-4">
               <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">Funded</p>
               <p className="text-lg font-semibold text-gray-900">{money(Number(selectedClient.funded || 0))}</p>
             </div>
+
+            {/* Payback */}
             <div className="rounded-xl bg-white border border-gray-100 p-4">
               <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">Payback</p>
               <p className="text-lg font-semibold text-gray-900">{money(Number(selectedClient.payback || 0))}</p>
             </div>
-            <div className="rounded-xl bg-white border border-gray-100 p-4">
+
+            {/* Balance — with pending */}
+            <div className="rounded-xl bg-white border border-gray-100 p-4 col-span-2">
               <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">Balance</p>
-              <p className="text-lg font-semibold text-gray-900">{money(Number(selectedClient.balance || 0))}</p>
-              <p className="text-xs text-gray-400 mt-1">{money(totalPaid)} paid so far</p>
+              <div className="flex items-end justify-between gap-4 flex-wrap">
+                <div>
+                  <p className="text-lg font-semibold text-gray-900">{money(Number(selectedClient.balance || 0))}</p>
+                  <p className="text-xs text-gray-400 mt-0.5">Settled payments only</p>
+                </div>
+                {pendingCount > 0 && (
+                  <div className="text-right">
+                    <p className="text-sm font-semibold text-blue-600">{money(pendingBalance)}</p>
+                    <p className="text-xs text-blue-400 mt-0.5">
+                      Once {pendingCount} pending payment{pendingCount > 1 ? "s" : ""} clear{pendingCount === 1 ? "s" : ""}
+                    </p>
+                  </div>
+                )}
+              </div>
+              {pendingCount > 0 && (
+                <div className="mt-2 rounded-lg bg-blue-50 border border-blue-100 px-3 py-1.5">
+                  <p className="text-[10px] text-blue-600">
+                    {pendingCount} payment{pendingCount > 1 ? "s" : ""} totaling {money(pendingTotal)} {pendingCount === 1 ? "is" : "are"} processing and will apply to your balance within 4 business days.
+                  </p>
+                </div>
+              )}
             </div>
-            <div className="rounded-xl bg-white border border-gray-100 p-4">
-              <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">{paymentFrequencyLabel} payment</p>
-              <p className="text-lg font-semibold text-gray-900">{money(Number(selectedClient.payment || 0))}</p>
+
+            {/* Payment amount + next date */}
+            <div className="rounded-xl bg-white border border-gray-100 p-4 col-span-2">
+              <div className="flex items-start justify-between gap-4 flex-wrap">
+                <div>
+                  <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">{paymentFrequencyLabel} payment</p>
+                  <p className="text-lg font-semibold text-gray-900">{money(Number(selectedClient.payment || 0))}</p>
+                </div>
+                {nextPayment && (
+                  <div className="text-right">
+                    <p className="text-xs text-gray-400 mb-1">Next ACH debit</p>
+                    <p className="text-sm font-semibold text-gray-900">{nextPayment.label}</p>
+                    <p className="text-xs text-gray-400">{money(Number(selectedClient.payment || 0))}</p>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
@@ -367,9 +528,53 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
             <div className="flex justify-between mt-2">
               <p className="text-xs text-gray-400">{money(totalPaid)} paid</p>
               <p className="text-xs text-gray-400">
-                {termEndDate ? `Ends: ${formatDate(termEndDate.toISOString().split("T")[0])}` : `${money(Number(selectedClient.balance || 0))} remaining`}
+                {termEndDate
+                  ? <>Est. completion: {formatDate(termEndDate.toISOString().split("T")[0])} <span className="text-gray-300">· may vary</span></>
+                  : `${money(Number(selectedClient.balance || 0))} remaining`}
               </p>
             </div>
+          </div>
+
+          {/* Deal details — collapsible */}
+          <div className="rounded-xl bg-white border border-gray-100 overflow-hidden">
+            <button
+              onClick={() => setShowDealDetails(v => !v)}
+              className="w-full px-4 py-3 flex items-center justify-between text-left hover:bg-gray-50 transition-colors">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Deal details</p>
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none"
+                className={`text-gray-400 transition-transform duration-200 ${showDealDetails ? "rotate-180" : ""}`}>
+                <path d="M2 5l5 5 5-5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </button>
+            {showDealDetails && (
+              <div className="px-4 pb-4 border-t border-gray-50">
+                <div className="grid grid-cols-2 gap-3 mt-3">
+                  <div>
+                    <p className="text-[10px] text-gray-400 mb-0.5">Amount received</p>
+                    <p className="text-sm font-semibold text-gray-900">{money(Number(selectedClient.funded || 0))}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-gray-400 mb-0.5">Total repayment</p>
+                    <p className="text-sm font-semibold text-gray-900">{money(Number(selectedClient.payback || 0))}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-gray-400 mb-0.5">Cost of capital</p>
+                    <p className="text-sm font-semibold text-gray-900">{money(costOfCapital)}</p>
+                    <p className="text-[10px] text-gray-400 mt-0.5">Difference between received and repaid</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-gray-400 mb-0.5">Factor rate</p>
+                    <p className="text-sm font-semibold text-gray-900">{factorRate}x</p>
+                    <p className="text-[10px] text-gray-400 mt-0.5">Repayment ÷ funded amount</p>
+                  </div>
+                  <div className="col-span-2">
+                    <p className="text-[10px] text-gray-300 leading-relaxed mt-1">
+                      This is a merchant cash advance — a purchase of future receivables, not a loan. Factor rates are not equivalent to annual interest rates and no compounding interest applies.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Standing */}
@@ -404,49 +609,63 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
             </div>
           )}
 
-          {/* Payment action box */}
-          {badStanding && (
-            <div className="rounded-xl border border-red-200 bg-red-50 p-4 space-y-2">
-              <a href={PAYMENT_LINK} target="_blank" rel="noopener noreferrer"
-                className="block text-center rounded-lg bg-red-600 px-4 py-2.5 text-xs font-medium text-white hover:bg-red-700 transition-colors">
-                Pay now online →
-              </a>
-              <p className="text-xs text-red-500">⚠️ Online payments carry a 3.5% fee. To pay $100.00, submit $103.50.</p>
-              <div className="rounded-lg border border-red-200 bg-white px-3 py-2 text-xs text-red-700">
-                <span className="block font-medium">Zelle: invoices@cfgms.com</span>
-                <span className="block text-red-500 mt-0.5">Include your invoice # or business name</span>
+          {/* Payment panel — always visible, tone changes based on standing */}
+          <div className={`rounded-xl border p-4 space-y-3 ${
+            badStanding
+              ? "border-red-200 bg-red-50"
+              : "border-gray-200 bg-white"
+          }`}>
+            {!badStanding && (
+              <div>
+                <p className="text-sm font-semibold text-gray-900">Make a payment</p>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  Every extra payment reduces your balance dollar for dollar and brings your completion date closer.
+                </p>
               </div>
+            )}
+            <a href={PAYMENT_LINK} target="_blank" rel="noopener noreferrer"
+              className={`flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-xs font-medium text-white transition-colors ${
+                badStanding ? "bg-red-600 hover:bg-red-700" : "bg-gray-900 hover:bg-gray-800"
+              }`}>
+              {badStanding ? "Pay now online →" : "Pay online →"}
+            </a>
+            <p className="text-xs text-gray-400">⚠️ Online payments carry a 3.5% fee. To pay $100.00, submit $103.50.</p>
+            <div className={`rounded-lg border px-3 py-2 text-xs ${
+              badStanding ? "border-red-200 bg-white text-red-700" : "border-gray-100 bg-gray-50 text-gray-600"
+            }`}>
+              <span className="block font-medium">Zelle: invoices@cfgms.com</span>
+              <span className={`block mt-0.5 ${badStanding ? "text-red-500" : "text-gray-400"}`}>
+                Include your invoice # or business name — no fee
+              </span>
             </div>
-          )}
+          </div>
 
         </div>
 
         {/* Calendar */}
-        {showCalendar && (
+        {fundedDate && (
           <div className="flex-shrink-0 w-48 sticky top-20">
-            <div className="space-y-3">
-              <div className="rounded-xl bg-white border border-gray-100 p-4">
-                <div className="mb-2">
-                  <p className="text-xs font-semibold text-gray-700">Payment calendar</p>
-                  <p className="text-[9px] text-gray-400 mt-0.5">
-                    {totalTerm} {isWeeklyClient ? "weekly" : "business day"} term
-                    {termEndDate && ` · ends ${formatDate(termEndDate.toISOString().split("T")[0])}`}
+            <div className="rounded-xl bg-white border border-gray-100 p-4">
+              <div className="mb-2">
+                <p className="text-xs font-semibold text-gray-700">Payment calendar</p>
+                <p className="text-[9px] text-gray-400 mt-0.5">
+                  {totalTerm} {isWeeklyClient ? "weekly" : "business day"} term
+                  {termEndDate && ` · ends ${formatDate(termEndDate.toISOString().split("T")[0])}`}
+                </p>
+                {isWeeklyClient && paymentDayName && (
+                  <p className="text-[9px] text-blue-500 mt-0.5 font-medium">
+                    Every {paymentDayName.charAt(0).toUpperCase() + paymentDayName.slice(1)}
+                    {holidayMovedDays.size > 0 && ` · ${holidayMovedDays.size} moved to Monday`}
                   </p>
-                  {isWeeklyClient && paymentDayName && (
-                    <p className="text-[9px] text-blue-500 mt-0.5 font-medium">
-                      Every {paymentDayName.charAt(0).toUpperCase() + paymentDayName.slice(1)}
-                      {holidayMovedDays.size > 0 && ` · ${holidayMovedDays.size} moved to Monday`}
-                    </p>
-                  )}
-                </div>
-                <MiniCalendar
-                  year={calYear} month={calMonth}
-                  termDays={termDays} paymentDays={paymentDays}
-                  missedDays={missedDays} holidayMovedDays={holidayMovedDays}
-                  today={today} onPrev={prevMonth} onNext={nextMonth}
-                  canPrev={canGoPrev} canNext={canGoNext}
-                />
+                )}
               </div>
+              <MiniCalendar
+                year={calYear} month={calMonth}
+                termDays={termDays} paymentDays={paymentDays}
+                missedDays={missedDays} holidayMovedDays={holidayMovedDays}
+                today={today} onPrev={prevMonth} onNext={nextMonth}
+                canPrev={canGoPrev} canNext={canGoNext}
+              />
             </div>
           </div>
         )}
