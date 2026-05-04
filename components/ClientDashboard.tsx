@@ -187,7 +187,7 @@ function MiniCalendar({
         })}
       </div>
       <div className="mt-2 grid grid-cols-2 gap-x-2 gap-y-1">
-        {[["bg-blue-50 border border-blue-200","Expected payment"],["bg-emerald-100","Payment received"],["bg-red-100","Missed / returned"],["bg-yellow-100","Bank holiday"]].map(([cls, label]) => (
+        {[["bg-blue-50 border border-blue-200","Expected"],["bg-emerald-100","Received"],["bg-red-100","Missed"],["bg-yellow-100","Holiday"]].map(([cls, label]) => (
           <div key={label} className="flex items-center gap-1">
             <div className={`w-2 h-2 rounded-sm ${cls} flex-shrink-0`} />
             <span className="text-[9px] text-gray-400">{label}</span>
@@ -255,14 +255,14 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView 
 
   const canGoPrev = calYear > 2026 || (calYear === 2026 && calMonth > 0);
   const canGoNext = calYear < 2027 || (calYear === 2027 && calMonth < 11);
-  const showCalendar = fundedDate && totalTerm > 0;
+  const showCalendar = !!(fundedDate && totalTerm > 0);
   const hasMissedPayments = payments.some(p => {
     const desc = (p.description || "").toLowerCase();
     return desc.includes("missed") || desc.includes("return");
   });
 
-  const calendarSidebar = showCalendar ? (
-    <div className="flex-shrink-0 w-52 rounded-xl bg-white border border-gray-100 p-4 sticky top-20">
+  const calendarPanel = showCalendar ? (
+    <div className="rounded-xl bg-white border border-gray-100 p-4">
       <div className="mb-2">
         <p className="text-xs font-semibold text-gray-700">Payment calendar</p>
         <p className="text-[9px] text-gray-400 mt-0.5">
@@ -327,149 +327,138 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView 
         </div>
       </div>
 
-      {/* Stats — 2 cols on mobile, 4 on desktop */}
-      <div className="grid grid-cols-2 gap-3 md:gap-4">
-        <div className="rounded-xl bg-white border border-gray-100 p-4">
-          <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">Funded</p>
-          <p className="text-lg md:text-xl font-semibold text-gray-900">{money(Number(selectedClient.funded || 0))}</p>
-        </div>
-        <div className="rounded-xl bg-white border border-gray-100 p-4">
-          <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">Payback</p>
-          <p className="text-lg md:text-xl font-semibold text-gray-900">{money(Number(selectedClient.payback || 0))}</p>
-        </div>
-        <div className="rounded-xl bg-white border border-gray-100 p-4">
-          <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">Balance</p>
-          <p className="text-lg md:text-xl font-semibold text-gray-900">{money(Number(selectedClient.balance || 0))}</p>
-          <p className="text-xs text-gray-400 mt-1">{money(totalPaid)} paid so far</p>
-        </div>
-        <div className="rounded-xl bg-white border border-gray-100 p-4">
-          <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">{paymentFrequencyLabel} payment</p>
-          <p className="text-lg md:text-xl font-semibold text-gray-900">{money(Number(selectedClient.payment || 0))}</p>
-        </div>
-      </div>
+      {/* 
+        LAYOUT STRATEGY:
+        - Mobile/tablet: single column, calendar below standing banner
+        - Desktop (lg+): two columns — left=stats/progress/standing/attention, right=calendar sidebar
+      */}
+      <div className="flex flex-col lg:flex-row gap-4 lg:gap-5 lg:items-start">
 
-      {/* Progress bar */}
-      <div className="rounded-xl bg-white border border-gray-100 p-4 md:p-5">
-        <div className="flex items-center justify-between mb-3">
-          <p className="text-sm font-medium text-gray-900">Repayment progress</p>
-          <p className="text-sm font-semibold text-gray-900">{Math.round(safePercent)}% paid</p>
-        </div>
-        <div className="h-2.5 rounded-full bg-gray-100 overflow-hidden">
-          <div className="h-2.5 rounded-full bg-emerald-500 transition-all duration-500" style={{ width: `${safePercent}%` }} />
-        </div>
-        <div className="flex justify-between mt-2">
-          <p className="text-xs text-gray-400">{money(totalPaid)} paid</p>
-          <p className="text-xs text-gray-400">
-            {termEndDate ? `Ends: ${formatDate(termEndDate.toISOString().split("T")[0])}` : `${money(Number(selectedClient.balance || 0))} remaining`}
-          </p>
-        </div>
-      </div>
+        {/* LEFT column — stats, progress, standing, attention */}
+        <div className="flex-1 min-w-0 space-y-4">
 
-      {/* Standing banner */}
-      {isGoodStanding ? (
-        <div className="rounded-xl bg-emerald-50 border border-emerald-100 p-4 flex items-center gap-3">
-          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-100 flex-shrink-0">
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <path d="M3 8l4 4 6-6" stroke="#059669" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-          </div>
-          <div>
-            <p className="text-sm font-medium text-emerald-800">Account in good standing</p>
-            <p className="text-xs text-emerald-600 mt-0.5">Your payments are up to date. Keep it up.</p>
-          </div>
-        </div>
-      ) : (
-        <a href={PAYMENT_LINK} target="_blank" rel="noopener noreferrer"
-          className="block rounded-xl bg-red-50 border border-red-100 p-4 hover:bg-red-100 transition-colors">
-          <div className="flex items-center gap-3">
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-red-100 flex-shrink-0">
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                <path d="M8 5v4M8 11v.5" stroke="#dc2626" strokeWidth="1.8" strokeLinecap="round"/>
-                <circle cx="8" cy="8" r="6.5" stroke="#dc2626" strokeWidth="1.2"/>
-              </svg>
+          {/* Stats — 2 cols always */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="rounded-xl bg-white border border-gray-100 p-4">
+              <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">Funded</p>
+              <p className="text-lg font-semibold text-gray-900">{money(Number(selectedClient.funded || 0))}</p>
             </div>
-            <div className="flex-1">
-              <p className="text-sm font-medium text-red-800">Account needs attention — tap to make a payment</p>
-              <p className="text-xs text-red-600 mt-0.5">One or more payments require action.</p>
+            <div className="rounded-xl bg-white border border-gray-100 p-4">
+              <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">Payback</p>
+              <p className="text-lg font-semibold text-gray-900">{money(Number(selectedClient.payback || 0))}</p>
             </div>
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <path d="M6 4l4 4-4 4" stroke="#dc2626" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
+            <div className="rounded-xl bg-white border border-gray-100 p-4">
+              <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">Balance</p>
+              <p className="text-lg font-semibold text-gray-900">{money(Number(selectedClient.balance || 0))}</p>
+              <p className="text-xs text-gray-400 mt-1">{money(totalPaid)} paid so far</p>
+            </div>
+            <div className="rounded-xl bg-white border border-gray-100 p-4">
+              <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">{paymentFrequencyLabel} payment</p>
+              <p className="text-lg font-semibold text-gray-900">{money(Number(selectedClient.payment || 0))}</p>
+            </div>
           </div>
-        </a>
-      )}
 
-      {/* Calendar — full width on mobile/tablet */}
-      {showCalendar && (
-        <div className="rounded-xl bg-white border border-gray-100 p-4 lg:hidden">
-          <div className="mb-3">
-            <p className="text-sm font-semibold text-gray-900">Payment calendar</p>
-            <p className="text-xs text-gray-400 mt-0.5">
-              {totalTerm} {isWeeklyClient ? "weekly" : "business day"} term
-              {termEndDate && ` · ends ${formatDate(termEndDate.toISOString().split("T")[0])}`}
-            </p>
-            {isWeeklyClient && paymentDayName && (
-              <p className="text-xs text-blue-500 mt-0.5 font-medium">
-                Every {paymentDayName.charAt(0).toUpperCase() + paymentDayName.slice(1)}
+          {/* Progress bar */}
+          <div className="rounded-xl bg-white border border-gray-100 p-4">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-sm font-medium text-gray-900">Repayment progress</p>
+              <p className="text-sm font-semibold text-gray-900">{Math.round(safePercent)}% paid</p>
+            </div>
+            <div className="h-2.5 rounded-full bg-gray-100 overflow-hidden">
+              <div className="h-2.5 rounded-full bg-emerald-500 transition-all duration-500" style={{ width: `${safePercent}%` }} />
+            </div>
+            <div className="flex justify-between mt-2">
+              <p className="text-xs text-gray-400">{money(totalPaid)} paid</p>
+              <p className="text-xs text-gray-400">
+                {termEndDate ? `Ends: ${formatDate(termEndDate.toISOString().split("T")[0])}` : `${money(Number(selectedClient.balance || 0))} remaining`}
               </p>
-            )}
-          </div>
-          <MiniCalendar
-            year={calYear} month={calMonth}
-            termDays={termDays} paymentDays={paymentDays} missedDays={missedDays}
-            today={today} onPrev={prevMonth} onNext={nextMonth}
-            canPrev={canGoPrev} canNext={canGoNext}
-          />
-        </div>
-      )}
-
-      {/* Days behind */}
-      {missedCount > 0 && (
-        <div className="rounded-xl border border-red-200 bg-red-50 p-4 md:p-5">
-          <div className="flex items-start gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-red-100 flex-shrink-0 mt-0.5">
-              <svg width="16" height="16" viewBox="0 0 18 18" fill="none">
-                <path d="M9 6v4M9 12v.5" stroke="#dc2626" strokeWidth="1.8" strokeLinecap="round"/>
-                <circle cx="9" cy="9" r="7.5" stroke="#dc2626" strokeWidth="1.2"/>
-              </svg>
             </div>
-            <div className="flex-1">
-              <p className="text-sm font-semibold text-red-800">You are {behindLabel}</p>
-              <p className="text-xs text-red-600 mt-1">Please make up missed payments as soon as possible. You can pay online or via Zelle.</p>
-              <p className="text-xs text-red-500 mt-1">⚠️ Payments through the online link carry a 3.5% processing fee. To pay $100.00, you will need to submit $103.50.</p>
-              <div className="flex flex-col sm:flex-row gap-2 mt-3">
-                <a href={PAYMENT_LINK} target="_blank" rel="noopener noreferrer"
-                  className="inline-flex items-center justify-center rounded-lg bg-red-600 px-4 py-2.5 text-xs font-medium text-white hover:bg-red-700 transition-colors">
-                  Pay now online →
-                </a>
-                <div className="inline-block rounded-lg border border-red-200 bg-white px-4 py-2.5 text-xs font-medium text-red-700">
-                  <span className="block">Zelle: invoices@cfgms.com</span>
-                  <span className="block text-red-500 mt-0.5">Include your invoice # or business name</span>
+          </div>
+
+          {/* Standing banner */}
+          {isGoodStanding ? (
+            <div className="rounded-xl bg-emerald-50 border border-emerald-100 p-4 flex items-center gap-3">
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-100 flex-shrink-0">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                  <path d="M3 8l4 4 6-6" stroke="#059669" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-emerald-800">Account in good standing</p>
+                <p className="text-xs text-emerald-600 mt-0.5">Your payments are up to date. Keep it up.</p>
+              </div>
+            </div>
+          ) : (
+            <a href={PAYMENT_LINK} target="_blank" rel="noopener noreferrer"
+              className="block rounded-xl bg-red-50 border border-red-100 p-4 hover:bg-red-100 transition-colors">
+              <div className="flex items-center gap-3">
+                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-red-100 flex-shrink-0">
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                    <path d="M8 5v4M8 11v.5" stroke="#dc2626" strokeWidth="1.8" strokeLinecap="round"/>
+                    <circle cx="8" cy="8" r="6.5" stroke="#dc2626" strokeWidth="1.2"/>
+                  </svg>
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-red-800">Account needs attention — tap to make a payment</p>
+                  <p className="text-xs text-red-600 mt-0.5">One or more payments require action.</p>
+                </div>
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                  <path d="M6 4l4 4-4 4" stroke="#dc2626" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </div>
+            </a>
+          )}
+
+          {/* Days behind */}
+          {missedCount > 0 && (
+            <div className="rounded-xl border border-red-200 bg-red-50 p-4">
+              <div className="flex items-start gap-3">
+                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-red-100 flex-shrink-0 mt-0.5">
+                  <svg width="16" height="16" viewBox="0 0 18 18" fill="none">
+                    <path d="M9 6v4M9 12v.5" stroke="#dc2626" strokeWidth="1.8" strokeLinecap="round"/>
+                    <circle cx="9" cy="9" r="7.5" stroke="#dc2626" strokeWidth="1.2"/>
+                  </svg>
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-semibold text-red-800">You are {behindLabel}</p>
+                  <p className="text-xs text-red-600 mt-1">Please make up missed payments as soon as possible. You can pay online or via Zelle.</p>
+                  <p className="text-xs text-red-500 mt-1">⚠️ Payments through the online link carry a 3.5% processing fee. To pay $100.00, you will need to submit $103.50.</p>
+                  <div className="flex flex-col sm:flex-row gap-2 mt-3">
+                    <a href={PAYMENT_LINK} target="_blank" rel="noopener noreferrer"
+                      className="inline-flex items-center justify-center rounded-lg bg-red-600 px-4 py-2.5 text-xs font-medium text-white hover:bg-red-700 transition-colors">
+                      Pay now online →
+                    </a>
+                    <div className="inline-block rounded-lg border border-red-200 bg-white px-4 py-2.5 text-xs font-medium text-red-700">
+                      <span className="block">Zelle: invoices@cfgms.com</span>
+                      <span className="block text-red-500 mt-0.5">Include your invoice # or business name</span>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-        </div>
-      )}
+          )}
 
-      {/* Desktop: payment history on left, calendar sidebar on right */}
-      {showCalendar ? (
-        <div className="hidden lg:flex gap-5 items-start">
-          <div className="flex-1 min-w-0">
-            <PaymentHistory payments={payments} />
-          </div>
-          {calendarSidebar}
-        </div>
-      ) : (
-        <PaymentHistory payments={payments} />
-      )}
+          {/* Calendar — only shows here on mobile/tablet */}
+          {showCalendar && (
+            <div className="lg:hidden">
+              {calendarPanel}
+            </div>
+          )}
 
-      {/* Mobile: payment history full width below calendar */}
-      {showCalendar && (
-        <div className="lg:hidden">
-          <PaymentHistory payments={payments} />
         </div>
-      )}
+
+        {/* RIGHT column — calendar sidebar, desktop only */}
+        {showCalendar && (
+          <div className="hidden lg:block flex-shrink-0 w-48 sticky top-20">
+            {calendarPanel}
+          </div>
+        )}
+
+      </div>
+
+      {/* Payment history — always full width below */}
+      <PaymentHistory payments={payments} />
+
     </div>
   );
 }

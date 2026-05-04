@@ -206,7 +206,6 @@ export default function Home() {
 
   async function openClient(client: any) {
     setSelectedClient(client);
-    setPayments([]);
     await fetchPayments(client.invoice);
     setView("client");
   }
@@ -223,7 +222,7 @@ export default function Home() {
       paid: 0,
       balance: Number(newClient.payback),
       payment: Number(newClient.payment),
-      total_term: Number(newClient.totalTerm),
+      total_term: newClient.totalTerm ? Number(newClient.totalTerm) : (newClient.payback && newClient.payment ? Math.ceil(Number(newClient.payback) / Number(newClient.payment)) * (newClient.paymentFrequency === "weekly" ? 5 : 1) : 0),
       payment_frequency: newClient.paymentFrequency,
       payment_day: newClient.paymentDay || null,
       status: "Good Standing",

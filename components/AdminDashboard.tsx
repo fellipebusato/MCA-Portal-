@@ -77,21 +77,34 @@ export default function AdminDashboard({
 }: AdminDashboardProps) {
   const [editingClient, setEditingClient] = useState<any>(null);
   const [filterAttention, setFilterAttention] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const totalBalance = clients.reduce((sum, c) => sum + Number(c.balance || 0), 0);
   const attentionClients = clients.filter((c) => c.status !== "Good Standing");
   const goodClients = clients.filter((c) => c.status === "Good Standing");
   const dailyClients = clients.filter((c) => c.payment_frequency === "daily").length;
   const weeklyClients = clients.filter((c) => c.payment_frequency === "weekly").length;
-  const displayedClients = filterAttention ? attentionClients : clients;
+
+  // Filter by attention AND search
+  const baseClients = filterAttention ? attentionClients : clients;
+  const displayedClients = searchQuery.trim()
+    ? baseClients.filter((c) => {
+        const q = searchQuery.toLowerCase();
+        return (
+          c.business_name?.toLowerCase().includes(q) ||
+          c.invoice?.toLowerCase().includes(q) ||
+          c.owner_name?.toLowerCase().includes(q)
+        );
+      })
+    : baseClients;
 
   return (
     <div className="space-y-5">
 
       {/* Stat cards */}
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="rounded-xl bg-white border border-gray-100 p-5 cursor-pointer hover:border-gray-200 transition-colors"
-          onClick={() => setFilterAttention(false)}>
+          onClick={() => { setFilterAttention(false); setSearchQuery(""); }}>
           <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">Total clients</p>
           <p className="text-2xl font-semibold text-gray-900">{clients.length}</p>
           <p className="text-xs text-gray-400 mt-1">{dailyClients} daily · {weeklyClients} weekly</p>
@@ -105,7 +118,7 @@ export default function AdminDashboard({
           className={`rounded-xl border p-5 cursor-pointer transition-colors ${
             filterAttention ? "bg-amber-50 border-amber-200" : "bg-white border-gray-100 hover:border-amber-200"
           }`}
-          onClick={() => setFilterAttention(true)}
+          onClick={() => { setFilterAttention(true); setSearchQuery(""); }}
         >
           <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">Needs attention</p>
           <p className={`text-2xl font-semibold ${attentionClients.length > 0 ? "text-amber-600" : "text-gray-900"}`}>
@@ -116,7 +129,7 @@ export default function AdminDashboard({
           </p>
         </div>
         <div className="rounded-xl bg-white border border-gray-100 p-5 cursor-pointer hover:border-gray-200 transition-colors"
-          onClick={() => setFilterAttention(false)}>
+          onClick={() => { setFilterAttention(false); setSearchQuery(""); }}>
           <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">Good standing</p>
           <p className="text-2xl font-semibold text-emerald-600">{goodClients.length}</p>
           <p className="text-xs text-gray-400 mt-1">
@@ -136,7 +149,7 @@ export default function AdminDashboard({
           <p className="text-sm font-medium text-gray-900">Upload daily payments report</p>
           <p className="text-xs text-gray-400 mt-0.5">Upload your ACH Works .xls file. Payments matched by invoice number automatically.</p>
         </div>
-        <label className="cursor-pointer rounded-lg border border-gray-200 bg-gray-50 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 transition-colors">
+        <label className="cursor-pointer rounded-lg border border-gray-200 bg-gray-50 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 transition-colors flex-shrink-0">
           Choose file
           <input type="file" accept=".csv,.xls,.xlsx" onChange={handlePaymentUpload} className="hidden" />
         </label>
@@ -149,7 +162,7 @@ export default function AdminDashboard({
             <h3 className="text-sm font-semibold text-gray-900">Editing — {editingClient.business_name}</h3>
             <button onClick={() => setEditingClient(null)} className="text-xs text-gray-400 hover:text-gray-600">Cancel</button>
           </div>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
             {EDIT_FIELDS.map(([field, label, type]) => (
               <div key={field}>
                 <label className="block text-xs text-gray-400 mb-1">{label}</label>
@@ -217,14 +230,14 @@ export default function AdminDashboard({
               const isUrgent = days > 7;
               return (
                 <div key={client.id} className="rounded-lg bg-white border border-amber-100 p-4">
-                  <div className="flex items-center gap-4">
+                  <div className="flex flex-wrap items-center gap-3">
                     <div className={`flex h-10 w-10 items-center justify-center rounded-full flex-shrink-0 ${isUrgent ? "bg-red-100" : "bg-amber-100"}`}>
                       <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
                         <path d="M9 6v4M9 12v.5" stroke={isUrgent ? "#dc2626" : "#92400e"} strokeWidth="1.8" strokeLinecap="round"/>
                         <circle cx="9" cy="9" r="7.5" stroke={isUrgent ? "#dc2626" : "#92400e"} strokeWidth="1.2"/>
                       </svg>
                     </div>
-                    <div className="flex-1 cursor-pointer" onClick={() => openClient(client)}>
+                    <div className="flex-1 min-w-0 cursor-pointer" onClick={() => openClient(client)}>
                       <p className="text-sm font-semibold text-gray-900">{client.business_name}</p>
                       <p className="text-xs text-gray-500 mt-0.5">
                         {client.invoice} · {client.payment_frequency === "weekly"
@@ -241,22 +254,15 @@ export default function AdminDashboard({
                       <p className="text-xs text-gray-400 mt-0.5">Balance</p>
                     </div>
                     <StatusBadge status={client.status} />
-
-                    {/* Email button */}
                     {client.client_email && (
-                      <a
-                        href={buildGeneralEmail(client)}
-                        onClick={(e) => e.stopPropagation()}
-                        className="flex items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-800 hover:bg-amber-100 transition-colors flex-shrink-0"
-                        title={`Email ${client.client_email}`}
-                      >
+                      <a href={buildGeneralEmail(client)} onClick={(e) => e.stopPropagation()}
+                        className="flex items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-800 hover:bg-amber-100 transition-colors flex-shrink-0">
                         <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
                           <path d="M1 3l5 3.5L11 3M1 3h10v7H1V3z" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
                         </svg>
                         Email
                       </a>
                     )}
-
                     <div className="text-xs text-gray-400 cursor-pointer" onClick={() => openClient(client)}>View →</div>
                   </div>
                 </div>
@@ -266,16 +272,40 @@ export default function AdminDashboard({
         </div>
       )}
 
-      {/* Client table */}
+      {/* Client roster with search */}
       <div className="rounded-xl bg-white border border-gray-100 overflow-hidden">
-        <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-gray-900">
-            {filterAttention ? `Needs attention (${attentionClients.length})` : "Client roster"}
+        <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between gap-3">
+          <h3 className="text-sm font-semibold text-gray-900 flex-shrink-0">
+            {filterAttention ? `Needs attention (${displayedClients.length})` : "Client roster"}
+            {searchQuery && ` — ${displayedClients.length} result${displayedClients.length !== 1 ? "s" : ""}`}
           </h3>
-          {filterAttention && (
-            <button onClick={() => setFilterAttention(false)} className="text-xs text-gray-400 hover:text-gray-600">Show all →</button>
-          )}
+          <div className="flex items-center gap-2 ml-auto">
+            {/* Search input */}
+            <div className="relative">
+              <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" width="13" height="13" viewBox="0 0 13 13" fill="none">
+                <circle cx="5.5" cy="5.5" r="4.5" stroke="currentColor" strokeWidth="1.3"/>
+                <path d="M9 9l2.5 2.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
+              </svg>
+              <input
+                type="text"
+                placeholder="Search name or invoice..."
+                className="pl-7 pr-3 py-1.5 text-xs rounded-lg border border-gray-200 focus:outline-none focus:border-gray-400 transition-colors w-48 text-gray-700 placeholder:text-gray-300"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+              {searchQuery && (
+                <button onClick={() => setSearchQuery("")}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                  ×
+                </button>
+              )}
+            </div>
+            {filterAttention && (
+              <button onClick={() => setFilterAttention(false)} className="text-xs text-gray-400 hover:text-gray-600 flex-shrink-0">Show all →</button>
+            )}
+          </div>
         </div>
+
         <table className="w-full">
           <thead>
             <tr className="border-b border-gray-100">
@@ -329,7 +359,7 @@ export default function AdminDashboard({
             {displayedClients.length === 0 && (
               <tr>
                 <td colSpan={7} className="px-5 py-10 text-center text-sm text-gray-400">
-                  {filterAttention ? "No clients need attention right now." : "No clients yet."}
+                  {searchQuery ? `No clients matching "${searchQuery}"` : filterAttention ? "No clients need attention right now." : "No clients yet."}
                 </td>
               </tr>
             )}
