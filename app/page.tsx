@@ -6,8 +6,8 @@ import AdminDashboard from "@/components/AdminDashboard";
 import ClientDashboard from "@/components/ClientDashboard";
 import AddClientForm from "@/components/AddClientForm";
 import ConsentPage from "@/components/ConsentPage";
-
-const ADMIN_EMAIL = "fbusato@cfgms.com";
+import Footer from "@/components/Footer";
+import { ADMIN_EMAIL, PORTAL, CONTACT } from "@/lib/config";
 
 function addBusinessDays(date: Date, days: number): Date {
   const result = new Date(date);
@@ -161,7 +161,7 @@ export default function Home() {
     if (!forgotEmail) { setForgotMessage("Please enter your email address."); setForgotStatus("error"); return; }
     setForgotStatus("loading");
     const { error } = await supabase.auth.resetPasswordForEmail(forgotEmail, {
-      redirectTo: "https://mcaportal-fb.vercel.app/reset",
+      redirectTo: `${PORTAL.url}/reset`,
     });
     if (error) { setForgotMessage(error.message); setForgotStatus("error"); return; }
     setForgotStatus("sent");
@@ -199,7 +199,9 @@ export default function Home() {
 
   async function fetchPayments(invoice: string) {
     const { data, error } = await supabase
-      .from("payments").select("*").eq("invoice", invoice).order("payment_date", { ascending: true });
+      .from("payments").select("*").eq("invoice", invoice)
+      .order("payment_date", { ascending: true })
+      .order("id", { ascending: true });
     if (error) { alert(error.message); return; }
     setPayments(data || []);
   }
@@ -211,6 +213,13 @@ export default function Home() {
   }
 
   async function addClient() {
+    const payback = Number(newClient.payback);
+    const payment = Number(newClient.payment);
+    const frequency = newClient.paymentFrequency;
+    const calculatedTerm = payback && payment
+      ? Math.ceil(payback / payment) * (frequency === "weekly" ? 5 : 1)
+      : 0;
+
     const client = {
       business_name: newClient.businessName,
       invoice: newClient.invoice,
@@ -218,12 +227,12 @@ export default function Home() {
       client_email: newClient.clientEmail,
       funded_date: newClient.fundedDate,
       funded: Number(newClient.funded),
-      payback: Number(newClient.payback),
+      payback,
       paid: 0,
-      balance: Number(newClient.payback),
-      payment: Number(newClient.payment),
-      total_term: newClient.totalTerm ? Number(newClient.totalTerm) : (newClient.payback && newClient.payment ? Math.ceil(Number(newClient.payback) / Number(newClient.payment)) * (newClient.paymentFrequency === "weekly" ? 5 : 1) : 0),
-      payment_frequency: newClient.paymentFrequency,
+      balance: payback,
+      payment,
+      total_term: calculatedTerm,
+      payment_frequency: frequency,
       payment_day: newClient.paymentDay || null,
       status: "Good Standing",
     };
@@ -349,7 +358,6 @@ export default function Home() {
         running_balance: alreadySettled ? newBalance : null,
       });
 
-      // Duplicate — skip silently
       if (insertError && insertError.code === "23505") {
         skippedDuplicates++;
         continue;
@@ -413,10 +421,10 @@ export default function Home() {
   // ── Login ────────────────────────────────────────────────
   if (!user) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-[#f4f4f0] p-8">
+      <main className="flex min-h-screen flex-col items-center justify-center bg-[#f4f4f0] p-8">
         <div className="w-full max-w-sm">
           <div className="mb-8 text-center">
-            <h1 className="text-2xl font-semibold text-gray-900">MCA Portal</h1>
+            <h1 className="text-2xl font-semibold text-gray-900">{PORTAL.name}</h1>
             <p className="mt-1 text-sm text-gray-400">Sign in to your account</p>
           </div>
           <div className="rounded-2xl bg-white border border-gray-100 p-8 shadow-sm">
@@ -476,7 +484,8 @@ export default function Home() {
               </div>
             )}
           </div>
-          <p className="mt-4 text-center text-xs text-gray-400">Secure client portal · Operated by Fellipe Busato</p>
+          <p className="mt-4 text-center text-xs text-gray-400">{PORTAL.tagline}</p>
+          <p className="mt-2 text-center text-[10px] text-gray-300 leading-relaxed px-4">{PORTAL.disclaimer}</p>
         </div>
       </main>
     );
@@ -491,41 +500,42 @@ export default function Home() {
   if (!isAdmin) {
     if (!clientRecord) {
       return (
-        <main className="flex min-h-screen items-center justify-center bg-[#f4f4f0]">
+        <main className="flex min-h-screen flex-col items-center justify-center bg-[#f4f4f0]">
           <div className="text-center">
             <p className="text-sm text-gray-500 mb-4">No account found for {user.email}.</p>
-            <p className="text-xs text-gray-400 mb-6">Please contact your manager for access.</p>
+            <p className="text-xs text-gray-400 mb-6">Please contact {CONTACT.name} for access.</p>
             <button onClick={logout} className="rounded-lg border border-gray-200 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50">Sign out</button>
           </div>
         </main>
       );
     }
     return (
-      <main className="min-h-screen bg-[#f4f4f0]">
+      <main className="min-h-screen flex flex-col bg-[#f4f4f0]">
         <nav className="sticky top-0 z-10 border-b border-gray-100 bg-white">
           <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-3.5">
-            <span className="text-base font-semibold text-gray-900">MCA Portal</span>
+            <span className="text-base font-semibold text-gray-900">{PORTAL.name}</span>
             <div className="flex items-center gap-3">
               <span className="text-xs text-gray-400 hidden sm:block">{user.email}</span>
               <button onClick={logout} className="rounded-lg border border-gray-200 px-3.5 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors">Logout</button>
             </div>
           </div>
         </nav>
-        <div className="mx-auto max-w-6xl px-6 py-6">
+        <div className="mx-auto max-w-6xl w-full px-6 py-6 flex-1">
           <div className="mb-5"><h1 className="text-lg font-semibold text-gray-900">My account</h1></div>
           <ClientDashboard selectedClient={clientRecord} payments={payments} />
         </div>
+        <Footer />
       </main>
     );
   }
 
   // ── Admin view ───────────────────────────────────────────
   return (
-    <main className="min-h-screen bg-[#f4f4f0]">
+    <main className="min-h-screen flex flex-col bg-[#f4f4f0]">
       <nav className="sticky top-0 z-10 border-b border-gray-100 bg-white">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-3.5">
           <button onClick={() => setView("admin")} className="text-left">
-            <span className="text-base font-semibold text-gray-900">MCA Portal</span>
+            <span className="text-base font-semibold text-gray-900">{PORTAL.name}</span>
             <span className="ml-2 text-xs text-gray-400">Admin</span>
           </button>
           <div className="flex items-center gap-2">
@@ -549,7 +559,7 @@ export default function Home() {
           </div>
         </div>
       </nav>
-      <div className="mx-auto max-w-6xl px-6 py-6">
+      <div className="mx-auto max-w-6xl w-full px-6 py-6 flex-1">
         <div className="mb-5">
           {view === "admin" && <h1 className="text-lg font-semibold text-gray-900">Dashboard</h1>}
           {view === "add" && <h1 className="text-lg font-semibold text-gray-900">Add client</h1>}
@@ -564,12 +574,25 @@ export default function Home() {
           <AdminDashboard clients={clients} openClient={openClient} handlePaymentUpload={handlePaymentUpload} deleteClient={deleteClient} updateClient={updateClient} />
         )}
         {view === "client" && selectedClient && (
-          <ClientDashboard selectedClient={selectedClient} payments={payments} isAdminView={true} onPaymentAdded={async () => { await fetchPayments(selectedClient.invoice); const { data } = await supabase.from("clients").select("*").eq("id", selectedClient.id).single(); if (data) { setSelectedClient(data); setClients((prev: any[]) => prev.map((c: any) => c.id === data.id ? data : c)); } }} />
+          <ClientDashboard
+            selectedClient={selectedClient}
+            payments={payments}
+            isAdminView={true}
+            onPaymentAdded={async () => {
+              await fetchPayments(selectedClient.invoice);
+              const { data } = await supabase.from("clients").select("*").eq("id", selectedClient.id).single();
+              if (data) {
+                setSelectedClient(data);
+                setClients((prev: any[]) => prev.map((c: any) => c.id === data.id ? data : c));
+              }
+            }}
+          />
         )}
         {view === "add" && (
           <AddClientForm newClient={newClient} setNewClient={setNewClient} addClient={addClient} />
         )}
       </div>
+      <Footer />
     </main>
   );
 }
