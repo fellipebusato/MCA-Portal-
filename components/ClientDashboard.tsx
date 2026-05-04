@@ -82,18 +82,17 @@ function buildMissedDays(payments: Payment[]): Set<string> {
 
 // ── Next payment date ────────────────────────────────────────────────────────
 
-function getNextPaymentDate(client: Client): { date: Date; label: string } | null {
+function getNextPaymentDate(client: Client): { label: string; amount: number } | null {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
   if (client.payment_frequency === "daily") {
-    // Next business day after today
     const next = new Date(today);
     next.setDate(next.getDate() + 1);
     while (!isBusinessDay(next)) next.setDate(next.getDate() + 1);
     const diff = Math.ceil((next.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
     const label = diff === 1 ? `Tomorrow, ${DAY_NUM_TO_NAME[next.getDay()]}` : DAY_NUM_TO_NAME[next.getDay()];
-    return { date: next, label };
+    return { label, amount: Number(client.payment) };
   }
 
   if (client.payment_frequency === "weekly" && client.payment_day) {
@@ -101,20 +100,19 @@ function getNextPaymentDate(client: Client): { date: Date; label: string } | nul
     const next = new Date(today);
     next.setDate(next.getDate() + 1);
     while (next.getDay() !== targetDow) next.setDate(next.getDate() + 1);
-    // If holiday, move to next Monday
     if (isHoliday(next)) {
       do { next.setDate(next.getDate() + 1); } while (next.getDay() !== 1);
       while (!isBusinessDay(next)) next.setDate(next.getDate() + 1);
     }
     const daysUntil = Math.ceil((next.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
     const label = daysUntil === 1 ? "Tomorrow" : daysUntil <= 7 ? `This ${DAY_NUM_TO_NAME[next.getDay()]}` : `${DAY_NUM_TO_NAME[next.getDay()]} ${formatDate(toDateStr(next))}`;
-    return { date: next, label };
+    return { label, amount: Number(client.payment) };
   }
 
   return null;
 }
 
-// ── Pending payments (not yet settled) ──────────────────────────────────────
+// ── Pending payments ─────────────────────────────────────────────────────────
 
 function getPendingPayments(payments: Payment[]): { count: number; total: number } {
   const today = new Date();
@@ -135,36 +133,88 @@ function getPendingPayments(payments: Payment[]): { count: number; total: number
   return { count, total };
 }
 
-// ── Milestone helpers ────────────────────────────────────────────────────────
+// ── Smart milestone — tied to standing ──────────────────────────────────────
 
-function getMilestone(percentPaid: number): { pct: number; emoji: string; title: string; message: string; showCTA: boolean } | null {
-  if (percentPaid >= 75 && percentPaid < 100) {
+type MilestoneBanner = {
+  emoji: string;
+  title: string;
+  message: string;
+  showCTA: boolean;
+  variant: "green" | "blue" | "amber";
+};
+
+function getMilestoneBanner(
+  percentPaid: number,
+  badStanding: boolean,
+  returnedCount: number
+): MilestoneBanner | null {
+  // If bad standing — show catch-up message instead of celebration
+  if (badStanding) {
+    if (percentPaid >= 75) {
+      return {
+        emoji: "⚡",
+        title: "Almost there — don't stop now",
+        message: "You're 75% of the way through. Catching up on missed payments now protects your track record for future funding.",
+        showCTA: false,
+        variant: "amber",
+      };
+    }
+    if (percentPaid >= 50) {
+      return {
+        emoji: "⚡",
+        title: "Halfway there — get current to finish strong",
+        message: "You've paid half your balance. Catching up on missed payments now protects your account and keeps future funding options open.",
+        showCTA: false,
+        variant: "amber",
+      };
+    }
+    if (percentPaid >= 25) {
+      return {
+        emoji: "⚡",
+        title: "Good progress — catch up to keep it going",
+        message: "You're a quarter of the way there. Getting current now will protect your standing and your relationship with future funding.",
+        showCTA: false,
+        variant: "amber",
+      };
+    }
     return {
-      pct: 75,
+      emoji: "⚡",
+      title: "Catch up on payments to finish strong",
+      message: "Missing payments delays your completion date. Every payment made gets you closer — reach out if you need to discuss options.",
+      showCTA: false,
+      variant: "amber",
+    };
+  }
+
+  // Good standing — show celebration
+  if (percentPaid >= 75) {
+    return {
       emoji: "🏁",
       title: "75% paid — almost there!",
       message: "Strong finish. Your payment track record is building and will help with future funding.",
       showCTA: false,
+      variant: "green",
     };
   }
   if (percentPaid >= 50 && percentPaid < 75) {
     return {
-      pct: 50,
       emoji: "🎉",
       title: "50% paid — milestone reached!",
-      message: "You've paid half your balance. At this stage you may be eligible for additional funding or a refinance.",
-      showCTA: true,
+      message: "You've paid half your balance. At this stage you may be eligible for additional funding or a refinance. Contact Fellipe for more information.",
+      showCTA: false,
+      variant: "blue",
     };
   }
-  if (percentPaid >= 25 && percentPaid < 50) {
+  if (percentPaid >= 25) {
     return {
-      pct: 25,
       emoji: "💪",
       title: "25% paid — great start!",
       message: "You're a quarter of the way there. Keep the momentum going.",
       showCTA: false,
+      variant: "green",
     };
   }
+
   return null;
 }
 
@@ -284,7 +334,6 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
   const today = new Date();
   const [calYear, setCalYear] = useState(today.getFullYear());
   const [calMonth, setCalMonth] = useState(today.getMonth());
-  const [showDealDetails, setShowDealDetails] = useState(false);
   const [activityRefresh, setActivityRefresh] = useState(0);
 
   const percentPaid = 100 - (Number(selectedClient.balance || 0) / Number(selectedClient.payback || 1)) * 100;
@@ -295,22 +344,31 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
     ? `Weekly · ${paymentDayName ? paymentDayName.charAt(0).toUpperCase() + paymentDayName.slice(1) + "s" : ""}`
     : "Daily";
   const totalPaid = Number(selectedClient.payback || 0) - Number(selectedClient.balance || 0);
-  const costOfCapital = Number(selectedClient.payback || 0) - Number(selectedClient.funded || 0);
-  const factorRate = Number(selectedClient.funded || 0) > 0
-    ? (Number(selectedClient.payback || 0) / Number(selectedClient.funded || 0)).toFixed(2)
-    : "—";
 
-  // Pending payments
   const { count: pendingCount, total: pendingTotal } = getPendingPayments(payments);
   const pendingBalance = Math.max(0, Number(selectedClient.balance || 0) - pendingTotal);
-
-  // Next payment
   const nextPayment = getNextPaymentDate(selectedClient);
 
-  // Milestone
-  const milestone = getMilestone(safePercent);
+  const returnedPayments = payments.filter(p => {
+    const desc = (p.description || "").toLowerCase();
+    return desc.includes("return") || desc.includes("missed");
+  });
 
-  // Calendar setup
+  const badStanding = isWeeklyClient
+    ? returnedPayments.length >= 1
+    : returnedPayments.length >= 2;
+
+  // Smart milestone — aware of standing
+  const trulyGoodStanding = !badStanding && selectedClient.status === "Good Standing";
+  const milestone = getMilestoneBanner(safePercent, !trulyGoodStanding, returnedPayments.length);
+
+  const variantStyles = {
+    green: { wrap: "bg-emerald-50 border-emerald-100", emoji: "", title: "text-emerald-800", msg: "text-emerald-600", cta: "bg-emerald-700 hover:bg-emerald-800" },
+    blue:  { wrap: "bg-blue-50 border-blue-200",       emoji: "", title: "text-blue-900",    msg: "text-blue-700",   cta: "bg-blue-700 hover:bg-blue-800" },
+    amber: { wrap: "bg-amber-50 border-amber-200",      emoji: "", title: "text-amber-900",   msg: "text-amber-700",  cta: "bg-amber-700 hover:bg-amber-800" },
+  };
+
+  // Calendar
   const fundedDate = selectedClient.funded_date ? new Date(selectedClient.funded_date + "T00:00:00") : null;
   const totalTerm = Number(selectedClient.total_term || 0);
 
@@ -341,15 +399,6 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
 
   const paymentDays = buildPaymentDays(payments);
   const missedDays = buildMissedDays(payments);
-
-  const returnedPayments = payments.filter(p => {
-    const desc = (p.description || "").toLowerCase();
-    return desc.includes("return") || desc.includes("missed");
-  });
-
-  const badStanding = isWeeklyClient
-    ? returnedPayments.length >= 1
-    : returnedPayments.length >= 2;
 
   const calMinYear = fundedDate ? fundedDate.getFullYear() : today.getFullYear();
   const calMinMonth = fundedDate ? Math.max(0, fundedDate.getMonth() - 1) : 0;
@@ -395,27 +444,23 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
             </p>
           </div>
           <div className="flex flex-col gap-2">
-            {isAdminView && (
+            {isAdminView && selectedClient.client_email && (
               <div className="flex flex-wrap gap-2">
-                {selectedClient.client_email && (
-                  <>
-                    <a href={buildGeneralEmail(selectedClient)}
-                      className="flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 transition-colors">
-                      <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                        <path d="M1 3l5 3.5L11 3M1 3h10v7H1V3z" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
-                      </svg>
-                      Send notice
-                    </a>
-                    {hasMissedPayments && (
-                      <a href={buildMissedPaymentEmail(selectedClient, payments)}
-                        className="flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-medium text-red-700 hover:bg-red-100 transition-colors">
-                        <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                          <path d="M1 3l5 3.5L11 3M1 3h10v7H1V3z" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
-                        </svg>
-                        Missed payment notice
-                      </a>
-                    )}
-                  </>
+                <a href={buildGeneralEmail(selectedClient)}
+                  className="flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 transition-colors">
+                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                    <path d="M1 3l5 3.5L11 3M1 3h10v7H1V3z" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                  Send notice
+                </a>
+                {hasMissedPayments && (
+                  <a href={buildMissedPaymentEmail(selectedClient, payments)}
+                    className="flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-medium text-red-700 hover:bg-red-100 transition-colors">
+                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                      <path d="M1 3l5 3.5L11 3M1 3h10v7H1V3z" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                    Missed payment notice
+                  </a>
                 )}
               </div>
             )}
@@ -428,36 +473,11 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
         </div>
       </div>
 
-      {/* Milestone banner */}
-      {milestone && (
-        <div className={`rounded-xl border p-4 flex items-start gap-3 ${
-          milestone.pct === 50
-            ? "bg-blue-50 border-blue-200"
-            : "bg-emerald-50 border-emerald-100"
-        }`}>
-          <span className="text-xl flex-shrink-0">{milestone.emoji}</span>
-          <div className="flex-1">
-            <p className={`text-sm font-semibold ${milestone.pct === 50 ? "text-blue-900" : "text-emerald-800"}`}>
-              {milestone.title}
-            </p>
-            <p className={`text-xs mt-0.5 ${milestone.pct === 50 ? "text-blue-700" : "text-emerald-600"}`}>
-              {milestone.message}
-            </p>
-            {milestone.showCTA && (
-              <a href={`mailto:${CONTACT.email}?subject=Refinancing inquiry — ${selectedClient.invoice}&body=Hello ${CONTACT.name},%0A%0AI have reached 50%25 of my payback on account ${selectedClient.invoice} and would like to discuss additional funding or refinancing options.%0A%0AThank you`}
-                className="inline-flex items-center gap-1 mt-2 rounded-lg bg-blue-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-800 transition-colors">
-                Contact Fellipe to discuss →
-              </a>
-            )}
-          </div>
-        </div>
-      )}
-
       {/* Main layout */}
       <div className="flex flex-col lg:flex-row gap-4 lg:gap-5 lg:items-start">
         <div className="flex-1 min-w-0 space-y-4">
 
-          {/* Stats */}
+          {/* Stats grid — 2 columns, all cards same height */}
           <div className="grid grid-cols-2 gap-3">
 
             {/* Funded */}
@@ -472,49 +492,44 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
               <p className="text-lg font-semibold text-gray-900">{money(Number(selectedClient.payback || 0))}</p>
             </div>
 
-            {/* Balance — with pending */}
-            <div className="rounded-xl bg-white border border-gray-100 p-4 col-span-2">
+            {/* Balance */}
+            <div className="rounded-xl bg-white border border-gray-100 p-4">
               <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">Balance</p>
-              <div className="flex items-end justify-between gap-4 flex-wrap">
-                <div>
-                  <p className="text-lg font-semibold text-gray-900">{money(Number(selectedClient.balance || 0))}</p>
-                  <p className="text-xs text-gray-400 mt-0.5">Settled payments only</p>
-                </div>
-                {pendingCount > 0 && (
-                  <div className="text-right">
-                    <p className="text-sm font-semibold text-blue-600">{money(pendingBalance)}</p>
-                    <p className="text-xs text-blue-400 mt-0.5">
-                      Once {pendingCount} pending payment{pendingCount > 1 ? "s" : ""} clear{pendingCount === 1 ? "s" : ""}
-                    </p>
-                  </div>
-                )}
-              </div>
+              <p className="text-lg font-semibold text-gray-900">{money(Number(selectedClient.balance || 0))}</p>
+              <p className="text-xs text-gray-400 mt-0.5">Settled payments only</p>
               {pendingCount > 0 && (
-                <div className="mt-2 rounded-lg bg-blue-50 border border-blue-100 px-3 py-1.5">
-                  <p className="text-[10px] text-blue-600">
-                    {pendingCount} payment{pendingCount > 1 ? "s" : ""} totaling {money(pendingTotal)} {pendingCount === 1 ? "is" : "are"} processing and will apply to your balance within 4 business days.
+                <div className="mt-2">
+                  <p className="text-sm font-semibold text-blue-600">{money(pendingBalance)}</p>
+                  <p className="text-xs text-blue-400">
+                    Once {pendingCount} pending payment{pendingCount > 1 ? "s" : ""} clear{pendingCount === 1 ? "s" : ""}
                   </p>
                 </div>
               )}
             </div>
 
-            {/* Payment amount + next date */}
-            <div className="rounded-xl bg-white border border-gray-100 p-4 col-span-2">
-              <div className="flex items-start justify-between gap-4 flex-wrap">
-                <div>
-                  <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">{paymentFrequencyLabel} payment</p>
-                  <p className="text-lg font-semibold text-gray-900">{money(Number(selectedClient.payment || 0))}</p>
+            {/* Payment + next ACH */}
+            <div className="rounded-xl bg-white border border-gray-100 p-4">
+              <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">{paymentFrequencyLabel} payment</p>
+              <p className="text-lg font-semibold text-gray-900">{money(Number(selectedClient.payment || 0))}</p>
+              {nextPayment && (
+                <div className="mt-2">
+                  <p className="text-xs text-gray-400">Next ACH debit</p>
+                  <p className="text-sm font-semibold text-gray-700">{nextPayment.label}</p>
                 </div>
-                {nextPayment && (
-                  <div className="text-right">
-                    <p className="text-xs text-gray-400 mb-1">Next ACH debit</p>
-                    <p className="text-sm font-semibold text-gray-900">{nextPayment.label}</p>
-                    <p className="text-xs text-gray-400">{money(Number(selectedClient.payment || 0))}</p>
-                  </div>
-                )}
-              </div>
+              )}
             </div>
+
           </div>
+
+          {/* Pending info bar — only if pending */}
+          {pendingCount > 0 && (
+            <div className="rounded-lg bg-blue-50 border border-blue-100 px-4 py-2.5">
+              <p className="text-xs text-blue-600">
+                <span className="font-medium">{pendingCount} payment{pendingCount > 1 ? "s" : ""} totaling {money(pendingTotal)}</span>
+                {" "}are processing and will apply to your balance within 4 business days.
+              </p>
+            </div>
+          )}
 
           {/* Progress */}
           <div className="rounded-xl bg-white border border-gray-100 p-4">
@@ -529,92 +544,77 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
               <p className="text-xs text-gray-400">{money(totalPaid)} paid</p>
               <p className="text-xs text-gray-400">
                 {termEndDate
-                  ? <>Est. completion: {formatDate(termEndDate.toISOString().split("T")[0])} <span className="text-gray-300">· may vary</span></>
+                  ? <span>Est. completion: {formatDate(termEndDate.toISOString().split("T")[0])} <span className="text-gray-300">· may vary</span></span>
                   : `${money(Number(selectedClient.balance || 0))} remaining`}
               </p>
             </div>
           </div>
 
-          {/* Deal details — collapsible */}
-          <div className="rounded-xl bg-white border border-gray-100 overflow-hidden">
-            <button
-              onClick={() => setShowDealDetails(v => !v)}
-              className="w-full px-4 py-3 flex items-center justify-between text-left hover:bg-gray-50 transition-colors">
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Deal details</p>
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none"
-                className={`text-gray-400 transition-transform duration-200 ${showDealDetails ? "rotate-180" : ""}`}>
-                <path d="M2 5l5 5 5-5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-            </button>
-            {showDealDetails && (
-              <div className="px-4 pb-4 border-t border-gray-50">
-                <div className="grid grid-cols-2 gap-3 mt-3">
-                  <div>
-                    <p className="text-[10px] text-gray-400 mb-0.5">Amount received</p>
-                    <p className="text-sm font-semibold text-gray-900">{money(Number(selectedClient.funded || 0))}</p>
+          {/* Smart milestone + standing — ONE block, either/or */}
+          {milestone ? (
+            <div className={`rounded-xl border p-4 flex items-start gap-3 ${variantStyles[milestone.variant].wrap}`}>
+              <span className="text-xl flex-shrink-0">{milestone.emoji}</span>
+              <div className="flex-1">
+                <p className={`text-sm font-semibold ${variantStyles[milestone.variant].title}`}>
+                  {milestone.title}
+                </p>
+                <p className={`text-xs mt-0.5 leading-relaxed ${variantStyles[milestone.variant].msg}`}>
+                  {milestone.message}
+                </p>
+                {milestone.showCTA && (
+                  <a href={`mailto:${CONTACT.email}?subject=Refinancing inquiry — ${selectedClient.invoice}&body=Hello ${CONTACT.name},%0A%0AI have reached 50%25 of my payback on account ${selectedClient.invoice} and would like to discuss additional funding or refinancing options.%0A%0AThank you`}
+                    className={`inline-flex items-center gap-1 mt-2 rounded-lg px-3 py-1.5 text-xs font-medium text-white transition-colors ${variantStyles[milestone.variant].cta}`}>
+                    Contact {CONTACT.name} to discuss →
+                  </a>
+                )}
+                {/* If bad standing, also show payment options inline */}
+                {badStanding && (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <a href={PAYMENT_LINK} target="_blank" rel="noopener noreferrer"
+                      className="rounded-lg bg-amber-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-amber-800 transition-colors">
+                      Pay online →
+                    </a>
+                    <span className="text-xs text-amber-700 self-center">or Zelle: invoices@cfgms.com</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : (
+            // No milestone — show plain standing
+            !badStanding ? (
+              <div className="rounded-xl bg-emerald-50 border border-emerald-100 p-4 flex items-center gap-3">
+                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-100 flex-shrink-0">
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                    <path d="M3 8l4 4 6-6" stroke="#059669" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-emerald-800">Account in good standing</p>
+                  <p className="text-xs text-emerald-600 mt-0.5">Your payments are up to date. Keep it up.</p>
+                </div>
+              </div>
+            ) : (
+              <div className="rounded-xl bg-red-50 border border-red-100 p-4">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-red-100 flex-shrink-0">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                      <path d="M8 5v4M8 11v.5" stroke="#dc2626" strokeWidth="1.8" strokeLinecap="round"/>
+                      <circle cx="8" cy="8" r="6.5" stroke="#dc2626" strokeWidth="1.2"/>
+                    </svg>
                   </div>
                   <div>
-                    <p className="text-[10px] text-gray-400 mb-0.5">Total repayment</p>
-                    <p className="text-sm font-semibold text-gray-900">{money(Number(selectedClient.payback || 0))}</p>
-                  </div>
-                  <div>
-                    <p className="text-[10px] text-gray-400 mb-0.5">Cost of capital</p>
-                    <p className="text-sm font-semibold text-gray-900">{money(costOfCapital)}</p>
-                    <p className="text-[10px] text-gray-400 mt-0.5">Difference between received and repaid</p>
-                  </div>
-                  <div>
-                    <p className="text-[10px] text-gray-400 mb-0.5">Factor rate</p>
-                    <p className="text-sm font-semibold text-gray-900">{factorRate}x</p>
-                    <p className="text-[10px] text-gray-400 mt-0.5">Repayment ÷ funded amount</p>
-                  </div>
-                  <div className="col-span-2">
-                    <p className="text-[10px] text-gray-300 leading-relaxed mt-1">
-                      This is a merchant cash advance — a purchase of future receivables, not a loan. Factor rates are not equivalent to annual interest rates and no compounding interest applies.
+                    <p className="text-sm font-medium text-red-800">Account needs attention</p>
+                    <p className="text-xs text-red-600 mt-0.5">
+                      {isWeeklyClient ? "1 or more weekly payments have" : "2 or more daily payments have"} been returned or missed. Please pay promptly to avoid additional fees.
                     </p>
                   </div>
                 </div>
               </div>
-            )}
-          </div>
-
-          {/* Standing */}
-          {!badStanding ? (
-            <div className="rounded-xl bg-emerald-50 border border-emerald-100 p-4 flex items-center gap-3">
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-100 flex-shrink-0">
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                  <path d="M3 8l4 4 6-6" stroke="#059669" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-              </div>
-              <div>
-                <p className="text-sm font-medium text-emerald-800">Account in good standing</p>
-                <p className="text-xs text-emerald-600 mt-0.5">Your payments are up to date. Keep it up.</p>
-              </div>
-            </div>
-          ) : (
-            <div className="rounded-xl bg-red-50 border border-red-100 p-4">
-              <div className="flex items-center gap-3">
-                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-red-100 flex-shrink-0">
-                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                    <path d="M8 5v4M8 11v.5" stroke="#dc2626" strokeWidth="1.8" strokeLinecap="round"/>
-                    <circle cx="8" cy="8" r="6.5" stroke="#dc2626" strokeWidth="1.2"/>
-                  </svg>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-red-800">Account needs attention — Bad Standing</p>
-                  <p className="text-xs text-red-600 mt-0.5">
-                    {isWeeklyClient ? "1 or more weekly payments have" : "2 or more daily payments have"} been returned or missed. Please pay promptly via the link or Zelle to avoid additional fees.
-                  </p>
-                </div>
-              </div>
-            </div>
+            )
           )}
 
-          {/* Payment panel — always visible, tone changes based on standing */}
-          <div className={`rounded-xl border p-4 space-y-3 ${
-            badStanding
-              ? "border-red-200 bg-red-50"
-              : "border-gray-200 bg-white"
-          }`}>
+          {/* Payment panel — always visible */}
+          <div className={`rounded-xl border p-4 space-y-3 ${badStanding ? "border-red-200 bg-red-50" : "border-gray-200 bg-white"}`}>
             {!badStanding && (
               <div>
                 <p className="text-sm font-semibold text-gray-900">Make a payment</p>
@@ -624,15 +624,13 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
               </div>
             )}
             <a href={PAYMENT_LINK} target="_blank" rel="noopener noreferrer"
-              className={`flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-xs font-medium text-white transition-colors ${
+              className={`flex items-center justify-center rounded-lg px-4 py-2.5 text-xs font-medium text-white transition-colors ${
                 badStanding ? "bg-red-600 hover:bg-red-700" : "bg-gray-900 hover:bg-gray-800"
               }`}>
               {badStanding ? "Pay now online →" : "Pay online →"}
             </a>
             <p className="text-xs text-gray-400">⚠️ Online payments carry a 3.5% fee. To pay $100.00, submit $103.50.</p>
-            <div className={`rounded-lg border px-3 py-2 text-xs ${
-              badStanding ? "border-red-200 bg-white text-red-700" : "border-gray-100 bg-gray-50 text-gray-600"
-            }`}>
+            <div className={`rounded-lg border px-3 py-2 text-xs ${badStanding ? "border-red-200 bg-white text-red-700" : "border-gray-100 bg-gray-50 text-gray-600"}`}>
               <span className="block font-medium">Zelle: invoices@cfgms.com</span>
               <span className={`block mt-0.5 ${badStanding ? "text-red-500" : "text-gray-400"}`}>
                 Include your invoice # or business name — no fee
