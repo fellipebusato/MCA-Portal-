@@ -134,21 +134,40 @@ export default function MonthlyRiskPanel({ clients, orgId }: { clients: Client[]
 
   async function takeSnapshot() {
     setTakingSnapshot(true);
-
+  
+    // Fetch org_id directly inside the function — don't rely on prop
+    const { data: orgData } = await supabase
+      .from("organizations")
+      .select("id")
+      .limit(1)
+      .single();
+  
+    if (!orgData?.id) {
+      alert("Could not find organization. Please try again.");
+      setTakingSnapshot(false);
+      return;
+    }
+  
+    const fetchedOrgId = orgData.id;
     const activeClients = clients.filter(c => Number(c.balance) > 0);
-
+  
     for (const client of activeClients) {
       const minimum = Math.ceil(Number(client.balance) * 0.03 * 100) / 100;
-      await supabase.from("monthly_snapshots").upsert({
-        org_id: orgId,
+  
+      const { error } = await supabase.from("monthly_snapshots").upsert({
+        org_id: fetchedOrgId,
         invoice: client.invoice,
         snapshot_date: snapshotDate,
         balance_at_snapshot: Number(client.balance),
         minimum_required: minimum,
         received_this_month: 0,
       }, { onConflict: "invoice,snapshot_date" });
+  
+      if (error) {
+        console.error("Snapshot error for", client.invoice, error);
+      }
     }
-
+  
     setSnapshotTaken(true);
     setTakingSnapshot(false);
     await loadSnapshots();
