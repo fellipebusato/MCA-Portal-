@@ -246,11 +246,113 @@ export default function AddClientForm({ newClient, setNewClient, addClient }: Ad
 
           <div>
             <label className="block text-xs font-medium text-gray-500 mb-1.5">SIC code</label>
-            <input type="text" placeholder="7389"
-              maxLength={4}
-              className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm text-gray-900 placeholder:text-gray-300 focus:outline-none focus:border-gray-400 transition-colors"
-              value={newClient.sicCode} onChange={(e) => handleChange("sicCode", e.target.value.replace(/\D/g, "").slice(0, 4))} />
-            <p className="text-[10px] text-gray-400 mt-1">4-digit Standard Industry Classification code</p>
+            <select
+              className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm text-gray-900 focus:outline-none focus:border-gray-400 transition-colors bg-white"
+              value={newClient.sicCode}
+              onChange={(e) => handleChange("sicCode", e.target.value)}>
+              <option value="">Select industry</option>
+              <optgroup label="Food & Restaurants">
+                <option value="5812">5812 — Eating Places / Restaurants</option>
+                <option value="5813">5813 — Drinking Places / Bars</option>
+                <option value="5411">5411 — Grocery Stores</option>
+                <option value="5461">5461 — Retail Bakeries</option>
+              </optgroup>
+              <optgroup label="Transportation & Trucking">
+                <option value="4213">4213 — Trucking, Except Local</option>
+                <option value="4212">4212 — Local Trucking Without Storage</option>
+                <option value="4214">4214 — Local Trucking With Storage</option>
+                <option value="4215">4215 — Courier Services</option>
+                <option value="4111">4111 — Local & Suburban Transit</option>
+                <option value="4121">4121 — Taxicabs</option>
+                <option value="4522">4522 — Air Transportation, Nonscheduled</option>
+              </optgroup>
+              <optgroup label="Construction & Contractors">
+                <option value="1521">1521 — General Building Contractors — Residential</option>
+                <option value="1531">1531 — General Building Contractors — Industrial</option>
+                <option value="1711">1711 — Plumbing, Heating, Air-Conditioning</option>
+                <option value="1731">1731 — Electrical Work</option>
+                <option value="1741">1741 — Masonry, Stonework, Tile</option>
+                <option value="1751">1751 — Carpentry Work</option>
+                <option value="1761">1761 — Roofing, Siding, Sheet Metal</option>
+                <option value="1771">1771 — Concrete Work</option>
+                <option value="1781">1781 — Water Well Drilling</option>
+                <option value="1791">1791 — Structural Steel Erection</option>
+                <option value="1799">1799 — Special Trade Contractors, NEC</option>
+              </optgroup>
+              <optgroup label="Retail">
+                <option value="5999">5999 — Retail Stores, NEC</option>
+                <option value="5511">5511 — Auto Dealers — New & Used</option>
+                <option value="5251">5251 — Hardware Stores</option>
+                <option value="5311">5311 — Department Stores</option>
+                <option value="5651">5651 — Family Clothing Stores</option>
+                <option value="5912">5912 — Drug Stores & Proprietary Stores</option>
+                <option value="5945">5945 — Hobby, Toy & Game Shops</option>
+              </optgroup>
+              <optgroup label="Auto & Repair">
+                <option value="7514">7514 — Passenger Car Rental</option>
+                <option value="7521">7521 — Automobile Parking</option>
+                <option value="7532">7532 — Auto Body, Paint & Upholstery Repair</option>
+                <option value="7533">7533 — Auto Exhaust System Repair</option>
+                <option value="7538">7538 — General Automotive Repair</option>
+                <option value="7539">7539 — Automotive Repair Shops, NEC</option>
+                <option value="7549">7549 — Automotive Services, NEC</option>
+              </optgroup>
+              <optgroup label="Healthcare & Medical">
+                <option value="8011">8011 — Offices & Clinics of Doctors of Medicine</option>
+                <option value="8021">8021 — Offices & Clinics of Dentists</option>
+                <option value="8049">8049 — Offices & Clinics of Other Health Practitioners</option>
+                <option value="8051">8051 — Skilled Nursing Care Facilities</option>
+                <option value="8099">8099 — Health Services, NEC</option>
+              </optgroup>
+              <optgroup label="Beauty & Personal Care">
+                <option value="7241">7241 — Barber Shops</option>
+                <option value="7251">7251 — Shoe Repair & Shoeshine Parlors</option>
+                <option value="7261">7261 — Funeral Services & Crematories</option>
+                <option value="7299">7299 — Personal Services, NEC</option>
+                <option value="7231">7231 — Beauty Shops</option>
+              </optgroup>
+              <optgroup label="Business & Professional Services">
+                <option value="7389">7389 — Services to Buildings & Dwellings, NEC</option>
+                <option value="7372">7372 — Prepackaged Software</option>
+                <option value="7374">7374 — Computer Processing & Data Preparation</option>
+                <option value="7381">7381 — Investigation & Security Services</option>
+                <option value="7384">7384 — Photofinishing Laboratories</option>
+                <option value="8742">8742 — Management Consulting Services</option>
+                <option value="8711">8711 — Engineering Services</option>
+                <option value="8721">8721 — Accounting, Auditing & Bookkeeping</option>
+                <option value="8731">8731 — Commercial Physical & Biological Research</option>
+              </optgroup>
+              <optgroup label="Cleaning & Maintenance">
+                <option value="7349">7349 — Building Cleaning & Maintenance, NEC</option>
+                <option value="7342">7342 — Disinfecting & Pest Control Services</option>
+                <option value="7389">7389 — Landscaping Services</option>
+              </optgroup>
+              <optgroup label="Hospitality & Entertainment">
+                <option value="7011">7011 — Hotels & Motels</option>
+                <option value="7021">7021 — Rooming & Boarding Houses</option>
+                <option value="7941">7941 — Professional Sports Clubs</option>
+                <option value="7991">7991 — Physical Fitness Facilities</option>
+                <option value="7999">7999 — Amusement & Recreation, NEC</option>
+              </optgroup>
+              <optgroup label="Manufacturing">
+                <option value="2099">2099 — Food Preparations, NEC</option>
+                <option value="2759">2759 — Commercial Printing, NEC</option>
+                <option value="3999">3999 — Manufacturing Industries, NEC</option>
+                <option value="3711">3711 — Motor Vehicles & Passenger Car Bodies</option>
+              </optgroup>
+              <optgroup label="Wholesale">
+                <option value="5040">5040 — Professional Equipment & Supplies</option>
+                <option value="5065">5065 — Electronic Parts & Equipment</option>
+                <option value="5090">5090 — Durable Goods, NEC</option>
+                <option value="5190">5190 — Nondurable Goods, NEC</option>
+              </optgroup>
+              <optgroup label="Other">
+                <option value="9999">9999 — Other / Not Listed</option>
+              </optgroup>
+            </select>
+            {newClient.sicCode && (
+              <p className="text-[10px] text-gray-400 mt-1">Code: {newClient.sicCode}</p>
+            )}
           </div>
 
           <div>
