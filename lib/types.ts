@@ -12,18 +12,6 @@ export interface Organization {
   created_at: string;
 }
 
-export interface Position {
-  id: number;
-  client_id: number;
-  invoice: string;
-  payback: number;
-  balance: number;
-  funded_date: string | null;
-  position_order: number;
-  status: "active" | "completed";
-  created_at: string;
-}
-
 export interface Client {
   id: number;
   org_id: string;

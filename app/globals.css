@@ -1,27 +1,42 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-
 :root {
-  --foreground-rgb: 0, 0, 0;
-  --background-start-rgb: 214, 219, 220;
-  --background-end-rgb: 255, 255, 255;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --foreground-rgb: 255, 255, 255;
-    --background-start-rgb: 0, 0, 0;
-    --background-end-rgb: 0, 0, 0;
-  }
+  --parchment:      #F4EFE6;
+  --parchment-2:    #EDE7DC;
+  --parchment-3:    #E4DDD0;
+  --surface:        #FDFAF6;
+  --surface-2:      #F8F3EC;
+  --ink-1:          #1C140C;
+  --ink-2:          #4A3728;
+  --ink-3:          #7A6555;
+  --ink-4:          #A8998A;
+  --ink-5:          #C8BAA8;
+  --gold:           #A07840;
+  --gold-bright:    #C49A5A;
+  --gold-muted:     #D4B882;
+  --gold-surface:   rgba(160,120,64,0.07);
+  --gold-border:    rgba(160,120,64,0.18);
+  --sage:           #5A8A6A;
+  --sage-surface:   rgba(90,138,106,0.08);
+  --sage-border:    rgba(90,138,106,0.18);
+  --sienna:         #9A5A3A;
+  --sienna-surface: rgba(154,90,58,0.08);
+  --sienna-border:  rgba(154,90,58,0.18);
+  --sky:            #4A7EA0;
+  --sky-surface:    rgba(74,126,160,0.08);
+  --sky-border:     rgba(74,126,160,0.18);
+  --border:         rgba(90,60,30,0.10);
+  --border-mid:     rgba(90,60,30,0.14);
 }
 
 body {
-  color: rgb(var(--foreground-rgb));
-  background: linear-gradient(
-      to bottom,
-      transparent,
-      rgb(var(--background-end-rgb))
-    )
-    rgb(var(--background-start-rgb));
+  background: var(--parchment);
+  color: var(--ink-1);
+  min-height: 100vh;
 }
+
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: var(--parchment-2); }
+::-webkit-scrollbar-thumb { background: var(--parchment-3); border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: var(--ink-5); }
