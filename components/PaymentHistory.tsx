@@ -293,7 +293,7 @@ export default function PaymentHistory({ payments, client, isAdminView, onPaymen
         </div>
       )}
 
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto max-h-[500px] overflow-y-auto">
         <table className="w-full min-w-[600px]">
           <thead className="sticky top-0 z-10 bg-white">
             <tr className="border-b border-gray-100">
