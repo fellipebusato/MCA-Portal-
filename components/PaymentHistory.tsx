@@ -215,8 +215,8 @@ export default function PaymentHistory({ payments, client, isAdminView, onPaymen
   return (
     <div className="rounded-xl bg-white border border-gray-100 overflow-hidden">
 
-      {/* Header — sticky */}
-      <div className="sticky top-[57px] z-10 bg-white border-b border-gray-100 px-4 md:px-5 py-4 flex items-center justify-between gap-3">
+      {/* Header row — sticky via page scroll (not table scroll) */}
+      <div className="px-4 md:px-5 py-4 border-b border-gray-100 flex items-center justify-between gap-3">
         <div>
           <h3 className="text-sm font-semibold text-gray-900">Payment history</h3>
           <p className="text-xs text-gray-400 mt-0.5">{payments.length} transaction{payments.length !== 1 ? "s" : ""}</p>
@@ -228,7 +228,7 @@ export default function PaymentHistory({ payments, client, isAdminView, onPaymen
               Some payments pending settlement
             </span>
           )}
-          {/* Add payment — admin only, never shown to clients */}
+          {/* Add payment — admin only */}
           {isAdminView && client && (
             <button
               onClick={() => { setShowAddForm(v => !v); setEditingId(null); }}
@@ -260,12 +260,11 @@ export default function PaymentHistory({ payments, client, isAdminView, onPaymen
         </div>
       )}
 
-      {/* Table */}
-      <div className="overflow-x-auto">
+      {/* Table with its OWN scroll container so sticky thead works */}
+      <div className="overflow-x-auto overflow-y-auto max-h-[600px]">
         <table className="w-full min-w-[600px]">
           <thead>
-            {/* Sticky column headers */}
-            <tr className="border-b border-gray-100 bg-white">
+            <tr className="border-b border-gray-100 bg-white sticky top-0 z-10">
               <th className="px-4 md:px-5 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wide">ACH date</th>
               <th className="px-4 md:px-5 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wide">Settles</th>
               <th className="px-4 md:px-5 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wide">Type</th>

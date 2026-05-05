@@ -9,7 +9,7 @@ type FundingsPanelProps = {
   client: Client;
   isAdminView?: boolean;
   onFundingAdded?: () => void;
-  onBalanceChange?: (combinedBalance: number) => void;
+  onBalanceChange?: (combinedBalance: number, combinedPayback: number) => void;
 };
 
 export default function FundingsPanel({ client, isAdminView, onFundingAdded, onBalanceChange }: FundingsPanelProps) {
@@ -31,10 +31,14 @@ export default function FundingsPanel({ client, isAdminView, onFundingAdded, onB
     const list = (data || []) as Position[];
     setFundings(list);
 
-    // Notify parent of combined balance
+    // Notify parent of combined balance AND combined payback
     if (list.length > 0) {
-        const positionsTotal = list.reduce((sum, p) => sum + Number(p.balance), 0);
-        onBalanceChange?.(Number(client.balance || 0) + positionsTotal);
+      const positionsBalance = list.reduce((sum, p) => sum + Number(p.balance), 0);
+      const positionsPayback = list.reduce((sum, p) => sum + Number(p.payback), 0);
+      onBalanceChange?.(
+        Number(client.balance || 0) + positionsBalance,
+        Number(client.payback || 0) + positionsPayback
+      );
     }
 
     setLoading(false);
@@ -74,13 +78,17 @@ export default function FundingsPanel({ client, isAdminView, onFundingAdded, onB
     await loadFundings();
   }
 
+  // Hide completely when no fundings exist
   if (loading) return null;
-  if (fundings.length === 0 && !isAdminView) return null;
+  if (fundings.length === 0) return null;
 
   const totalPayback = fundings.reduce((sum, p) => sum + Number(p.payback), 0);
   const totalBalance = fundings.reduce((sum, p) => sum + Number(p.balance), 0);
   const totalPaid = totalPayback - totalBalance;
   const combinedPct = totalPayback > 0 ? Math.round((totalPaid / totalPayback) * 100) : 0;
+
+  // True combined balance includes main client invoice + all add-on positions
+  const trueCombinedBalance = Number(client.balance || 0) + totalBalance;
 
   return (
     <div className="rounded-xl bg-white border border-gray-100 overflow-hidden">
@@ -88,7 +96,7 @@ export default function FundingsPanel({ client, isAdminView, onFundingAdded, onB
         <div>
           <p className="text-sm font-semibold text-gray-900">Add-on fundings</p>
           <p className="text-xs text-gray-400 mt-0.5">
-            {fundings.length} funding{fundings.length !== 1 ? "s" : ""} · {money(totalBalance)} combined balance · {combinedPct}% paid overall
+            {fundings.length} funding{fundings.length !== 1 ? "s" : ""} · {money(trueCombinedBalance)} combined balance · {combinedPct}% paid overall
           </p>
         </div>
         {isAdminView && (
@@ -224,15 +232,9 @@ export default function FundingsPanel({ client, isAdminView, onFundingAdded, onB
             </div>
           );
         })}
-
-        {fundings.length === 0 && isAdminView && (
-          <div className="px-5 py-6 text-center text-xs text-gray-400">
-            No add-on fundings yet. Click + Add funding to track a second invoice under this client.
-          </div>
-        )}
       </div>
 
-      {/* Combined footer */}
+      {/* Combined footer — only when multiple fundings */}
       {fundings.length > 1 && (
         <div className="px-5 py-3 bg-gray-50 border-t border-gray-100">
           <div className="flex items-center justify-between">

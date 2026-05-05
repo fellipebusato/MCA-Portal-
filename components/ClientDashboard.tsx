@@ -212,16 +212,23 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
   const [calYear, setCalYear] = useState(today.getFullYear());
   const [calMonth, setCalMonth] = useState(today.getMonth());
   const [activityRefresh, setActivityRefresh] = useState(0);
-  // Combined balance from add-on fundings — overrides client balance when fundings exist
-  const [combinedBalance, setCombinedBalance] = useState<number | null>(null);
 
+  // Combined balance and payback from add-on fundings
+  // When fundings exist: combined = main client balance + all add-on balances
+  const [combinedBalance, setCombinedBalance] = useState<number | null>(null);
+  const [combinedPayback, setCombinedPayback] = useState<number | null>(null);
+
+  // Use combined values when available, fall back to single client values
   const displayBalance = combinedBalance !== null ? combinedBalance : Number(selectedClient.balance || 0);
-  const percentPaid = 100 - (displayBalance / Number(selectedClient.payback || 1)) * 100;
+  const displayPayback = combinedPayback !== null ? combinedPayback : Number(selectedClient.payback || 0);
+
+  const percentPaid = displayPayback > 0 ? 100 - (displayBalance / displayPayback) * 100 : 0;
   const safePercent = Math.max(0, Math.min(100, percentPaid));
+  const totalPaid = displayPayback - displayBalance;
+
   const isWeeklyClient = selectedClient.payment_frequency === "weekly";
   const paymentDayName = (selectedClient.payment_day || "").toLowerCase();
   const paymentFrequencyLabel = isWeeklyClient ? `Weekly · ${paymentDayName ? paymentDayName.charAt(0).toUpperCase() + paymentDayName.slice(1) + "s" : ""}` : "Daily";
-  const totalPaid = Number(selectedClient.payback || 0) - displayBalance;
 
   const { count: pendingCount, total: pendingTotal } = getPendingPayments(payments);
   const pendingBalance = Math.max(0, displayBalance - pendingTotal);
@@ -330,13 +337,13 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
             </div>
             <div className="rounded-xl bg-white border border-gray-100 p-4">
               <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">Payback</p>
-              <p className="text-lg font-semibold text-gray-900">{money(Number(selectedClient.payback || 0))}</p>
+              <p className="text-lg font-semibold text-gray-900">{money(displayPayback)}</p>
             </div>
 
-            {/* Balance card — shows combined if add-ons exist */}
+            {/* Balance — shows combined label when add-ons exist */}
             <div className="rounded-xl bg-white border border-gray-100 p-4">
               <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">
-                Balance {combinedBalance !== null && <span className="text-indigo-400 normal-case font-normal">(combined)</span>}
+                Balance{combinedBalance !== null && <span className="text-indigo-400 normal-case font-normal ml-1">(combined)</span>}
               </p>
               <p className="text-lg font-semibold text-gray-900">{money(displayBalance)}</p>
               <p className="text-xs text-gray-400 mt-0.5">Settled payments only</p>
@@ -369,7 +376,7 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
             </div>
           )}
 
-          {/* Progress */}
+          {/* Progress bar — uses combined payback when available */}
           <div className="rounded-xl bg-white border border-gray-100 p-4">
             <div className="flex items-center justify-between mb-3">
               <p className="text-sm font-medium text-gray-900">Repayment progress</p>
@@ -381,12 +388,14 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
             <div className="flex justify-between mt-2">
               <p className="text-xs text-gray-400">{money(totalPaid)} paid</p>
               <p className="text-xs text-gray-400">
-                {termEndDate ? <span>Est. completion: {formatDate(termEndDate.toISOString().split("T")[0])} <span className="text-gray-300">· may vary</span></span> : `${money(displayBalance)} remaining`}
+                {termEndDate
+                  ? <span>Est. completion: {formatDate(termEndDate.toISOString().split("T")[0])} <span className="text-gray-300">· may vary</span></span>
+                  : `${money(displayBalance)} remaining`}
               </p>
             </div>
           </div>
 
-          {/* Smart milestone OR standing */}
+          {/* Smart milestone OR standing — one block only */}
           {milestone ? (
             <div className={`rounded-xl border p-4 flex items-start gap-3 ${variantStyles[milestone.variant].wrap}`}>
               <span className="text-xl flex-shrink-0">{milestone.emoji}</span>
@@ -466,11 +475,14 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
         )}
       </div>
 
-      {/* Add-on fundings — shows only for clients with multiple invoices */}
+      {/* Add-on fundings — hidden when no fundings exist */}
       <FundingsPanel
         client={selectedClient}
         isAdminView={isAdminView}
-        onBalanceChange={(combined) => setCombinedBalance(combined)}
+        onBalanceChange={(combined, payback) => {
+          setCombinedBalance(combined);
+          setCombinedPayback(payback);
+        }}
       />
 
       {/* Payment history */}
