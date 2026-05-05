@@ -4,7 +4,29 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { money } from "@/lib/holidays";
 import { logActivity } from "@/components/ActivityLog";
-import type { Client, Position } from "@/lib/types";
+
+// Inline types
+type Client = {
+  id: number;
+  business_name: string;
+  invoice: string;
+  balance: number;
+  payback: number;
+  payment: number;
+  total_returns?: number;
+  [key: string]: any;
+};
+
+type Position = {
+  id: number;
+  client_id: number;
+  invoice: string;
+  payback: number;
+  balance: number;
+  funded_date: string | null;
+  position_order: number;
+  status: string;
+};
 
 type ParsedRow = {
   date: string;
@@ -29,8 +51,6 @@ function parseMoney(raw: string): number {
   return parseFloat(raw.replace(/[$,]/g, "").trim()) || 0;
 }
 
-// NetSuite dates = settlement dates
-// ACH debit = 4 business days BEFORE settlement
 function subtractBusinessDays(dateStr: string, days: number): string {
   const date = new Date(dateStr + "T00:00:00");
   let subtracted = 0;
@@ -57,11 +77,9 @@ function parseStatement(text: string): {
 
   const lines = text.split("\n").map(l => l.trim()).filter(Boolean);
 
-  // Pass 1: Scan entire text for INV##### pattern
   const globalInvMatch = text.match(/INV\d+/i);
   if (globalInvMatch) invoice = globalInvMatch[0].toUpperCase();
 
-  // Pass 2: Header info
   for (const line of lines) {
     const balMatch = line.match(/current\s+balance[:\s]+\$?([\d,]+\.?\d*)/i);
     if (balMatch) currentBalance = parseMoney(balMatch[1]);
@@ -75,7 +93,6 @@ function parseStatement(text: string): {
     }
   }
 
-  // Pass 3: Find data start
   let dataStartIdx = 0;
   for (let i = 0; i < lines.length; i++) {
     if (/date/i.test(lines[i]) && /description/i.test(lines[i])) {
@@ -84,7 +101,6 @@ function parseStatement(text: string): {
     }
   }
 
-  // Pass 4: Parse rows
   const datePattern = /^(\d{1,2}\/\d{1,2}\/\d{4})\s+(.*)/;
 
   for (let i = dataStartIdx; i < lines.length; i++) {
@@ -109,14 +125,12 @@ function parseStatement(text: string): {
       if (invMatch && !invoice) invoice = invMatch[0].toUpperCase();
       if (amounts.length >= 2) { credit = amounts[0]; payback = credit; runningBalance = amounts[amounts.length - 1]; }
       else { credit = amounts[0]; payback = credit; runningBalance = amounts[0]; }
-
     } else if (/returned\s+payment/i.test(description)) {
       rowType = "return";
       const codeMatch = description.match(/R\d{2}/i);
       returnCode = codeMatch ? codeMatch[0].toUpperCase() : "R01";
       if (amounts.length >= 2) { rets = amounts[0]; runningBalance = amounts[amounts.length - 1]; }
       else if (amounts.length === 1) { rets = amounts[0]; }
-
     } else if (/payment/i.test(description)) {
       rowType = "payment";
       if (amounts.length >= 2) { debit = amounts[0]; runningBalance = amounts[amounts.length - 1]; }
@@ -169,24 +183,15 @@ export default function StatementImport({
     const result = parseStatement(pasteText);
     if (manualInvoice.trim()) result.invoice = manualInvoice.trim().toUpperCase();
 
-    // Match to client — check both main invoice and positions
     let matchedClient: Client | null = null;
-    let matchedPosition: Position | null = null;
 
-    // First try direct client invoice match
     matchedClient = clients.find(c =>
       c.invoice.trim().toLowerCase() === result.invoice.trim().toLowerCase()
     ) || null;
 
-    // If not found, check positions table
-    if (!matchedClient) {
-      // We'll check positions after setting state — handled in useEffect
-    }
-
     setParsed({ ...result, client: matchedClient, matchedPosition: null });
     setStep("review");
 
-    // Load positions if client found
     if (matchedClient) {
       loadPositionsForClient(matchedClient.id).then(pos => {
         const mp = pos.find(p => p.invoice.toLowerCase() === result.invoice.toLowerCase()) || null;
@@ -195,10 +200,8 @@ export default function StatementImport({
     }
   }
 
-  // Also search positions for invoice match when client not found directly
   useEffect(() => {
     if (step === "review" && parsed && !parsed.client && parsed.invoice) {
-      // Search positions table for this invoice
       supabase
         .from("positions")
         .select("*, clients(*)")
@@ -227,10 +230,8 @@ export default function StatementImport({
     const paymentRows = parsed.rows.filter(r => r.rowType === "payment");
     const returnRows = parsed.rows.filter(r => r.rowType === "return");
 
-    // Import payments — NetSuite date = settlement, ACH = 4 biz days prior
     for (const row of paymentRows) {
       const achDate = subtractBusinessDays(row.date, 4);
-
       const { error } = await supabase.from("payments").insert({
         invoice: parsed.invoice,
         payment_date: achDate,
@@ -242,13 +243,11 @@ export default function StatementImport({
         returns: 0,
         running_balance: row.runningBalance,
       });
-
       if (error && error.code === "23505") { skipped++; continue; }
       if (error) { console.error("Payment insert error:", error); continue; }
       importedPayments++;
     }
 
-    // Import returns
     for (const row of returnRows) {
       const { data: existing } = await supabase
         .from("returns")
@@ -291,7 +290,6 @@ export default function StatementImport({
       importedReturns++;
     }
 
-    // Update position balance if this invoice is a position
     if (parsed.matchedPosition) {
       await supabase.from("positions").update({
         balance: parsed.currentBalance,
@@ -299,9 +297,7 @@ export default function StatementImport({
       }).eq("id", parsed.matchedPosition.id);
     }
 
-    // Update client combined balance
     if (parsed.client) {
-      // Recalculate combined balance from all positions
       const { data: allPositions } = await supabase
         .from("positions")
         .select("balance")
@@ -314,7 +310,6 @@ export default function StatementImport({
           total_returns: (parsed.client.total_returns || 0) + importedReturns,
         }).eq("id", parsed.client.id);
       } else {
-        // No positions — update directly
         await supabase.from("clients").update({
           balance: parsed.currentBalance,
           total_returns: (parsed.client.total_returns || 0) + importedReturns,
@@ -344,7 +339,6 @@ export default function StatementImport({
     setResult({ payments: 0, returns: 0, skipped: 0 });
   }
 
-  // ── Step: Paste ────────────────────────────────────────────────────────────
   if (step === "paste") {
     return (
       <div className="rounded-xl bg-white border border-gray-100 p-5">
@@ -377,27 +371,21 @@ export default function StatementImport({
           <label className="block text-xs font-medium text-gray-500 mb-1.5">
             Invoice # <span className="font-normal text-gray-400">— type it in if auto-detection misses it</span>
           </label>
-          <input
-            type="text"
-            placeholder="INV98613"
+          <input type="text" placeholder="INV98613"
             className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:border-indigo-400 transition-colors w-52 uppercase placeholder:normal-case placeholder:text-gray-300"
-            value={manualInvoice}
-            onChange={e => setManualInvoice(e.target.value.toUpperCase())}
-          />
+            value={manualInvoice} onChange={e => setManualInvoice(e.target.value.toUpperCase())} />
         </div>
 
         <textarea
           className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-xs text-gray-700 font-mono focus:outline-none focus:border-gray-400 transition-colors resize-none"
           rows={10}
-          placeholder={`Paste the full CFG statement text here...`}
+          placeholder="Paste the full CFG statement text here..."
           value={pasteText}
           onChange={e => setPasteText(e.target.value)}
         />
 
         <div className="mt-3 flex items-center gap-3">
-          <button
-            onClick={handleParse}
-            disabled={!pasteText.trim()}
+          <button onClick={handleParse} disabled={!pasteText.trim()}
             className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
             Parse statement →
           </button>
@@ -407,7 +395,6 @@ export default function StatementImport({
     );
   }
 
-  // ── Step: Review ───────────────────────────────────────────────────────────
   if (step === "review" && parsed) {
     const paymentRows = parsed.rows.filter(r => r.rowType === "payment");
     const returnRows = parsed.rows.filter(r => r.rowType === "return");
@@ -423,24 +410,19 @@ export default function StatementImport({
           <p className="text-xs text-gray-400 mt-0.5">Confirm the parsed data looks correct before saving anything</p>
         </div>
 
-        {/* Summary */}
         <div className="px-5 py-4 bg-gray-50 border-b border-gray-100">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             <div>
               <p className="text-[10px] text-gray-400 uppercase tracking-wide mb-0.5">Invoice</p>
               <p className="text-sm font-semibold text-gray-900">{parsed.invoice || "Not found"}</p>
-              {isPositionMatch && (
-                <p className="text-[10px] text-indigo-500 mt-0.5">Position {parsed.matchedPosition?.position_order}</p>
-              )}
+              {isPositionMatch && <p className="text-[10px] text-indigo-500 mt-0.5">Position {parsed.matchedPosition?.position_order}</p>}
             </div>
             <div>
               <p className="text-[10px] text-gray-400 uppercase tracking-wide mb-0.5">Payback amount</p>
               <p className="text-sm font-semibold text-gray-900">{money(parsed.payback)}</p>
             </div>
             <div>
-              <p className="text-[10px] text-gray-400 uppercase tracking-wide mb-0.5">
-                {hasOtherPositions ? "This invoice balance" : "Current balance"}
-              </p>
+              <p className="text-[10px] text-gray-400 uppercase tracking-wide mb-0.5">{hasOtherPositions ? "This invoice balance" : "Current balance"}</p>
               <p className="text-sm font-semibold text-indigo-600">{money(parsed.currentBalance)}</p>
             </div>
             <div>
@@ -448,9 +430,7 @@ export default function StatementImport({
               {parsed.client ? (
                 <div>
                   <p className="text-sm font-semibold text-emerald-600">✓ {parsed.client.business_name}</p>
-                  {hasOtherPositions && (
-                    <p className="text-[10px] text-gray-400 mt-0.5">{positions.length} invoice positions</p>
-                  )}
+                  {hasOtherPositions && <p className="text-[10px] text-gray-400 mt-0.5">{positions.length} invoice positions</p>}
                 </div>
               ) : (
                 <p className="text-sm font-semibold text-red-500">⚠ Not found</p>
@@ -459,28 +439,19 @@ export default function StatementImport({
           </div>
         </div>
 
-        {/* Multi-position notice */}
         {hasOtherPositions && parsed.client && (
           <div className="px-5 py-3 bg-indigo-50 border-b border-indigo-100">
-            <p className="text-xs font-medium text-indigo-800">
-              Add-on client — {positions.length} invoice positions
-            </p>
+            <p className="text-xs font-medium text-indigo-800">Add-on client — {positions.length} invoice positions</p>
             <div className="mt-1.5 flex flex-wrap gap-2">
               {positions.map(p => (
-                <span key={p.id} className={`rounded-full px-2.5 py-0.5 text-[10px] font-medium border ${
-                  p.invoice === parsed.invoice
-                    ? "bg-indigo-100 border-indigo-300 text-indigo-800"
-                    : "bg-white border-gray-200 text-gray-500"
-                }`}>
-                  {p.invoice} · {money(Number(p.balance))}
-                  {p.invoice === parsed.invoice ? " ← importing" : ""}
+                <span key={p.id} className={`rounded-full px-2.5 py-0.5 text-[10px] font-medium border ${p.invoice === parsed.invoice ? "bg-indigo-100 border-indigo-300 text-indigo-800" : "bg-white border-gray-200 text-gray-500"}`}>
+                  {p.invoice} · {money(Number(p.balance))}{p.invoice === parsed.invoice ? " ← importing" : ""}
                 </span>
               ))}
             </div>
           </div>
         )}
 
-        {/* Client not found */}
         {!parsed.client && (
           <div className="px-5 py-3 bg-amber-50 border-b border-amber-100 flex items-start gap-3">
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="flex-shrink-0 mt-0.5">
@@ -488,34 +459,23 @@ export default function StatementImport({
               <circle cx="8" cy="8" r="6.5" stroke="#D97706" strokeWidth="1.2"/>
             </svg>
             <div>
-              <p className="text-xs font-medium text-amber-800">
-                Invoice <span className="font-mono">{parsed.invoice || "not detected"}</span> not found.
-              </p>
-              <p className="text-xs text-amber-700 mt-0.5">
-                {!parsed.invoice
-                  ? "Type the invoice number in the field above and parse again."
-                  : "Add the client first, then add this as a position in their client view, then import."}
-              </p>
-              <button onClick={reset} className="mt-2 text-xs font-medium text-amber-800 underline underline-offset-2">
-                ← Go back and fix
-              </button>
+              <p className="text-xs font-medium text-amber-800">Invoice <span className="font-mono">{parsed.invoice || "not detected"}</span> not found.</p>
+              <p className="text-xs text-amber-700 mt-0.5">{!parsed.invoice ? "Type the invoice number in the field above and parse again." : "Add the client first, then import."}</p>
+              <button onClick={reset} className="mt-2 text-xs font-medium text-amber-800 underline underline-offset-2">← Go back and fix</button>
             </div>
           </div>
         )}
 
-        {/* Payments table */}
         {paymentRows.length > 0 && (
           <div className="px-5 py-4 border-b border-gray-50">
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
-              Payments — {paymentRows.length} rows · {money(totalPaid)} total received
-            </p>
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Payments — {paymentRows.length} rows · {money(totalPaid)} total received</p>
             <p className="text-[10px] text-gray-400 mb-3">Settlement date from NetSuite · ACH debit = 4 business days prior</p>
             <div className="overflow-x-auto">
               <table className="w-full min-w-[500px]">
                 <thead>
                   <tr className="border-b border-gray-100">
-                    {["Settlement date", "Amount", "Running balance", "ACH debit date"].map(h => (
-                      <th key={h} className={`pb-2 text-[10px] font-semibold text-gray-400 uppercase tracking-wider ${h === "Settlement date" ? "text-left" : "text-right"}`}>{h}</th>
+                    {["Settlement date","Amount","Running balance","ACH debit date"].map(h => (
+                      <th key={h} className={`pb-2 text-[10px] font-semibold text-gray-400 uppercase tracking-wider ${h==="Settlement date"?"text-left":"text-right"}`}>{h}</th>
                     ))}
                   </tr>
                 </thead>
@@ -534,19 +494,16 @@ export default function StatementImport({
           </div>
         )}
 
-        {/* Returns table */}
         {returnRows.length > 0 && (
           <div className="px-5 py-4 border-b border-gray-50">
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
-              Returns — {returnRows.length} rows · {money(totalReturned)} total returned
-            </p>
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Returns — {returnRows.length} rows · {money(totalReturned)} total returned</p>
             <p className="text-[10px] text-gray-400 mb-3">Settlement date from NetSuite · ACH date = 4 business days prior</p>
             <div className="overflow-x-auto">
               <table className="w-full min-w-[500px]">
                 <thead>
                   <tr className="border-b border-gray-100">
-                    {["Settlement date", "Code", "Amount", "Running balance"].map(h => (
-                      <th key={h} className={`pb-2 text-[10px] font-semibold text-gray-400 uppercase tracking-wider ${h === "Settlement date" || h === "Code" ? "text-left" : "text-right"}`}>{h}</th>
+                    {["Settlement date","Code","Amount","Running balance"].map(h => (
+                      <th key={h} className={`pb-2 text-[10px] font-semibold text-gray-400 uppercase tracking-wider ${h==="Settlement date"||h==="Code"?"text-left":"text-right"}`}>{h}</th>
                     ))}
                   </tr>
                 </thead>
@@ -566,15 +523,9 @@ export default function StatementImport({
         )}
 
         <div className="px-5 py-4 flex items-center gap-3">
-          <button
-            onClick={handleImport}
-            disabled={processing || !parsed.client}
+          <button onClick={handleImport} disabled={processing || !parsed.client}
             className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
-            {processing
-              ? "Importing..."
-              : parsed.client
-              ? `Import ${paymentRows.length} payment${paymentRows.length !== 1 ? "s" : ""} + ${returnRows.length} return${returnRows.length !== 1 ? "s" : ""}`
-              : "Add client first"}
+            {processing ? "Importing..." : parsed.client ? `Import ${paymentRows.length} payment${paymentRows.length!==1?"s":""} + ${returnRows.length} return${returnRows.length!==1?"s":""}` : "Add client first"}
           </button>
           <button onClick={reset} className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors">
             ← Start over
@@ -584,7 +535,6 @@ export default function StatementImport({
     );
   }
 
-  // ── Step: Done ─────────────────────────────────────────────────────────────
   return (
     <div className="rounded-xl bg-white border border-gray-100 p-5">
       <div className="flex items-center gap-3 mb-4">
@@ -596,14 +546,12 @@ export default function StatementImport({
         <div>
           <p className="text-sm font-semibold text-gray-900">Import complete</p>
           <p className="text-xs text-gray-400 mt-0.5">
-            {result.payments} payment{result.payments !== 1 ? "s" : ""} imported · {result.returns} return{result.returns !== 1 ? "s" : ""} imported
-            {result.skipped > 0 && ` · ${result.skipped} duplicate${result.skipped !== 1 ? "s" : ""} skipped`}
+            {result.payments} payment{result.payments!==1?"s":""} imported · {result.returns} return{result.returns!==1?"s":""} imported
+            {result.skipped > 0 && ` · ${result.skipped} duplicate${result.skipped!==1?"s":""} skipped`}
           </p>
         </div>
       </div>
-      <p className="text-xs text-gray-400 mb-4">
-        Client balance updated. All payments visible in payment history and activity log.
-      </p>
+      <p className="text-xs text-gray-400 mb-4">Client balance updated. All payments visible in payment history and activity log.</p>
       <button onClick={reset} className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors">
         Import another statement
       </button>
