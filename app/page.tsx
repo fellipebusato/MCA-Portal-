@@ -108,12 +108,12 @@ export default function Home() {
   state: string; sicCode: string; businessType: string; ficoScore: string;
   avgMonthlyRevenue: string; timeInBusinessMonths: string; position: string;
 }>({
-  businessName: "", invoice: "", ownerName: "", clientEmail: "",
-  fundedDate: "", funded: "", payback: "", payment: "", totalTerm: "",
-  paymentFrequency: "daily" as const, paymentDay: "",
-  state: "", sicCode: "", businessType: "", ficoScore: "",
-  avgMonthlyRevenue: "", timeInBusinessMonths: "", position: "",
-});
+    businessName: "", invoice: "", ownerName: "", clientEmail: "",
+    fundedDate: "", funded: "", payback: "", payment: "", totalTerm: "",
+    paymentFrequency: "daily" as const, paymentDay: "",
+    state: "", sicCode: "", businessType: "", ficoScore: "",
+    avgMonthlyRevenue: "", timeInBusinessMonths: "", position: "",
+  });
 
   const isAdmin = user?.email === ADMIN_EMAIL;
 
@@ -247,6 +247,8 @@ export default function Home() {
       businessName: "", invoice: "", ownerName: "", clientEmail: "",
       fundedDate: "", funded: "", payback: "", payment: "", totalTerm: "",
       paymentFrequency: "daily" as const, paymentDay: "",
+      state: "", sicCode: "", businessType: "", ficoScore: "",
+      avgMonthlyRevenue: "", timeInBusinessMonths: "", position: "",
     });
     await fetchClients();
     setView("admin");
