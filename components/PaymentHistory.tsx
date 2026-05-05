@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import React, { useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { addBusinessDays, toDateStr, formatDate, money } from "@/lib/holidays";
 import type { Client, Payment } from "@/lib/types";
@@ -317,8 +317,8 @@ export default function PaymentHistory({ payments, client, isAdminView, onPaymen
               const isDeleting = deletingId === p.id;
 
               return (
-                <>
-                  <tr key={p.id || idx}
+                <React.Fragment key={p.id || idx}>
+                  <tr
                     className={`border-b border-gray-50 transition-colors ${isEditing ? "bg-blue-50" : "hover:bg-gray-50"}`}>
                     <td className="px-4 md:px-5 py-3 text-sm text-gray-700">{formatDate(p.ach_date || p.payment_date)}</td>
                     <td className="px-4 md:px-5 py-3 text-sm">
@@ -376,7 +376,7 @@ export default function PaymentHistory({ payments, client, isAdminView, onPaymen
                       onCancel={() => setEditingId(null)}
                     />
                   )}
-                </>
+                </React.Fragment>
               );
             })}
             {payments.length === 0 && (
