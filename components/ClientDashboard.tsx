@@ -288,7 +288,7 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
           <div>
             <p style={{ fontSize: 15, color: "var(--ink-4)", textTransform: "uppercase", letterSpacing: "0.1em", fontFamily: "'DM Sans', sans-serif", marginBottom: 4 }}>{selectedClient.business_name}</p>
             <h2 style={{ fontSize: 22, fontWeight: 500, color: "var(--ink-1)", fontFamily: "'Cormorant Garamond', serif", letterSpacing: "-0.02em", marginBottom: 4 }}>
-              Welcome, {selectedClient.owner_name}
+              {selectedClient.business_name}
             </h2>
             <p style={{ fontSize: 15, color: "var(--ink-4)", fontFamily: "'DM Sans', sans-serif" }}>
               {selectedClient.invoice} · Funded {formatDate(selectedClient.funded_date)}
