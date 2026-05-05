@@ -3,7 +3,7 @@
 import { useState } from "react";
 import PaymentHistory from "./PaymentHistory";
 import ActivityLog from "./ActivityLog";
-import PositionsPanel from "./PositionsPanel";
+import FundingsPanel from "./FundingsPanel";
 import { CONTACT, PORTAL, PAYMENT_LINK } from "@/lib/config";
 import {
   toDateStr, isWeekend, isHoliday, isBusinessDay,
@@ -22,7 +22,6 @@ const DAY_NAME_TO_NUM: Record<string, number> = {
   sunday: 0, monday: 1, tuesday: 2, wednesday: 3,
   thursday: 4, friday: 5, saturday: 6,
 };
-
 const DAY_NUM_TO_NAME = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
 
 function buildDailyTermDays(startDate: Date, totalTerm: number): Set<string> {
@@ -82,7 +81,6 @@ function buildMissedDays(payments: Payment[]): Set<string> {
 function getNextPaymentDate(client: Client): { label: string; amount: number } | null {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-
   if (client.payment_frequency === "daily") {
     const next = new Date(today);
     next.setDate(next.getDate() + 1);
@@ -91,7 +89,6 @@ function getNextPaymentDate(client: Client): { label: string; amount: number } |
     const label = diff === 1 ? `Tomorrow, ${DAY_NUM_TO_NAME[next.getDay()]}` : DAY_NUM_TO_NAME[next.getDay()];
     return { label, amount: Number(client.payment) };
   }
-
   if (client.payment_frequency === "weekly" && client.payment_day) {
     const targetDow = DAY_NAME_TO_NUM[client.payment_day.toLowerCase()] ?? 5;
     const next = new Date(today);
@@ -105,15 +102,13 @@ function getNextPaymentDate(client: Client): { label: string; amount: number } |
     const label = daysUntil === 1 ? "Tomorrow" : daysUntil <= 7 ? `This ${DAY_NUM_TO_NAME[next.getDay()]}` : `${DAY_NUM_TO_NAME[next.getDay()]} ${formatDate(toDateStr(next))}`;
     return { label, amount: Number(client.payment) };
   }
-
   return null;
 }
 
 function getPendingPayments(payments: Payment[]): { count: number; total: number } {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  let count = 0;
-  let total = 0;
+  let count = 0, total = 0;
   for (const p of payments) {
     if (!p.settlement_date) continue;
     const desc = (p.description || "").toLowerCase();
@@ -125,13 +120,7 @@ function getPendingPayments(payments: Payment[]): { count: number; total: number
   return { count, total };
 }
 
-type MilestoneBanner = {
-  emoji: string;
-  title: string;
-  message: string;
-  showCTA: boolean;
-  variant: "green" | "blue" | "amber";
-};
+type MilestoneBanner = { emoji: string; title: string; message: string; showCTA: boolean; variant: "green" | "blue" | "amber"; };
 
 function getMilestoneBanner(percentPaid: number, badStanding: boolean): MilestoneBanner | null {
   if (badStanding) {
@@ -172,7 +161,6 @@ function MiniCalendar({ year, month, termDays, paymentDays, missedDays, holidayM
   const days: (Date | null)[] = [];
   for (let i = 0; i < startPad; i++) days.push(null);
   for (let d = 1; d <= lastDay.getDate(); d++) days.push(new Date(year, month, d));
-
   return (
     <div>
       <div className="flex items-center justify-between mb-2">
@@ -224,16 +212,19 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
   const [calYear, setCalYear] = useState(today.getFullYear());
   const [calMonth, setCalMonth] = useState(today.getMonth());
   const [activityRefresh, setActivityRefresh] = useState(0);
+  // Combined balance from add-on fundings — overrides client balance when fundings exist
+  const [combinedBalance, setCombinedBalance] = useState<number | null>(null);
 
-  const percentPaid = 100 - (Number(selectedClient.balance || 0) / Number(selectedClient.payback || 1)) * 100;
+  const displayBalance = combinedBalance !== null ? combinedBalance : Number(selectedClient.balance || 0);
+  const percentPaid = 100 - (displayBalance / Number(selectedClient.payback || 1)) * 100;
   const safePercent = Math.max(0, Math.min(100, percentPaid));
   const isWeeklyClient = selectedClient.payment_frequency === "weekly";
   const paymentDayName = (selectedClient.payment_day || "").toLowerCase();
   const paymentFrequencyLabel = isWeeklyClient ? `Weekly · ${paymentDayName ? paymentDayName.charAt(0).toUpperCase() + paymentDayName.slice(1) + "s" : ""}` : "Daily";
-  const totalPaid = Number(selectedClient.payback || 0) - Number(selectedClient.balance || 0);
+  const totalPaid = Number(selectedClient.payback || 0) - displayBalance;
 
   const { count: pendingCount, total: pendingTotal } = getPendingPayments(payments);
-  const pendingBalance = Math.max(0, Number(selectedClient.balance || 0) - pendingTotal);
+  const pendingBalance = Math.max(0, displayBalance - pendingTotal);
   const nextPayment = getNextPaymentDate(selectedClient);
 
   const returnedPayments = payments.filter(p => { const desc = (p.description || "").toLowerCase(); return desc.includes("return") || desc.includes("missed"); });
@@ -242,9 +233,9 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
   const milestone = getMilestoneBanner(safePercent, !trulyGoodStanding);
 
   const variantStyles = {
-    green: { wrap: "bg-emerald-50 border-emerald-100", title: "text-emerald-800", msg: "text-emerald-600", cta: "bg-emerald-700 hover:bg-emerald-800" },
-    blue:  { wrap: "bg-blue-50 border-blue-200",       title: "text-blue-900",    msg: "text-blue-700",   cta: "bg-blue-700 hover:bg-blue-800" },
-    amber: { wrap: "bg-amber-50 border-amber-200",      title: "text-amber-900",   msg: "text-amber-700",  cta: "bg-amber-700 hover:bg-amber-800" },
+    green: { wrap: "bg-emerald-50 border-emerald-100", title: "text-emerald-800", msg: "text-emerald-600" },
+    blue:  { wrap: "bg-blue-50 border-blue-200",       title: "text-blue-900",    msg: "text-blue-700" },
+    amber: { wrap: "bg-amber-50 border-amber-200",      title: "text-amber-900",   msg: "text-amber-700" },
   };
 
   const fundedDate = selectedClient.funded_date ? new Date(selectedClient.funded_date + "T00:00:00") : null;
@@ -341,9 +332,13 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
               <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">Payback</p>
               <p className="text-lg font-semibold text-gray-900">{money(Number(selectedClient.payback || 0))}</p>
             </div>
+
+            {/* Balance card — shows combined if add-ons exist */}
             <div className="rounded-xl bg-white border border-gray-100 p-4">
-              <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">Balance</p>
-              <p className="text-lg font-semibold text-gray-900">{money(Number(selectedClient.balance || 0))}</p>
+              <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">
+                Balance {combinedBalance !== null && <span className="text-indigo-400 normal-case font-normal">(combined)</span>}
+              </p>
+              <p className="text-lg font-semibold text-gray-900">{money(displayBalance)}</p>
               <p className="text-xs text-gray-400 mt-0.5">Settled payments only</p>
               {pendingCount > 0 && (
                 <div className="mt-2">
@@ -352,6 +347,7 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
                 </div>
               )}
             </div>
+
             <div className="rounded-xl bg-white border border-gray-100 p-4">
               <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">{paymentFrequencyLabel} payment</p>
               <p className="text-lg font-semibold text-gray-900">{money(Number(selectedClient.payment || 0))}</p>
@@ -368,8 +364,7 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
           {pendingCount > 0 && (
             <div className="rounded-lg bg-blue-50 border border-blue-100 px-4 py-2.5">
               <p className="text-xs text-blue-600">
-                <span className="font-medium">{pendingCount} payment{pendingCount > 1 ? "s" : ""} totaling {money(pendingTotal)}</span>
-                {" "}are processing and will apply to your balance within 4 business days.
+                <span className="font-medium">{pendingCount} payment{pendingCount > 1 ? "s" : ""} totaling {money(pendingTotal)}</span>{" "}are processing and will apply to your balance within 4 business days.
               </p>
             </div>
           )}
@@ -386,12 +381,12 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
             <div className="flex justify-between mt-2">
               <p className="text-xs text-gray-400">{money(totalPaid)} paid</p>
               <p className="text-xs text-gray-400">
-                {termEndDate ? <span>Est. completion: {formatDate(termEndDate.toISOString().split("T")[0])} <span className="text-gray-300">· may vary</span></span> : `${money(Number(selectedClient.balance || 0))} remaining`}
+                {termEndDate ? <span>Est. completion: {formatDate(termEndDate.toISOString().split("T")[0])} <span className="text-gray-300">· may vary</span></span> : `${money(displayBalance)} remaining`}
               </p>
             </div>
           </div>
 
-          {/* Smart milestone OR standing — one block only */}
+          {/* Smart milestone OR standing */}
           {milestone ? (
             <div className={`rounded-xl border p-4 flex items-start gap-3 ${variantStyles[milestone.variant].wrap}`}>
               <span className="text-xl flex-shrink-0">{milestone.emoji}</span>
@@ -432,7 +427,7 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
             )
           )}
 
-          {/* Payment panel — always visible */}
+          {/* Payment panel */}
           {!(badStanding && milestone) && (
             <div className={`rounded-xl border p-4 space-y-3 ${badStanding ? "border-red-200 bg-red-50" : "border-gray-200 bg-white"}`}>
               {!badStanding && (
@@ -471,10 +466,11 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
         )}
       </div>
 
-      {/* Invoice positions — only visible for add-on clients */}
-      <PositionsPanel
+      {/* Add-on fundings — shows only for clients with multiple invoices */}
+      <FundingsPanel
         client={selectedClient}
         isAdminView={isAdminView}
+        onBalanceChange={(combined) => setCombinedBalance(combined)}
       />
 
       {/* Payment history */}
