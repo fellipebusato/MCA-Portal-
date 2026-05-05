@@ -337,7 +337,7 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
             </div>
             <div className="rounded-xl bg-white border border-gray-100 p-4">
               <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">Payback</p>
-              <p className="text-lg font-semibold text-gray-900">{money(displayPayback)}</p>
+              <p className="text-lg font-semibold text-gray-900">{money(Number(selectedClient.payback || 0))}</p>
             </div>
 
             {/* Balance — shows combined label when add-ons exist */}
