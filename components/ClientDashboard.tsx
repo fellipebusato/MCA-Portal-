@@ -523,7 +523,7 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
                 else if(moved){bg="rgba(120,100,60,0.1)";color="var(--gold)";}
                 else if(inTerm){bg="var(--sky-surface)";color="var(--sky)";}
                 return(
-                  <div key={ds} style={{ aspectRatio:"1", display:"flex", alignItems:"center", justifyContent:"center", borderRadius:5, fontSize:10, fontWeight:500, background:bg, color, outline: isToday?"1.5px solid var(--gold)":"none", outlineOffset:-1, fontWeight:isToday?700:500 }}>
+                  <div key={ds} style={{ aspectRatio:"1", display:"flex", alignItems:"center", justifyContent:"center", borderRadius:5, fontSize:10, fontWeight:isToday?700:500, background:bg, color, outline: isToday?"1.5px solid var(--gold)":"none", outlineOffset:-1 }}>
                     {date.getDate()}
                   </div>
                 );
