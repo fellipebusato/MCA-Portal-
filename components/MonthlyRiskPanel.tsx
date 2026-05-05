@@ -58,7 +58,7 @@ function ProgressBar({ received, minimum }: { received: number; minimum: number 
   );
 }
 
-export default function MonthlyRiskPanel({ clients, orgId }: { clients: Client[]; orgId: string }) {
+export default function MonthlyRiskPanel({ clients, orgId }: { clients: Client[]; orgId?: string }) {
   const [expanded, setExpanded] = useState(false);
   const [snapshots, setSnapshots] = useState<SnapshotRow[]>([]);
   const [loading, setLoading] = useState(false);
