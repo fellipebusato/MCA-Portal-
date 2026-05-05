@@ -332,7 +332,7 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
             ].map(({ label, value, sub }) => (
               <div key={label} style={{ ...card, padding: "16px 18px" }}>
                 <p style={{ fontSize: 15, color: "var(--ink-4)", textTransform: "uppercase", letterSpacing: "0.08em", fontFamily: "'DM Sans', sans-serif", marginBottom: 4 }}>{label}</p>
-                <p style={{ fontSize: 18, fontWeight: 500, color: "var(--ink-1)", fontFamily: "'Cormorant Garamond', serif" }}>{value}</p>
+                <p style={{ fontSize: 28, fontWeight: 500, color: "var(--ink-1)", fontFamily: "'Cormorant Garamond', serif" }}>{value}</p>
                 {sub && <p style={{ fontSize: 14, color: "var(--sky)", fontFamily: "'DM Sans', sans-serif", marginTop: 4 }}>{sub}</p>}
               </div>
             ))}
