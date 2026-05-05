@@ -12,6 +12,7 @@ import { logActivity } from "@/components/ActivityLog";
 import { ADMIN_EMAIL, PORTAL, CONTACT } from "@/lib/config";
 import { ensureMonthlySnapshots } from "@/lib/snapshots";
 import type { Client, Payment, NewClientForm, ParsedPaymentRow } from "@/lib/types";
+import StatementImport from "@/components/StatementImport";
 
 const PAGE_SIZE = 25;
 
@@ -105,7 +106,7 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
-  const [view, setView] = useState<"admin" | "client" | "add" | "returns">("admin");
+  const [view, setView] = useState<"admin" | "client" | "add" | "returns" | "statement">("admin");
   const [clientRecord, setClientRecord] = useState<Client | null>(null);
   const [hasConsented, setHasConsented] = useState(false);
   const [checkingConsent, setCheckingConsent] = useState(false);
@@ -756,6 +757,10 @@ export default function Home() {
               className={`rounded-lg px-3.5 py-2 text-sm font-medium transition-colors ${view === "add" ? "bg-gray-900 text-white" : "text-gray-600 hover:bg-gray-100"}`}>
               + Add client
             </button>
+            <button onClick={() => setView("statement")}
+              className={`rounded-lg px-3.5 py-2 text-sm font-medium transition-colors ${view === "statement" ? "bg-indigo-600 text-white" : "text-indigo-600 hover:bg-indigo-50 border border-indigo-200"}`}>
+              Import statement
+            </button>
             {selectedClient && (
               <button onClick={() => openClient(selectedClient)}
                 className={`rounded-lg px-3.5 py-2 text-sm font-medium transition-colors ${view === "client" ? "bg-gray-900 text-white" : "text-gray-600 hover:bg-gray-100"}`}>
@@ -772,6 +777,7 @@ export default function Home() {
         <div className="mb-5">
           {view === "admin" && <h1 className="text-lg font-semibold text-gray-900">Dashboard</h1>}
           {view === "returns" && <h1 className="text-lg font-semibold text-gray-900">Import returned payments</h1>}
+          {view === "statement" && <h1 className="text-lg font-semibold text-gray-900">Import CFG statement</h1>}
           {view === "add" && <h1 className="text-lg font-semibold text-gray-900">Add client</h1>}
           {view === "client" && selectedClient && (
             <div className="flex items-center gap-2">
@@ -806,6 +812,16 @@ export default function Home() {
           <ReturnsImport
             clients={allClients}
             orgId={orgId}
+            onImportComplete={async () => {
+              await fetchClients(currentPage, searchQuery, filterAttention);
+              await fetchAllClients();
+              setView("admin");
+            }}
+          />
+        )}
+        {view === "statement" && (
+          <StatementImport
+            clients={allClients}
             onImportComplete={async () => {
               await fetchClients(currentPage, searchQuery, filterAttention);
               await fetchAllClients();
