@@ -33,8 +33,8 @@ export default function FundingsPanel({ client, isAdminView, onFundingAdded, onB
 
     // Notify parent of combined balance
     if (list.length > 0) {
-      const combined = list.reduce((sum, p) => sum + Number(p.balance), 0);
-      onBalanceChange?.(combined);
+        const positionsTotal = list.reduce((sum, p) => sum + Number(p.balance), 0);
+        onBalanceChange?.(Number(client.balance || 0) + positionsTotal);
     }
 
     setLoading(false);

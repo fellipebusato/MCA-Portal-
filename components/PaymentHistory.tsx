@@ -265,7 +265,7 @@ export default function PaymentHistory({ payments, client, isAdminView, onPaymen
         <table className="w-full min-w-[600px]">
           <thead>
             {/* Sticky column headers */}
-            <tr className="border-b border-gray-100 sticky top-[113px] z-10 bg-white">
+            <tr className="border-b border-gray-100 bg-white">
               <th className="px-4 md:px-5 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wide">ACH date</th>
               <th className="px-4 md:px-5 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wide">Settles</th>
               <th className="px-4 md:px-5 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wide">Type</th>
