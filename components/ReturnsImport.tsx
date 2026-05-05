@@ -94,11 +94,9 @@ function parseReturnEmail(text: string): ReturnRow[] {
 
 export default function ReturnsImport({
   clients,
-  orgId,
   onImportComplete,
 }: {
   clients: Client[];
-  orgId: string;
   onImportComplete: () => void;
 }) {
   const [pasteText, setPasteText] = useState("");
