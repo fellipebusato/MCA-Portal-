@@ -29,13 +29,15 @@ function parseMoney(raw: string): number {
   return parseFloat(raw.replace(/[$,]/g, "").trim()) || 0;
 }
 
-function addBusinessDays(dateStr: string, days: number): string {
+// NetSuite dates = settlement dates already
+// ACH debit happened 4 business days BEFORE the settlement date
+function subtractBusinessDays(dateStr: string, days: number): string {
   const date = new Date(dateStr + "T00:00:00");
-  let added = 0;
-  while (added < days) {
-    date.setDate(date.getDate() + 1);
+  let subtracted = 0;
+  while (subtracted < days) {
+    date.setDate(date.getDate() - 1);
     const dow = date.getDay();
-    if (dow !== 0 && dow !== 6) added++;
+    if (dow !== 0 && dow !== 6) subtracted++;
   }
   return date.toISOString().split("T")[0];
 }
@@ -104,7 +106,7 @@ function parseStatement(text: string): {
     let credit = 0, debit = 0, rets = 0, runningBalance = 0;
 
     if (/invoice/i.test(description) && amounts.length >= 1) {
-      // Funding row: Credit column = payback (total owed)
+      // Funding row — Credit = payback (total owed)
       rowType = "funding";
 
       const invMatch = description.match(/INV\d+/i);
@@ -121,7 +123,7 @@ function parseStatement(text: string): {
       }
 
     } else if (/returned\s+payment/i.test(description)) {
-      // Return row: Returns column = amount, balance unchanged
+      // Return row — Returns = amount returned, balance unchanged
       rowType = "return";
 
       const codeMatch = description.match(/R\d{2}/i);
@@ -135,7 +137,7 @@ function parseStatement(text: string): {
       }
 
     } else if (/payment/i.test(description)) {
-      // Payment row: Debit column = amount received
+      // Payment row — Debit = amount received, date = settlement date
       rowType = "payment";
 
       if (amounts.length >= 2) {
@@ -205,14 +207,16 @@ export default function StatementImport({
     const returnRows = parsed.rows.filter(r => r.rowType === "return");
 
     // Import payments
+    // NetSuite date = settlement date already
+    // ACH debit = 4 business days BEFORE settlement
     for (const row of paymentRows) {
-      const settlementDate = addBusinessDays(row.date, 4);
+      const achDate = subtractBusinessDays(row.date, 4);
 
       const { error } = await supabase.from("payments").insert({
         invoice: parsed.invoice,
-        payment_date: row.date,
-        ach_date: row.date,
-        settlement_date: settlementDate,
+        payment_date: achDate,
+        ach_date: achDate,
+        settlement_date: row.date,
         description: "Posted",
         credit: 0,
         debit: row.debit,
@@ -240,16 +244,16 @@ export default function StatementImport({
       await supabase.from("returns").insert({
         invoice: parsed.invoice,
         merchant_name: parsed.merchantName || parsed.client?.business_name || "",
-        return_date: row.date,
-        settle_date: addBusinessDays(row.date, 4),
+        return_date: subtractBusinessDays(row.date, 4),
+        settle_date: row.date,
         return_code: row.returnCode || "R01",
         return_amount: row.returns,
       });
 
       await supabase.from("payments").insert({
         invoice: parsed.invoice,
-        payment_date: row.date,
-        ach_date: row.date,
+        payment_date: subtractBusinessDays(row.date, 4),
+        ach_date: subtractBusinessDays(row.date, 4),
         settlement_date: row.date,
         description: `Returned — ${row.returnCode || "R01"}`,
         credit: 0,
@@ -262,7 +266,7 @@ export default function StatementImport({
         parsed.invoice,
         "return",
         `Payment returned — ${row.returnCode || "R01"}`,
-        `${money(row.returns)} returned on ${row.date} · Insufficient funds`
+        `${money(row.returns)} returned · settled ${row.date} · Insufficient funds`
       );
 
       importedReturns++;
@@ -311,7 +315,9 @@ export default function StatementImport({
           </div>
           <div>
             <p className="text-sm font-semibold text-gray-900">Import CFG statement</p>
-            <p className="text-xs text-gray-400 mt-0.5">Open the PDF, select all text, copy and paste it below</p>
+            <p className="text-xs text-gray-400 mt-0.5">
+              Dates from NetSuite are settlement dates — ACH debit dates are calculated automatically
+            </p>
           </div>
         </div>
 
@@ -319,6 +325,9 @@ export default function StatementImport({
           <p className="text-xs font-medium text-indigo-800 mb-1">How to copy from the PDF:</p>
           <p className="text-xs text-indigo-600 leading-relaxed">
             Open the CFG statement PDF → click anywhere → <strong>Ctrl+A</strong> (select all) → <strong>Ctrl+C</strong> (copy) → click below → <strong>Ctrl+V</strong> (paste)
+          </p>
+          <p className="text-xs text-indigo-500 mt-1.5">
+            NetSuite records settlement dates. The portal will automatically calculate ACH debit dates as 4 business days prior.
           </p>
         </div>
 
@@ -335,7 +344,7 @@ export default function StatementImport({
             onChange={e => setManualInvoice(e.target.value.toUpperCase())}
           />
           <p className="text-[10px] text-gray-400 mt-1">
-            Auto-detected from statement text — only fill this in if the invoice comes back wrong after parsing
+            Auto-detected from statement — only fill this in if the invoice shows incorrectly after parsing
           </p>
         </div>
 
@@ -374,7 +383,7 @@ export default function StatementImport({
           <p className="text-xs text-gray-400 mt-0.5">Confirm the parsed data looks correct before saving anything</p>
         </div>
 
-        {/* Summary */}
+        {/* Summary strip */}
         <div className="px-5 py-4 bg-gray-50 border-b border-gray-100">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             <div>
@@ -426,25 +435,28 @@ export default function StatementImport({
         {/* Payments table */}
         {paymentRows.length > 0 && (
           <div className="px-5 py-4 border-b border-gray-50">
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
               Payments — {paymentRows.length} rows · {money(totalPaid)} total received
+            </p>
+            <p className="text-[10px] text-gray-400 mb-3">
+              Settlement date from NetSuite · ACH debit = 4 business days prior
             </p>
             <div className="overflow-x-auto">
               <table className="w-full min-w-[500px]">
                 <thead>
                   <tr className="border-b border-gray-100">
-                    {["Date", "Amount", "Running balance", "Settles"].map(h => (
-                      <th key={h} className={`pb-2 text-[10px] font-semibold text-gray-400 uppercase tracking-wider ${h === "Date" ? "text-left" : "text-right"}`}>{h}</th>
+                    {["Settlement date", "Amount", "Running balance", "ACH debit date"].map(h => (
+                      <th key={h} className={`pb-2 text-[10px] font-semibold text-gray-400 uppercase tracking-wider ${h === "Settlement date" ? "text-left" : "text-right"}`}>{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
                   {paymentRows.map((row, i) => (
                     <tr key={i} className="border-b border-gray-50">
-                      <td className="py-2 text-xs text-gray-700">{row.date}</td>
+                      <td className="py-2 text-xs font-medium text-gray-700">{row.date}</td>
                       <td className="py-2 text-xs font-semibold text-emerald-600 text-right">{money(row.debit)}</td>
                       <td className="py-2 text-xs text-gray-500 text-right">{money(row.runningBalance)}</td>
-                      <td className="py-2 text-xs text-gray-400 text-right">{addBusinessDays(row.date, 4)}</td>
+                      <td className="py-2 text-xs text-gray-400 text-right">{subtractBusinessDays(row.date, 4)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -456,22 +468,25 @@ export default function StatementImport({
         {/* Returns table */}
         {returnRows.length > 0 && (
           <div className="px-5 py-4 border-b border-gray-50">
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
               Returns — {returnRows.length} rows · {money(totalReturned)} total returned
+            </p>
+            <p className="text-[10px] text-gray-400 mb-3">
+              Settlement date from NetSuite · ACH date = 4 business days prior
             </p>
             <div className="overflow-x-auto">
               <table className="w-full min-w-[500px]">
                 <thead>
                   <tr className="border-b border-gray-100">
-                    {["Date", "Code", "Amount", "Running balance"].map(h => (
-                      <th key={h} className={`pb-2 text-[10px] font-semibold text-gray-400 uppercase tracking-wider ${h === "Date" || h === "Code" ? "text-left" : "text-right"}`}>{h}</th>
+                    {["Settlement date", "Code", "Amount", "Running balance"].map(h => (
+                      <th key={h} className={`pb-2 text-[10px] font-semibold text-gray-400 uppercase tracking-wider ${h === "Settlement date" || h === "Code" ? "text-left" : "text-right"}`}>{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
                   {returnRows.map((row, i) => (
                     <tr key={i} className="border-b border-gray-50">
-                      <td className="py-2 text-xs text-gray-700">{row.date}</td>
+                      <td className="py-2 text-xs font-medium text-gray-700">{row.date}</td>
                       <td className="py-2 text-xs font-semibold text-red-600">{row.returnCode || "R01"}</td>
                       <td className="py-2 text-xs font-semibold text-red-600 text-right">{money(row.returns)}</td>
                       <td className="py-2 text-xs text-gray-500 text-right">{money(row.runningBalance)}</td>
