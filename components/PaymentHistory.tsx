@@ -295,7 +295,7 @@ export default function PaymentHistory({ payments, client, isAdminView, onPaymen
 
       <div className="overflow-x-auto">
         <table className="w-full min-w-[600px]">
-          <thead>
+          <thead className="sticky top-0 z-10 bg-white">
             <tr className="border-b border-gray-100">
               <th className="px-4 md:px-5 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wide">ACH date</th>
               <th className="px-4 md:px-5 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wide">Settles</th>
