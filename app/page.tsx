@@ -241,16 +241,11 @@ export default function Home() {
       businessName: "", invoice: "", ownerName: "", clientEmail: "",
       fundedDate: "", funded: "", payback: "", payment: "", totalTerm: "",
       paymentFrequency: "daily", paymentDay: "",
-    });
-    await fetchClients();
-    setView("admin");
-    const [newClient, setNewClient] = useState({
-      businessName: "", invoice: "", ownerName: "", clientEmail: "",
-      fundedDate: "", funded: "", payback: "", payment: "", totalTerm: "",
-      paymentFrequency: "daily", paymentDay: "",
       state: "", sicCode: "", businessType: "", ficoScore: "",
       avgMonthlyRevenue: "", timeInBusinessMonths: "", position: "",
     });
+    await fetchClients();
+    setView("admin");
   }
 
   async function deleteClient(client: any) {
