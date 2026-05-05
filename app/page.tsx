@@ -101,12 +101,16 @@ export default function Home() {
   const [forgotStatus, setForgotStatus] = useState<"idle" | "loading" | "sent" | "error">("idle");
   const [forgotMessage, setForgotMessage] = useState("");
 
-  const [newClient, setNewClient] = useState({
+  const [newClient, setNewClient] = useState<{
+  businessName: string; invoice: string; ownerName: string; clientEmail: string;
+  fundedDate: string; funded: string; payback: string; payment: string; totalTerm: string;
+  paymentFrequency: "daily" | "weekly"; paymentDay: string;
+  state: string; sicCode: string; businessType: string; ficoScore: string;
+  avgMonthlyRevenue: string; timeInBusinessMonths: string; position: string;
+}>({
     businessName: "", invoice: "", ownerName: "", clientEmail: "",
     fundedDate: "", funded: "", payback: "", payment: "", totalTerm: "",
-    paymentFrequency: "daily", paymentDay: "",
-    state: "", sicCode: "", businessType: "", ficoScore: "",
-    avgMonthlyRevenue: "", timeInBusinessMonths: "", position: "",
+    paymentFrequency: "daily" as const, paymentDay: "",
   });
 
   const isAdmin = user?.email === ADMIN_EMAIL;
@@ -240,9 +244,7 @@ export default function Home() {
     setNewClient({
       businessName: "", invoice: "", ownerName: "", clientEmail: "",
       fundedDate: "", funded: "", payback: "", payment: "", totalTerm: "",
-      paymentFrequency: "daily", paymentDay: "",
-      state: "", sicCode: "", businessType: "", ficoScore: "",
-      avgMonthlyRevenue: "", timeInBusinessMonths: "", position: "",
+      paymentFrequency: "daily" as const, paymentDay: "",
     });
     await fetchClients();
     setView("admin");
