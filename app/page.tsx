@@ -620,7 +620,7 @@ export default function Home() {
               ← Dashboard
             </button>
             <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 26, fontWeight: 500, color: "var(--ink-1)", letterSpacing: "-0.02em", marginBottom: 20 }}>
-              {selectedClient.business_name}
+              Welcome, {selectedClient.owner_name}
             </div>
           </div>
         )}
