@@ -55,19 +55,26 @@ function parseStatement(text: string): {
 
   const lines = text.split("\n").map(l => l.trim()).filter(Boolean);
 
-  // Try to grab merchant name and current balance from header
+  // Pass 1: Scan entire raw text for any INV##### pattern
+  const globalInvMatch = text.match(/INV\d+/i);
+  if (globalInvMatch) invoice = globalInvMatch[0].toUpperCase();
+
+  // Pass 2: Extract current balance and merchant name from header
   for (const line of lines) {
     const balMatch = line.match(/current\s+balance[:\s]+\$?([\d,]+\.?\d*)/i);
     if (balMatch) currentBalance = parseMoney(balMatch[1]);
 
-    // Merchant name is often on its own line after the heading
-    if (/^[A-Z][a-zA-Z\s]+$/.test(line) && line.length > 3 && line.length < 60
-      && !/date|description|credit|debit|returns|balance|merchant|payment|history/i.test(line)) {
+    if (
+      /^[A-Z][a-zA-Z\s]+$/.test(line) &&
+      line.length > 3 &&
+      line.length < 60 &&
+      !/date|description|credit|debit|returns|balance|merchant|payment|history|invoice|portal|admin/i.test(line)
+    ) {
       merchantName = line;
     }
   }
 
-  // Find where the data rows start (after the header row)
+  // Pass 3: Find where data rows start (after header row)
   let dataStartIdx = 0;
   for (let i = 0; i < lines.length; i++) {
     if (/date/i.test(lines[i]) && /description/i.test(lines[i])) {
@@ -76,7 +83,7 @@ function parseStatement(text: string): {
     }
   }
 
-  // Date pattern at start of line
+  // Pass 4: Parse each data row
   const datePattern = /^(\d{1,2}\/\d{1,2}\/\d{4})\s+(.*)/;
 
   for (let i = dataStartIdx; i < lines.length; i++) {
@@ -87,38 +94,34 @@ function parseStatement(text: string): {
     const date = parseDate(match[1]);
     const rest = match[2];
 
-    // Extract description (everything before first dollar sign or standalone number)
     const descMatch = rest.match(/^([^$\d]+)/);
     const description = descMatch ? descMatch[1].trim() : rest.trim();
 
-    // Extract all dollar amounts in order
     const amounts = (rest.match(/\$?[\d,]+\.\d{2}/g) || []).map(parseMoney);
 
-    // Determine row type
     let rowType: ParsedRow["rowType"] = "unknown";
     let returnCode = "";
     let credit = 0, debit = 0, rets = 0, runningBalance = 0;
 
-    if (/invoice\s*#?inv/i.test(description)) {
-      // Funding row:
-      // Invoice #INV99460 $9,800.00 $9,800.00
-      // Credit = payback amount, Running Balance = same
+    if (/invoice/i.test(description) && amounts.length >= 1) {
+      // Funding row: Credit column = payback (total owed)
       rowType = "funding";
 
-      const invMatch = description.match(/inv\w+/i);
+      const invMatch = description.match(/INV\d+/i);
       if (invMatch && !invoice) invoice = invMatch[0].toUpperCase();
 
-      // The credit amount IS the payback (total amount owed)
-      if (amounts.length >= 1) {
+      if (amounts.length >= 2) {
         credit = amounts[0];
         payback = credit;
-        runningBalance = amounts.length >= 2 ? amounts[amounts.length - 1] : amounts[0];
+        runningBalance = amounts[amounts.length - 1];
+      } else {
+        credit = amounts[0];
+        payback = credit;
+        runningBalance = amounts[0];
       }
 
     } else if (/returned\s+payment/i.test(description)) {
-      // Return row:
-      // Returned Payment R01 $395.00 $9,010.00
-      // Returns column = amount returned, Running Balance = unchanged
+      // Return row: Returns column = amount, balance unchanged
       rowType = "return";
 
       const codeMatch = description.match(/R\d{2}/i);
@@ -132,9 +135,7 @@ function parseStatement(text: string): {
       }
 
     } else if (/payment/i.test(description)) {
-      // Payment row:
-      // Payment $395.00 $9,405.00
-      // Debit = amount received, Running Balance = new balance
+      // Payment row: Debit column = amount received
       rowType = "payment";
 
       if (amounts.length >= 2) {
@@ -145,7 +146,6 @@ function parseStatement(text: string): {
       }
     }
 
-    // Track current balance as we go — last running balance in the statement
     if (runningBalance > 0) currentBalance = runningBalance;
 
     rows.push({ date, description, credit, debit, returns: rets, runningBalance, rowType, returnCode });
@@ -162,6 +162,7 @@ export default function StatementImport({
   onImportComplete: () => void;
 }) {
   const [pasteText, setPasteText] = useState("");
+  const [manualInvoice, setManualInvoice] = useState("");
   const [step, setStep] = useState<"paste" | "review" | "done">("paste");
   const [processing, setProcessing] = useState(false);
   const [parsed, setParsed] = useState<{
@@ -177,13 +178,18 @@ export default function StatementImport({
   function handleParse() {
     if (!pasteText.trim()) return;
 
-    const { rows, invoice, payback, currentBalance, merchantName } = parseStatement(pasteText);
+    const result = parseStatement(pasteText);
+
+    // Manual invoice always wins over auto-detected
+    if (manualInvoice.trim()) {
+      result.invoice = manualInvoice.trim().toUpperCase();
+    }
 
     const client = clients.find(c =>
-      c.invoice.trim().toLowerCase() === invoice.trim().toLowerCase()
+      c.invoice.trim().toLowerCase() === result.invoice.trim().toLowerCase()
     ) || null;
 
-    setParsed({ rows, invoice, payback, currentBalance, merchantName, client });
+    setParsed({ ...result, client });
     setStep("review");
   }
 
@@ -262,7 +268,7 @@ export default function StatementImport({
       importedReturns++;
     }
 
-    // Update client balance to match statement current balance
+    // Update client balance to match statement
     if (parsed.client) {
       await supabase.from("clients").update({
         balance: parsed.currentBalance,
@@ -275,7 +281,7 @@ export default function StatementImport({
       parsed.invoice,
       "funded",
       "CFG statement imported",
-      `${importedPayments} payments and ${importedReturns} returns imported · Balance updated to ${money(parsed.currentBalance)}`
+      `${importedPayments} payments and ${importedReturns} returns imported · Balance set to ${money(parsed.currentBalance)}`
     );
 
     setResult({ payments: importedPayments, returns: importedReturns, skipped });
@@ -286,12 +292,13 @@ export default function StatementImport({
 
   function reset() {
     setPasteText("");
+    setManualInvoice("");
     setParsed(null);
     setStep("paste");
     setResult({ payments: 0, returns: 0, skipped: 0 });
   }
 
-  // ── Step: Paste ──────────────────────────────────────────────────────────
+  // ── Step: Paste ────────────────────────────────────────────────────────────
   if (step === "paste") {
     return (
       <div className="rounded-xl bg-white border border-gray-100 p-5">
@@ -304,23 +311,38 @@ export default function StatementImport({
           </div>
           <div>
             <p className="text-sm font-semibold text-gray-900">Import CFG statement</p>
-            <p className="text-xs text-gray-400 mt-0.5">
-              Open the PDF, select all text, copy and paste it below
-            </p>
+            <p className="text-xs text-gray-400 mt-0.5">Open the PDF, select all text, copy and paste it below</p>
           </div>
         </div>
 
         <div className="rounded-lg bg-indigo-50 border border-indigo-100 px-4 py-3 mb-4">
-          <p className="text-xs font-medium text-indigo-800 mb-1">How to copy from PDF:</p>
+          <p className="text-xs font-medium text-indigo-800 mb-1">How to copy from the PDF:</p>
           <p className="text-xs text-indigo-600 leading-relaxed">
-            Open the CFG statement PDF → click anywhere in the table → Ctrl+A (select all) → Ctrl+C (copy) → click below and Ctrl+V (paste)
+            Open the CFG statement PDF → click anywhere → <strong>Ctrl+A</strong> (select all) → <strong>Ctrl+C</strong> (copy) → click below → <strong>Ctrl+V</strong> (paste)
+          </p>
+        </div>
+
+        {/* Manual invoice override */}
+        <div className="mb-4">
+          <label className="block text-xs font-medium text-gray-500 mb-1.5">
+            Invoice # <span className="font-normal text-gray-400">— type it in if auto-detection misses it</span>
+          </label>
+          <input
+            type="text"
+            placeholder="INV99460"
+            className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:border-indigo-400 transition-colors w-52 uppercase placeholder:normal-case placeholder:text-gray-300"
+            value={manualInvoice}
+            onChange={e => setManualInvoice(e.target.value.toUpperCase())}
+          />
+          <p className="text-[10px] text-gray-400 mt-1">
+            Auto-detected from statement text — only fill this in if the invoice comes back wrong after parsing
           </p>
         </div>
 
         <textarea
           className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-xs text-gray-700 font-mono focus:outline-none focus:border-gray-400 transition-colors resize-none"
           rows={10}
-          placeholder={`Paste the CFG statement here. Example:\n\nMerchant Payment History\nDaniel Aletras\nCurrent Balance: $5,165.00\n\nDate Description Credit Debit Returns Running Balance\n12/12/2025 Invoice #INV99460 $9,800.00 $9,800.00\n12/26/2025 Payment $395.00 $9,405.00\n1/6/2026 Returned Payment R01 $395.00 $9,010.00`}
+          placeholder={`Paste the full CFG statement text here. Example:\n\nMerchant Payment History\nDaniel Aletras\nCurrent Balance: $5,165.00\n\nDate Description Credit Debit Returns Running Balance\n12/12/2025 Invoice #INV99460 $9,800.00 $9,800.00\n12/26/2025 Payment $395.00 $9,405.00\n1/6/2026 Returned Payment R01 $395.00 $9,010.00`}
           value={pasteText}
           onChange={e => setPasteText(e.target.value)}
         />
@@ -332,13 +354,13 @@ export default function StatementImport({
             className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
             Parse statement →
           </button>
-          <p className="text-xs text-gray-400">You will review before anything is saved</p>
+          <p className="text-xs text-gray-400">You will review everything before anything saves</p>
         </div>
       </div>
     );
   }
 
-  // ── Step: Review ─────────────────────────────────────────────────────────
+  // ── Step: Review ───────────────────────────────────────────────────────────
   if (step === "review" && parsed) {
     const paymentRows = parsed.rows.filter(r => r.rowType === "payment");
     const returnRows = parsed.rows.filter(r => r.rowType === "return");
@@ -347,16 +369,12 @@ export default function StatementImport({
 
     return (
       <div className="rounded-xl bg-white border border-gray-100 overflow-hidden">
-
-        {/* Header */}
         <div className="px-5 py-4 border-b border-gray-100">
           <p className="text-sm font-semibold text-gray-900">Review before importing</p>
-          <p className="text-xs text-gray-400 mt-0.5">
-            Confirm the parsed data looks correct before saving anything
-          </p>
+          <p className="text-xs text-gray-400 mt-0.5">Confirm the parsed data looks correct before saving anything</p>
         </div>
 
-        {/* Summary strip */}
+        {/* Summary */}
         <div className="px-5 py-4 bg-gray-50 border-b border-gray-100">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             <div>
@@ -376,7 +394,7 @@ export default function StatementImport({
               {parsed.client ? (
                 <p className="text-sm font-semibold text-emerald-600">✓ {parsed.client.business_name}</p>
               ) : (
-                <p className="text-sm font-semibold text-red-500">⚠ Not found — add client first</p>
+                <p className="text-sm font-semibold text-red-500">⚠ Not found</p>
               )}
             </div>
           </div>
@@ -384,10 +402,24 @@ export default function StatementImport({
 
         {/* Client not found warning */}
         {!parsed.client && (
-          <div className="px-5 py-3 bg-amber-50 border-b border-amber-100">
-            <p className="text-xs font-medium text-amber-800">
-              Invoice {parsed.invoice} does not match any client in your portal. Please add the client first using + Add client, then come back to import their statement.
-            </p>
+          <div className="px-5 py-3 bg-amber-50 border-b border-amber-100 flex items-start gap-3">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="flex-shrink-0 mt-0.5">
+              <path d="M8 5v4M8 11v.5" stroke="#D97706" strokeWidth="1.8" strokeLinecap="round"/>
+              <circle cx="8" cy="8" r="6.5" stroke="#D97706" strokeWidth="1.2"/>
+            </svg>
+            <div>
+              <p className="text-xs font-medium text-amber-800">
+                Invoice <span className="font-mono">{parsed.invoice || "not detected"}</span> does not match any client in your portal.
+              </p>
+              <p className="text-xs text-amber-700 mt-0.5">
+                {!parsed.invoice
+                  ? "Invoice number was not detected. Go back, type the invoice number in the field above, then parse again."
+                  : "Add this client first using + Add client with this invoice number, then come back to import."}
+              </p>
+              <button onClick={reset} className="mt-2 text-xs font-medium text-amber-800 underline underline-offset-2 hover:text-amber-900">
+                ← Go back and fix
+              </button>
+            </div>
           </div>
         )}
 
@@ -401,17 +433,16 @@ export default function StatementImport({
               <table className="w-full min-w-[500px]">
                 <thead>
                   <tr className="border-b border-gray-100">
-                    <th className="pb-2 text-left text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Date</th>
-                    <th className="pb-2 text-right text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Amount</th>
-                    <th className="pb-2 text-right text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Running balance</th>
-                    <th className="pb-2 text-right text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Settles</th>
+                    {["Date", "Amount", "Running balance", "Settles"].map(h => (
+                      <th key={h} className={`pb-2 text-[10px] font-semibold text-gray-400 uppercase tracking-wider ${h === "Date" ? "text-left" : "text-right"}`}>{h}</th>
+                    ))}
                   </tr>
                 </thead>
                 <tbody>
                   {paymentRows.map((row, i) => (
                     <tr key={i} className="border-b border-gray-50">
                       <td className="py-2 text-xs text-gray-700">{row.date}</td>
-                      <td className="py-2 text-xs font-medium text-emerald-600 text-right">{money(row.debit)}</td>
+                      <td className="py-2 text-xs font-semibold text-emerald-600 text-right">{money(row.debit)}</td>
                       <td className="py-2 text-xs text-gray-500 text-right">{money(row.runningBalance)}</td>
                       <td className="py-2 text-xs text-gray-400 text-right">{addBusinessDays(row.date, 4)}</td>
                     </tr>
@@ -432,18 +463,17 @@ export default function StatementImport({
               <table className="w-full min-w-[500px]">
                 <thead>
                   <tr className="border-b border-gray-100">
-                    <th className="pb-2 text-left text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Date</th>
-                    <th className="pb-2 text-left text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Code</th>
-                    <th className="pb-2 text-right text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Amount</th>
-                    <th className="pb-2 text-right text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Running balance</th>
+                    {["Date", "Code", "Amount", "Running balance"].map(h => (
+                      <th key={h} className={`pb-2 text-[10px] font-semibold text-gray-400 uppercase tracking-wider ${h === "Date" || h === "Code" ? "text-left" : "text-right"}`}>{h}</th>
+                    ))}
                   </tr>
                 </thead>
                 <tbody>
                   {returnRows.map((row, i) => (
                     <tr key={i} className="border-b border-gray-50">
                       <td className="py-2 text-xs text-gray-700">{row.date}</td>
-                      <td className="py-2 text-xs font-medium text-red-600">{row.returnCode || "R01"}</td>
-                      <td className="py-2 text-xs font-medium text-red-600 text-right">{money(row.returns)}</td>
+                      <td className="py-2 text-xs font-semibold text-red-600">{row.returnCode || "R01"}</td>
+                      <td className="py-2 text-xs font-semibold text-red-600 text-right">{money(row.returns)}</td>
                       <td className="py-2 text-xs text-gray-500 text-right">{money(row.runningBalance)}</td>
                     </tr>
                   ))}
@@ -475,7 +505,7 @@ export default function StatementImport({
     );
   }
 
-  // ── Step: Done ───────────────────────────────────────────────────────────
+  // ── Step: Done ─────────────────────────────────────────────────────────────
   return (
     <div className="rounded-xl bg-white border border-gray-100 p-5">
       <div className="flex items-center gap-3 mb-4">
@@ -487,8 +517,8 @@ export default function StatementImport({
         <div>
           <p className="text-sm font-semibold text-gray-900">Import complete</p>
           <p className="text-xs text-gray-400 mt-0.5">
-            {result.payments} payments imported · {result.returns} returns imported
-            {result.skipped > 0 && ` · ${result.skipped} duplicates skipped`}
+            {result.payments} payment{result.payments !== 1 ? "s" : ""} imported · {result.returns} return{result.returns !== 1 ? "s" : ""} imported
+            {result.skipped > 0 && ` · ${result.skipped} duplicate${result.skipped !== 1 ? "s" : ""} skipped`}
           </p>
         </div>
       </div>
