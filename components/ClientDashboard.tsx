@@ -3,6 +3,7 @@
 import { useState } from "react";
 import PaymentHistory from "./PaymentHistory";
 import ActivityLog from "./ActivityLog";
+import PositionsPanel from "./PositionsPanel";
 import { CONTACT, PORTAL, PAYMENT_LINK } from "@/lib/config";
 import {
   toDateStr, isWeekend, isHoliday, isBusinessDay,
@@ -669,6 +670,12 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
           </div>
         )}
       </div>
+
+      {/* Invoice positions — only shows for add-on clients */}
+      <PositionsPanel
+        client={selectedClient}
+        isAdminView={isAdminView}
+      />
 
       {/* Payment history */}
       <PaymentHistory
