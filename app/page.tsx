@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { addBusinessDays, toDateStr as toDateString } from "@/lib/holidays";
 import AdminDashboard from "@/components/AdminDashboard";
 import ClientDashboard from "@/components/ClientDashboard";
 import AddClientForm from "@/components/AddClientForm";
@@ -11,20 +12,6 @@ import ReturnsImport from "@/components/ReturnsImport";
 
 const ADMIN_EMAIL = "fbusato@cfgms.com";
 
-function addBusinessDays(date: Date, days: number): Date {
-  const result = new Date(date);
-  let added = 0;
-  while (added < days) {
-    result.setDate(result.getDate() + 1);
-    const dow = result.getDay();
-    if (dow !== 0 && dow !== 6) added++;
-  }
-  return result;
-}
-
-function toDateString(date: Date): string {
-  return date.toISOString().split("T")[0];
-}
 
 function parseXLSRows(text: string): { invoice: string; date: string; amount: number }[] {
   const results: { invoice: string; date: string; amount: number }[] = [];
@@ -119,7 +106,9 @@ export default function Home() {
 
   const isAdmin = user?.email === ADMIN_EMAIL;
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { checkUser(); }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (user) {
       if (isAdmin) fetchClients();
