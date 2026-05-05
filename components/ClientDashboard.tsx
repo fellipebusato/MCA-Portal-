@@ -140,12 +140,12 @@ function MiniCalendar({ year, month, termDays, paymentDays, missedDays, holidayM
     <div>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
         <button onClick={onPrev} disabled={!canPrev} style={{ background: "none", border: "none", cursor: canPrev ? "pointer" : "not-allowed", opacity: canPrev ? 1 : 0.25, fontSize: 16, color: "var(--ink-3)", padding: "2px 8px" }}>‹</button>
-        <span style={{ fontSize: 11, fontWeight: 600, color: "var(--ink-2)", fontFamily: "'DM Sans', sans-serif" }}>{monthNames[month]} {year}</span>
+        <span style={{ fontSize: 14, fontWeight: 600, color: "var(--ink-2)", fontFamily: "'DM Sans', sans-serif" }}>{monthNames[month]} {year}</span>
         <button onClick={onNext} disabled={!canNext} style={{ background: "none", border: "none", cursor: canNext ? "pointer" : "not-allowed", opacity: canNext ? 1 : 0.25, fontSize: 16, color: "var(--ink-3)", padding: "2px 8px" }}>›</button>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", marginBottom: 2 }}>
         {["S","M","T","W","T","F","S"].map((d, i) => (
-          <div key={i} style={{ textAlign: "center", fontSize: 9, color: "var(--ink-4)", fontWeight: 600, padding: "2px 0", fontFamily: "'DM Sans', sans-serif" }}>{d}</div>
+          <div key={i} style={{ textAlign: "center", fontSize: 15, color: "var(--ink-4)", fontWeight: 600, padding: "2px 0", fontFamily: "'DM Sans', sans-serif" }}>{d}</div>
         ))}
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 1 }}>
@@ -171,7 +171,7 @@ function MiniCalendar({ year, month, termDays, paymentDays, missedDays, holidayM
           return (
             <div key={dateStr} style={{
               aspectRatio: "1", display: "flex", alignItems: "center", justifyContent: "center",
-              borderRadius: 4, background: bg, color, fontSize: 10, fontWeight: isToday ? 700 : 500,
+              borderRadius: 4, background: bg, color, fontSize: 15, fontWeight: isToday ? 700 : 500,
               fontFamily: "'DM Sans', sans-serif",
               outline: isToday ? "1.5px solid var(--ink-2)" : "none", outlineOffset: -1,
             }}>
@@ -190,7 +190,7 @@ function MiniCalendar({ year, month, termDays, paymentDays, missedDays, holidayM
         ].map(({ bg, border, label }) => (
           <div key={label} style={{ display: "flex", alignItems: "center", gap: 4 }}>
             <div style={{ width: 8, height: 8, borderRadius: 2, background: bg, border, flexShrink: 0 }} />
-            <span style={{ fontSize: 9, color: "var(--ink-4)", fontFamily: "'DM Sans', sans-serif" }}>{label}</span>
+            <span style={{ fontSize: 15, color: "var(--ink-4)", fontFamily: "'DM Sans', sans-serif" }}>{label}</span>
           </div>
         ))}
       </div>
@@ -286,11 +286,11 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
       <div style={{ ...card }}>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 16, justifyContent: "space-between", alignItems: "flex-start" }}>
           <div>
-            <p style={{ fontSize: 10, color: "var(--ink-4)", textTransform: "uppercase", letterSpacing: "0.1em", fontFamily: "'DM Sans', sans-serif", marginBottom: 4 }}>Account</p>
+            <p style={{ fontSize: 15, color: "var(--ink-4)", textTransform: "uppercase", letterSpacing: "0.1em", fontFamily: "'DM Sans', sans-serif", marginBottom: 4 }}>Account</p>
             <h2 style={{ fontSize: 22, fontWeight: 500, color: "var(--ink-1)", fontFamily: "'Cormorant Garamond', serif", letterSpacing: "-0.02em", marginBottom: 4 }}>
               {selectedClient.business_name}
             </h2>
-            <p style={{ fontSize: 12, color: "var(--ink-4)", fontFamily: "'DM Sans', sans-serif" }}>
+            <p style={{ fontSize: 15, color: "var(--ink-4)", fontFamily: "'DM Sans', sans-serif" }}>
               {selectedClient.invoice} · Funded {formatDate(selectedClient.funded_date)}
             </p>
           </div>
@@ -298,20 +298,20 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
             {isAdminView && selectedClient.client_email && (
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end", marginBottom: 8 }}>
                 <a href={`mailto:${selectedClient.client_email}?subject=${encodeURIComponent("Your MCA Account — Action Required")}`}
-                  style={{ fontSize: 11, color: "var(--ink-3)", border: "1px solid var(--border-mid)", borderRadius: 7, padding: "5px 12px", textDecoration: "none", fontFamily: "'DM Sans', sans-serif" }}>
+                  style={{ fontSize: 14, color: "var(--ink-3)", border: "1px solid var(--border-mid)", borderRadius: 7, padding: "5px 12px", textDecoration: "none", fontFamily: "'DM Sans', sans-serif" }}>
                   Send notice
                 </a>
                 {hasMissedPayments && (
                   <a href={`mailto:${selectedClient.client_email}?subject=${encodeURIComponent("Missed Payment Notice — " + selectedClient.invoice)}`}
-                    style={{ fontSize: 11, color: "var(--sienna)", border: "1px solid var(--sienna-border)", background: "var(--sienna-surface)", borderRadius: 7, padding: "5px 12px", textDecoration: "none", fontFamily: "'DM Sans', sans-serif" }}>
+                    style={{ fontSize: 14, color: "var(--sienna)", border: "1px solid var(--sienna-border)", background: "var(--sienna-surface)", borderRadius: 7, padding: "5px 12px", textDecoration: "none", fontFamily: "'DM Sans', sans-serif" }}>
                     Missed payment notice
                   </a>
                 )}
               </div>
             )}
-            <p style={{ fontSize: 11, color: "var(--ink-4)", fontFamily: "'DM Sans', sans-serif", marginBottom: 2 }}>Need help?</p>
-            <p style={{ fontSize: 12, fontWeight: 500, color: "var(--ink-2)", fontFamily: "'DM Sans', sans-serif" }}>{CONTACT.email}</p>
-            <p style={{ fontSize: 12, color: "var(--ink-3)", fontFamily: "'DM Sans', sans-serif" }}>{CONTACT.phone}</p>
+            <p style={{ fontSize: 14, color: "var(--ink-4)", fontFamily: "'DM Sans', sans-serif", marginBottom: 2 }}>Need help?</p>
+            <p style={{ fontSize: 15, fontWeight: 500, color: "var(--ink-2)", fontFamily: "'DM Sans', sans-serif" }}>{CONTACT.email}</p>
+            <p style={{ fontSize: 15, color: "var(--ink-3)", fontFamily: "'DM Sans', sans-serif" }}>{CONTACT.phone}</p>
           </div>
         </div>
       </div>
@@ -331,9 +331,9 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
               { label: paymentFrequencyLabel + " payment", value: money(Number(selectedClient.payment || 0)), sub: nextPayment ? `Next ACH: ${nextPayment.label}` : undefined },
             ].map(({ label, value, sub }) => (
               <div key={label} style={{ ...card, padding: "16px 18px" }}>
-                <p style={{ fontSize: 10, color: "var(--ink-4)", textTransform: "uppercase", letterSpacing: "0.08em", fontFamily: "'DM Sans', sans-serif", marginBottom: 4 }}>{label}</p>
+                <p style={{ fontSize: 15, color: "var(--ink-4)", textTransform: "uppercase", letterSpacing: "0.08em", fontFamily: "'DM Sans', sans-serif", marginBottom: 4 }}>{label}</p>
                 <p style={{ fontSize: 18, fontWeight: 500, color: "var(--ink-1)", fontFamily: "'Cormorant Garamond', serif" }}>{value}</p>
-                {sub && <p style={{ fontSize: 11, color: "var(--sky)", fontFamily: "'DM Sans', sans-serif", marginTop: 4 }}>{sub}</p>}
+                {sub && <p style={{ fontSize: 14, color: "var(--sky)", fontFamily: "'DM Sans', sans-serif", marginTop: 4 }}>{sub}</p>}
               </div>
             ))}
           </div>
@@ -341,7 +341,7 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
           {/* Pending bar */}
           {pendingCount > 0 && (
             <div style={{ background: "var(--sky-surface)", border: "1px solid var(--sky-border)", borderRadius: 10, padding: "10px 16px" }}>
-              <p style={{ fontSize: 12, color: "var(--sky)", fontFamily: "'DM Sans', sans-serif" }}>
+              <p style={{ fontSize: 15, color: "var(--sky)", fontFamily: "'DM Sans', sans-serif" }}>
                 <strong>{pendingCount} payment{pendingCount > 1 ? "s" : ""} totaling {money(pendingTotal)}</strong> are processing and will apply to your balance within 4 business days.
               </p>
             </div>
@@ -350,15 +350,15 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
           {/* Progress */}
           <div style={{ ...card }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-              <p style={{ fontSize: 13, fontWeight: 500, color: "var(--ink-1)", fontFamily: "'DM Sans', sans-serif" }}>Repayment progress</p>
-              <p style={{ fontSize: 13, fontWeight: 600, color: "var(--ink-1)", fontFamily: "'DM Sans', sans-serif" }}>{Math.round(safePercent)}% paid</p>
+              <p style={{ fontSize: 15, fontWeight: 500, color: "var(--ink-1)", fontFamily: "'DM Sans', sans-serif" }}>Repayment progress</p>
+              <p style={{ fontSize: 15, fontWeight: 600, color: "var(--ink-1)", fontFamily: "'DM Sans', sans-serif" }}>{Math.round(safePercent)}% paid</p>
             </div>
             <div style={{ height: 6, borderRadius: 99, background: "var(--parchment-3)", overflow: "hidden" }}>
               <div style={{ height: 6, borderRadius: 99, background: "var(--sage)", width: `${safePercent}%`, transition: "width 0.5s ease" }} />
             </div>
             <div style={{ display: "flex", justifyContent: "space-between", marginTop: 8 }}>
-              <p style={{ fontSize: 11, color: "var(--ink-4)", fontFamily: "'DM Sans', sans-serif" }}>{money(totalPaid)} paid</p>
-              <p style={{ fontSize: 11, color: "var(--ink-4)", fontFamily: "'DM Sans', sans-serif" }}>
+              <p style={{ fontSize: 14, color: "var(--ink-4)", fontFamily: "'DM Sans', sans-serif" }}>{money(totalPaid)} paid</p>
+              <p style={{ fontSize: 14, color: "var(--ink-4)", fontFamily: "'DM Sans', sans-serif" }}>
                 {termEndDate
                   ? `Est. completion: ${formatDate(termEndDate.toISOString().split("T")[0])}`
                   : `${money(Number(selectedClient.balance || 0))} remaining`}
@@ -373,8 +373,8 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
                 <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2.5 7l3 3 6-6" stroke="var(--sage)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
               </div>
               <div>
-                <p style={{ fontSize: 13, fontWeight: 500, color: "var(--sage)", fontFamily: "'DM Sans', sans-serif" }}>Account in good standing</p>
-                <p style={{ fontSize: 11, color: "var(--ink-3)", fontFamily: "'DM Sans', sans-serif", marginTop: 2 }}>Your payments are up to date. Keep it up.</p>
+                <p style={{ fontSize: 15, fontWeight: 500, color: "var(--sage)", fontFamily: "'DM Sans', sans-serif" }}>Account in good standing</p>
+                <p style={{ fontSize: 14, color: "var(--ink-3)", fontFamily: "'DM Sans', sans-serif", marginTop: 2 }}>Your payments are up to date. Keep it up.</p>
               </div>
             </div>
           ) : (
@@ -384,18 +384,18 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
                   <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 4v4M7 10v.5" stroke="var(--sienna)" strokeWidth="1.8" strokeLinecap="round"/><circle cx="7" cy="7" r="5.5" stroke="var(--sienna)" strokeWidth="1.2"/></svg>
                 </div>
                 <div>
-                  <p style={{ fontSize: 13, fontWeight: 500, color: "var(--sienna)", fontFamily: "'DM Sans', sans-serif" }}>Account needs attention</p>
-                  <p style={{ fontSize: 11, color: "var(--ink-3)", fontFamily: "'DM Sans', sans-serif", marginTop: 2 }}>
+                  <p style={{ fontSize: 15, fontWeight: 500, color: "var(--sienna)", fontFamily: "'DM Sans', sans-serif" }}>Account needs attention</p>
+                  <p style={{ fontSize: 14, color: "var(--ink-3)", fontFamily: "'DM Sans', sans-serif", marginTop: 2 }}>
                     {isWeeklyClient ? "1 or more weekly payments have" : "2 or more daily payments have"} been returned or missed.
                   </p>
                 </div>
               </div>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 <a href={PAYMENT_LINK} target="_blank" rel="noopener noreferrer"
-                  style={{ fontSize: 12, fontWeight: 500, color: "white", background: "var(--sienna)", borderRadius: 8, padding: "8px 16px", textDecoration: "none", fontFamily: "'DM Sans', sans-serif" }}>
+                  style={{ fontSize: 15, fontWeight: 500, color: "white", background: "var(--sienna)", borderRadius: 8, padding: "8px 16px", textDecoration: "none", fontFamily: "'DM Sans', sans-serif" }}>
                   Pay now online →
                 </a>
-                <span style={{ fontSize: 11, color: "var(--sienna)", alignSelf: "center", fontFamily: "'DM Sans', sans-serif" }}>or Zelle: invoices@cfgms.com</span>
+                <span style={{ fontSize: 14, color: "var(--sienna)", alignSelf: "center", fontFamily: "'DM Sans', sans-serif" }}>or Zelle: invoices@cfgms.com</span>
               </div>
             </div>
           )}
@@ -403,16 +403,16 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
           {/* Payment panel */}
           {!badStanding && (
             <div style={{ ...card }}>
-              <p style={{ fontSize: 13, fontWeight: 500, color: "var(--ink-1)", fontFamily: "'DM Sans', sans-serif", marginBottom: 4 }}>Make a payment</p>
-              <p style={{ fontSize: 11, color: "var(--ink-4)", fontFamily: "'DM Sans', sans-serif", marginBottom: 14 }}>Every extra payment reduces your balance dollar for dollar.</p>
+              <p style={{ fontSize: 15, fontWeight: 500, color: "var(--ink-1)", fontFamily: "'DM Sans', sans-serif", marginBottom: 4 }}>Make a payment</p>
+              <p style={{ fontSize: 14, color: "var(--ink-4)", fontFamily: "'DM Sans', sans-serif", marginBottom: 14 }}>Every extra payment reduces your balance dollar for dollar.</p>
               <a href={PAYMENT_LINK} target="_blank" rel="noopener noreferrer"
-                style={{ display: "block", textAlign: "center", fontSize: 13, fontWeight: 500, color: "var(--gold-muted)", background: "var(--ink-1)", borderRadius: 9, padding: "10px 20px", textDecoration: "none", fontFamily: "'DM Sans', sans-serif", marginBottom: 10 }}>
+                style={{ display: "block", textAlign: "center", fontSize: 15, fontWeight: 500, color: "var(--gold-muted)", background: "var(--ink-1)", borderRadius: 9, padding: "10px 20px", textDecoration: "none", fontFamily: "'DM Sans', sans-serif", marginBottom: 10 }}>
                 Pay online →
               </a>
-              <p style={{ fontSize: 11, color: "var(--ink-4)", fontFamily: "'DM Sans', sans-serif", marginBottom: 8 }}>⚠️ Online payments carry a 3.5% fee.</p>
+              <p style={{ fontSize: 14, color: "var(--ink-4)", fontFamily: "'DM Sans', sans-serif", marginBottom: 8 }}>⚠️ Online payments carry a 3.5% fee.</p>
               <div style={{ background: "var(--parchment-2)", border: "1px solid var(--border)", borderRadius: 8, padding: "10px 14px" }}>
-                <p style={{ fontSize: 12, fontWeight: 500, color: "var(--ink-2)", fontFamily: "'DM Sans', sans-serif" }}>Zelle: invoices@cfgms.com</p>
-                <p style={{ fontSize: 11, color: "var(--ink-4)", fontFamily: "'DM Sans', sans-serif", marginTop: 2 }}>Include your invoice # or business name — no fee</p>
+                <p style={{ fontSize: 15, fontWeight: 500, color: "var(--ink-2)", fontFamily: "'DM Sans', sans-serif" }}>Zelle: invoices@cfgms.com</p>
+                <p style={{ fontSize: 14, color: "var(--ink-4)", fontFamily: "'DM Sans', sans-serif", marginTop: 2 }}>Include your invoice # or business name — no fee</p>
               </div>
             </div>
           )}
@@ -422,8 +422,8 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
         {fundedDate && (
           <div style={{ flexShrink: 0, width: 196, position: "sticky", top: 80 }}>
             <div style={{ ...card, padding: "16px 18px" }}>
-              <p style={{ fontSize: 11, fontWeight: 600, color: "var(--ink-2)", fontFamily: "'DM Sans', sans-serif", marginBottom: 2 }}>Payment calendar</p>
-              <p style={{ fontSize: 9, color: "var(--ink-4)", fontFamily: "'DM Sans', sans-serif", marginBottom: 10 }}>
+              <p style={{ fontSize: 14, fontWeight: 600, color: "var(--ink-2)", fontFamily: "'DM Sans', sans-serif", marginBottom: 2 }}>Payment calendar</p>
+              <p style={{ fontSize: 15, color: "var(--ink-4)", fontFamily: "'DM Sans', sans-serif", marginBottom: 10 }}>
                 {totalTerm} {isWeeklyClient ? "weekly" : "business day"} term
                 {termEndDate && ` · ends ${formatDate(termEndDate.toISOString().split("T")[0])}`}
               </p>
