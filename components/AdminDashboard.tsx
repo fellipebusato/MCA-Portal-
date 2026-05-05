@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import MonthlyRiskPanel from "@/components/MonthlyRiskPanel";
 
 type AdminDashboardProps = {
   clients: any[];
@@ -86,6 +87,7 @@ export default function AdminDashboard({
   const [searchQuery, setSearchQuery] = useState("");
   const [previewRows, setPreviewRows] = useState<any[] | null>(null);
   const [previewFile, setPreviewFile] = useState<File | null>(null);
+  const [menuClient, setMenuClient] = useState<any | null>(null);
 
   // Sort by funded_date oldest → newest
   const sortedClients = [...clients].sort((a, b) => {
@@ -386,36 +388,8 @@ export default function AdminDashboard({
           </div>
         )}
 
-        {/* ── Monthly default risk panel ── */}
-        <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 16, padding: 24, marginBottom: 20, boxShadow: "0 1px 4px rgba(30,16,4,0.06)", position: "relative", overflow: "hidden" }}>
-          <div style={{ position: "absolute", top: 0, left: 22, right: 22, height: 1, background: "linear-gradient(90deg, transparent, var(--gold-border), transparent)" }} />
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
-            <div>
-              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <span style={{ fontSize: 14, fontWeight: 600, color: "var(--ink-2)" }}>Monthly Default Risk</span>
-                <span style={{ fontSize: 9, fontWeight: 600, color: "var(--ink-4)", background: "var(--parchment-2)", border: "1px solid var(--border)", padding: "2px 8px", borderRadius: 4, textTransform: "uppercase" as const, letterSpacing: "0.07em" }}>Internal only</span>
-              </div>
-              <div style={{ fontSize: 12, color: "var(--ink-4)", marginTop: 3 }}>
-                3% minimum threshold &nbsp;·&nbsp; {goodClients.length} safe &nbsp;·&nbsp; {attentionClients.length} at risk
-              </div>
-            </div>
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: "10px 40px" }}>
-            {sortedClients.map(client => {
-              const pct = client.payback > 0 ? Math.round(((client.payback - client.balance) / client.payback) * 100) : 0;
-              const isAtRisk = client.status !== "Good Standing";
-              return (
-                <div key={client.id} style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                  <span style={{ fontSize: 12, color: "var(--ink-3)", width: 140, whiteSpace: "nowrap" as const, overflow: "hidden", textOverflow: "ellipsis" }}>{client.business_name}</span>
-                  <div style={{ flex: 1, height: 3, background: "var(--parchment-3)", borderRadius: 2, overflow: "hidden" }}>
-                    <div style={{ height: "100%", width: `${pct}%`, background: isAtRisk ? "var(--sienna)" : "var(--sage)", borderRadius: 2 }} />
-                  </div>
-                  <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, color: isAtRisk ? "var(--sienna)" : "var(--sage)", width: 30, textAlign: "right" as const }}>{pct}%</span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
+        {/* ── Monthly default risk panel (full interactive component) ── */}
+        <MonthlyRiskPanel clients={clients} />
 
         {/* ── Client roster ── */}
         <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 16, overflow: "hidden", boxShadow: "0 1px 4px rgba(30,16,4,0.06)", position: "relative" }}>
@@ -469,7 +443,7 @@ export default function AdminDashboard({
                 return (
                   <tr key={client.id}
                     style={{ borderBottom: "1px solid var(--border)", cursor: "pointer", transition: "background 0.1s" }}
-                    onClick={() => openClient(client)}
+                    onClick={() => { setMenuClient(null); openClient(client); }}
                     onMouseEnter={e => (e.currentTarget.style.background = "var(--surface-2)")}
                     onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
                     <td style={{ padding: "17px 26px" }}>
@@ -492,12 +466,27 @@ export default function AdminDashboard({
                       <StandingBadge status={client.status} />
                     </td>
                     <td style={{ padding: "17px 26px", textAlign: "right" }} onClick={e => e.stopPropagation()}>
-                      <div
-                        style={{ width: 30, height: 30, borderRadius: 8, border: "1px solid var(--border-mid)", background: "transparent", color: "var(--ink-5)", display: "inline-flex", alignItems: "center", justifyContent: "center", cursor: "pointer", fontSize: 15, fontWeight: 700, transition: "all 0.15s", letterSpacing: "0.05em" }}
-                        onClick={e => { e.stopPropagation(); setEditingClient({ ...client }); }}
-                        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "var(--gold-surface)"; (e.currentTarget as HTMLElement).style.borderColor = "var(--gold-border)"; (e.currentTarget as HTMLElement).style.color = "var(--gold)"; }}
-                        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "transparent"; (e.currentTarget as HTMLElement).style.borderColor = "var(--border-mid)"; (e.currentTarget as HTMLElement).style.color = "var(--ink-5)"; }}>
-                        ···
+                      <div style={{ position: "relative", display: "inline-block" }}>
+                        <div
+                          style={{ width: 30, height: 30, borderRadius: 8, border: "1px solid var(--border-mid)", background: menuClient?.id === client.id ? "var(--gold-surface)" : "transparent", color: menuClient?.id === client.id ? "var(--gold)" : "var(--ink-4)", display: "inline-flex", alignItems: "center", justifyContent: "center", cursor: "pointer", fontSize: 15, fontWeight: 700, letterSpacing: "0.05em", transition: "all 0.15s" }}
+                          onClick={e => { e.stopPropagation(); setMenuClient(menuClient?.id === client.id ? null : client); }}>
+                          ···
+                        </div>
+                        {menuClient?.id === client.id && (
+                          <div style={{ position: "absolute", right: 0, top: 36, zIndex: 50, background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 10, boxShadow: "0 8px 24px rgba(30,16,4,0.14)", minWidth: 140, overflow: "hidden" }}>
+                            <button
+                              onClick={e => { e.stopPropagation(); setEditingClient({ ...client }); setMenuClient(null); }}
+                              style={{ width: "100%", textAlign: "left", padding: "11px 16px", fontSize: 13, color: "var(--ink-2)", background: "none", border: "none", cursor: "pointer", fontFamily: "'DM Sans', sans-serif", display: "flex", alignItems: "center", gap: 8 }}>
+                              ✏️ Edit client
+                            </button>
+                            <div style={{ height: 1, background: "var(--border)", margin: "0 12px" }} />
+                            <button
+                              onClick={e => { e.stopPropagation(); setMenuClient(null); deleteClient(client); }}
+                              style={{ width: "100%", textAlign: "left", padding: "11px 16px", fontSize: 13, color: "#C83C1E", background: "none", border: "none", cursor: "pointer", fontFamily: "'DM Sans', sans-serif", display: "flex", alignItems: "center", gap: 8 }}>
+                              🗑️ Delete client
+                            </button>
+                          </div>
+                        )}
                       </div>
                     </td>
                   </tr>

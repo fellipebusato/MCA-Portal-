@@ -6,6 +6,8 @@ import AdminDashboard from "@/components/AdminDashboard";
 import ClientDashboard from "@/components/ClientDashboard";
 import AddClientForm from "@/components/AddClientForm";
 import ConsentPage from "@/components/ConsentPage";
+import StatementImport from "@/components/StatementImport";
+import ReturnsImport from "@/components/ReturnsImport";
 
 const ADMIN_EMAIL = "fbusato@cfgms.com";
 
@@ -666,6 +668,22 @@ export default function Home() {
               Add client
             </div>
             <AddClientForm newClient={newClient} setNewClient={setNewClient} addClient={addClient} />
+          </div>
+        )}
+        {(view as string) === "returns" && (
+          <div style={{ padding: "32px" }}>
+            <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 26, fontWeight: 500, color: "var(--ink-1)", letterSpacing: "-0.02em", marginBottom: 24 }}>
+              Import returns
+            </div>
+            <ReturnsImport clients={clients} onImportComplete={async () => { await fetchClients(); setView("admin"); }} />
+          </div>
+        )}
+        {(view as string) === "statement" && (
+          <div style={{ padding: "32px" }}>
+            <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 26, fontWeight: 500, color: "var(--ink-1)", letterSpacing: "-0.02em", marginBottom: 24 }}>
+              Import CFG statement
+            </div>
+            <StatementImport clients={clients} onImportComplete={async () => { await fetchClients(); setView("admin"); }} />
           </div>
         )}
       </div>
