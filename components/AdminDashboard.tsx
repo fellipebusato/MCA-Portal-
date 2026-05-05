@@ -192,16 +192,16 @@ export default function AdminDashboard({
         {/* ── Header ── */}
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 32 }}>
           <div>
-            <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 34, fontWeight: 400, color: "var(--ink-1)", letterSpacing: "-0.02em", lineHeight: 1.1 }}>
+            <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 34, fontWeight: 600, color: "var(--ink-1)", letterSpacing: "-0.02em", lineHeight: 1.1 }}>
               Good morning, <em style={{ fontStyle: "italic", color: "var(--gold)" }}>Fellipe.</em>
             </div>
-            <div style={{ fontSize: 12, color: "var(--ink-4)", marginTop: 6, letterSpacing: "0.02em" }}>
+            <div style={{ fontSize: 13, color: "var(--ink-3)", marginTop: 6, letterSpacing: "0.01em" }}>
               {clients.length} active {clients.length === 1 ? "client" : "clients"} &nbsp;·&nbsp; {money(totalBalance)} open balance
             </div>
           </div>
 
           {/* Upload trigger */}
-          <label style={{ display: "flex", alignItems: "center", gap: 8, background: "var(--ink-1)", color: "var(--gold-muted)", border: "1px solid rgba(196,154,90,0.25)", padding: "12px 22px", borderRadius: 10, fontSize: 13, fontWeight: 500, cursor: "pointer", boxShadow: "0 2px 12px rgba(30,16,4,0.12)", transition: "all 0.2s" }}>
+          <label style={{ display: "flex", alignItems: "center", gap: 8, background: "var(--ink-1)", color: "var(--gold-bright)", border: "1px solid rgba(196,154,90,0.35)", padding: "12px 22px", borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: "pointer", boxShadow: "0 2px 12px rgba(30,16,4,0.12)", transition: "all 0.2s" }}>
             <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
               <path d="M6.5 1v8M3 4L6.5 1 10 4M1.5 10.5h10" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
@@ -385,6 +385,37 @@ export default function AdminDashboard({
             ))}
           </div>
         )}
+
+        {/* ── Monthly default risk panel ── */}
+        <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 16, padding: 24, marginBottom: 20, boxShadow: "0 1px 4px rgba(30,16,4,0.06)", position: "relative", overflow: "hidden" }}>
+          <div style={{ position: "absolute", top: 0, left: 22, right: 22, height: 1, background: "linear-gradient(90deg, transparent, var(--gold-border), transparent)" }} />
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+            <div>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <span style={{ fontSize: 14, fontWeight: 600, color: "var(--ink-2)" }}>Monthly Default Risk</span>
+                <span style={{ fontSize: 9, fontWeight: 600, color: "var(--ink-4)", background: "var(--parchment-2)", border: "1px solid var(--border)", padding: "2px 8px", borderRadius: 4, textTransform: "uppercase" as const, letterSpacing: "0.07em" }}>Internal only</span>
+              </div>
+              <div style={{ fontSize: 12, color: "var(--ink-4)", marginTop: 3 }}>
+                3% minimum threshold &nbsp;·&nbsp; {goodClients.length} safe &nbsp;·&nbsp; {attentionClients.length} at risk
+              </div>
+            </div>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: "10px 40px" }}>
+            {sortedClients.map(client => {
+              const pct = client.payback > 0 ? Math.round(((client.payback - client.balance) / client.payback) * 100) : 0;
+              const isAtRisk = client.status !== "Good Standing";
+              return (
+                <div key={client.id} style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <span style={{ fontSize: 12, color: "var(--ink-3)", width: 140, whiteSpace: "nowrap" as const, overflow: "hidden", textOverflow: "ellipsis" }}>{client.business_name}</span>
+                  <div style={{ flex: 1, height: 3, background: "var(--parchment-3)", borderRadius: 2, overflow: "hidden" }}>
+                    <div style={{ height: "100%", width: `${pct}%`, background: isAtRisk ? "var(--sienna)" : "var(--sage)", borderRadius: 2 }} />
+                  </div>
+                  <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, color: isAtRisk ? "var(--sienna)" : "var(--sage)", width: 30, textAlign: "right" as const }}>{pct}%</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
 
         {/* ── Client roster ── */}
         <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 16, overflow: "hidden", boxShadow: "0 1px 4px rgba(30,16,4,0.06)", position: "relative" }}>

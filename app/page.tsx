@@ -426,10 +426,10 @@ export default function Home() {
             <div style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 52, height: 52, borderRadius: 14, background: "var(--ink-1)", border: "1px solid rgba(196,154,90,0.25)", marginBottom: 16 }}>
               <span style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 18, fontWeight: 600, color: "var(--gold-bright)", letterSpacing: "0.05em" }}>FB</span>
             </div>
-            <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 28, fontWeight: 400, color: "var(--ink-1)", letterSpacing: "-0.02em", lineHeight: 1.1 }}>
+            <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 30, fontWeight: 600, color: "var(--ink-1)", letterSpacing: "-0.02em", lineHeight: 1.1 }}>
               FB Client Portal
             </div>
-            <div style={{ fontSize: 12, color: "var(--ink-4)", marginTop: 6 }}>Sign in to your account</div>
+            <div style={{ fontSize: 12, color: "var(--ink-3)", marginTop: 6 }}>Sign in to your account</div>
           </div>
 
           {/* Card */}
@@ -503,8 +503,8 @@ export default function Home() {
             )}
           </div>
 
-          <div style={{ textAlign: "center", marginTop: 20, fontSize: 11, color: "var(--ink-5)" }}>
-            Secure client portal · Operated by Fellipe Busato
+          <div style={{ textAlign: "center", marginTop: 20, fontSize: 11, color: "var(--ink-4)", lineHeight: 1.6, padding: "0 8px" }}>
+            This portal is operated independently by Fellipe Busato and is not affiliated with, endorsed by, or operated on behalf of CFG Merchant Solutions or any other entity. Information displayed is for organizational purposes only and does not constitute an official financial record.
           </div>
         </div>
       </main>
@@ -569,28 +569,51 @@ export default function Home() {
             <div style={{ width: 30, height: 30, borderRadius: 8, border: "1px solid var(--gold-border)", background: "rgba(160,120,64,0.12)", display: "flex", alignItems: "center", justifyContent: "center" }}>
               <span style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 12, fontWeight: 600, color: "var(--gold-bright)" }}>FB</span>
             </div>
-            <span style={{ fontSize: 14, fontWeight: 500, color: "rgba(255,255,255,0.72)" }}>FB Client Portal</span>
+            <span style={{ fontSize: 14, fontWeight: 700, color: "rgba(255,255,255,0.92)", letterSpacing: "-0.01em" }}>FB Client Portal</span>
           </button>
-          <span style={{ fontSize: 9, fontWeight: 600, color: "rgba(255,255,255,0.18)", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.07)", padding: "2px 7px", borderRadius: 4, textTransform: "uppercase", letterSpacing: "0.08em" }}>Admin</span>
+          <span style={{ fontSize: 9, fontWeight: 600, color: "rgba(255,255,255,0.35)", background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.12)", padding: "2px 7px", borderRadius: 4, textTransform: "uppercase", letterSpacing: "0.08em" }}>Admin</span>
         </div>
 
-        {(["admin", "add", "client"] as const).map((v, i) => {
-          const labels = ["Dashboard", "+ Add client", "Client view"];
-          const active = view === v;
-          const show = v !== "client" || !!selectedClient;
-          if (!show) return null;
-          return (
-            <button key={v}
-              onClick={() => v === "client" && selectedClient ? openClient(selectedClient) : setView(v)}
-              style={{ padding: "7px 14px", borderRadius: 7, border: "none", background: active ? "rgba(160,120,64,0.12)" : "transparent", color: active ? "var(--gold-muted)" : "rgba(255,255,255,0.28)", fontSize: 13, fontWeight: 450, cursor: "pointer", fontFamily: "'DM Sans', sans-serif", transition: "all 0.15s" }}>
-              {labels[i]}
-            </button>
-          );
-        })}
+        {/* Dashboard */}
+        <button
+          onClick={() => setView("admin")}
+          style={{ padding: "7px 14px", borderRadius: 7, border: "none", background: view === "admin" ? "rgba(160,120,64,0.15)" : "transparent", color: view === "admin" ? "var(--gold-bright)" : "rgba(255,255,255,0.65)", fontSize: 13, fontWeight: 500, cursor: "pointer", fontFamily: "'DM Sans', sans-serif" }}>
+          Dashboard
+        </button>
+
+        {/* Import returns */}
+        <button
+          onClick={() => setView("returns" as any)}
+          style={{ padding: "7px 14px", borderRadius: 7, border: "1px solid rgba(154,90,58,0.35)", background: "rgba(154,90,58,0.08)", color: "#E8926A", fontSize: 13, fontWeight: 500, cursor: "pointer", fontFamily: "'DM Sans', sans-serif" }}>
+          Import returns
+        </button>
+
+        {/* Add client */}
+        <button
+          onClick={() => setView("add")}
+          style={{ padding: "7px 14px", borderRadius: 7, border: "none", background: view === "add" ? "rgba(160,120,64,0.15)" : "transparent", color: view === "add" ? "var(--gold-bright)" : "rgba(255,255,255,0.65)", fontSize: 13, fontWeight: 500, cursor: "pointer", fontFamily: "'DM Sans', sans-serif" }}>
+          + Add client
+        </button>
+
+        {/* Import statement */}
+        <button
+          onClick={() => setView("statement" as any)}
+          style={{ padding: "7px 14px", borderRadius: 7, border: "1px solid rgba(74,126,160,0.35)", background: "rgba(74,126,160,0.08)", color: "#8BAED4", fontSize: 13, fontWeight: 500, cursor: "pointer", fontFamily: "'DM Sans', sans-serif" }}>
+          Import statement
+        </button>
+
+        {/* Client view */}
+        {selectedClient && (
+          <button
+            onClick={() => openClient(selectedClient)}
+            style={{ padding: "7px 14px", borderRadius: 7, border: "none", background: view === "client" ? "rgba(160,120,64,0.15)" : "transparent", color: view === "client" ? "var(--gold-bright)" : "rgba(255,255,255,0.65)", fontSize: 13, fontWeight: 500, cursor: "pointer", fontFamily: "'DM Sans', sans-serif" }}>
+            Client view
+          </button>
+        )}
 
         <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 12 }}>
-          <span style={{ fontSize: 11, color: "rgba(255,255,255,0.2)" }}>{user.email}</span>
-          <button onClick={logout} style={{ padding: "5px 12px", borderRadius: 6, border: "1px solid rgba(255,255,255,0.07)", background: "transparent", color: "rgba(255,255,255,0.22)", fontSize: 11, cursor: "pointer", fontFamily: "'DM Sans', sans-serif" }}>
+          <span style={{ fontSize: 11, color: "rgba(255,255,255,0.4)" }}>{user.email}</span>
+          <button onClick={logout} style={{ padding: "5px 12px", borderRadius: 6, border: "1px solid rgba(255,255,255,0.12)", background: "transparent", color: "rgba(255,255,255,0.45)", fontSize: 11, cursor: "pointer", fontFamily: "'DM Sans', sans-serif" }}>
             Logout
           </button>
         </div>

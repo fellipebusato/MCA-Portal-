@@ -273,7 +273,7 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
       <div style={{ background:"linear-gradient(135deg,var(--ink-1) 0%,#2C1F12 100%)", borderRadius:20, padding:"28px 32px", display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:24, boxShadow:"0 8px 40px rgba(30,16,4,0.12)", position:"relative", overflow:"hidden" }}>
         <div style={{ position:"absolute",top:0,left:0,right:0,height:1,background:"linear-gradient(90deg,transparent,rgba(196,154,90,0.3),transparent)" }} />
         <div style={{ position:"relative", zIndex:1 }}>
-          <div style={{ fontSize:10, fontWeight:600, color:"rgba(196,154,90,0.5)", textTransform:"uppercase", letterSpacing:"0.12em", marginBottom:6 }}>Welcome back</div>
+          <div style={{ fontSize:11, fontWeight:600, color:"rgba(196,154,90,0.5)", textTransform:"uppercase", letterSpacing:"0.12em", marginBottom:6 }}>Welcome back</div>
           <div style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:28, fontWeight:400, color:"#F2EDE4", letterSpacing:"-0.02em", lineHeight:1 }}>
             Good morning, <em style={{ fontStyle:"italic", color:"var(--gold-bright)" }}>{selectedClient.owner_name || selectedClient.business_name}.</em>
           </div>
@@ -283,9 +283,9 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
         </div>
         {nextPayment && (
           <div style={{ position:"relative", zIndex:1, textAlign:"right" }}>
-            <div style={{ fontSize:10, fontWeight:600, color:"rgba(196,154,90,0.5)", textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:4 }}>Next payment</div>
+            <div style={{ fontSize:11, fontWeight:600, color:"rgba(196,154,90,0.5)", textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:4 }}>Next payment</div>
             <div style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:22, fontWeight:400, color:"var(--gold-bright)", letterSpacing:"-0.01em" }}>{nextPayment.label}</div>
-            <div style={{ fontFamily:"'DM Mono',monospace", fontSize:13, color:"rgba(255,255,255,0.35)", marginTop:3 }}>{money(nextPayment.amount)} ACH debit</div>
+            <div style={{ fontFamily:"'DM Mono',monospace", fontVariantNumeric:"normal", fontSize:13, color:"rgba(255,255,255,0.35)", marginTop:3 }}>{money(nextPayment.amount)} ACH debit</div>
             {pendingCount > 0 && (
               <div style={{ display:"inline-flex", alignItems:"center", gap:5, marginTop:8, background:"rgba(196,154,90,0.1)", border:"1px solid rgba(196,154,90,0.2)", color:"var(--gold-muted)", fontSize:11, fontWeight:500, padding:"4px 10px", borderRadius:20 }}>
                 <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><circle cx="5" cy="5" r="4" stroke="currentColor" strokeWidth="1.2"/><path d="M5 3v2.5l1.5 1" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/></svg>
@@ -312,8 +312,8 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
             ].map((c,i) => (
               <div key={i} style={sCard}>
                 {sCardRule}
-                <div style={{ fontSize:10, fontWeight:600, color:"var(--ink-4)", textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:8 }}>{c.label}</div>
-                <div style={{ fontFamily:"'DM Mono',monospace", fontSize:20, fontWeight:500, color:"var(--ink-1)", letterSpacing:"-0.02em" }}>{c.value}</div>
+                <div style={{ fontSize:11, fontWeight:600, color:"var(--ink-3)", textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:8 }}>{c.label}</div>
+                <div style={{ fontFamily:"'DM Mono',monospace", fontVariantNumeric:"normal", fontSize:20, fontWeight:500, color:"var(--ink-1)", letterSpacing:"-0.02em" }}>{c.value}</div>
                 <div style={{ fontSize:11, color: pendingCount>0 && i===0 ? "var(--sky)" : "var(--ink-4)", marginTop:5 }}>{c.sub}</div>
               </div>
             ))}
@@ -337,13 +337,13 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
             <div style={{ position:"relative", zIndex:1 }}>
               <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", marginBottom:20 }}>
                 <div>
-                  <div style={{ fontSize:10, fontWeight:600, color:"var(--ink-4)", textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:6 }}>Repayment progress</div>
+                  <div style={{ fontSize:11, fontWeight:600, color:"var(--ink-3)", textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:6 }}>Repayment progress</div>
                   <div style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:50, fontWeight:400, color:"var(--gold)", letterSpacing:"-0.03em", lineHeight:1 }}>{Math.round(pct)}%</div>
-                  <div style={{ fontSize:12, color:"var(--ink-3)", marginTop:4 }}>{money(totalPaid)} paid toward your balance</div>
+                  <div style={{ fontSize:12, color:"var(--ink-2)", marginTop:4 }}>{money(totalPaid)} paid toward your balance</div>
                 </div>
                 <div style={{ textAlign:"right" }}>
-                  <div style={{ fontSize:12, color:"var(--ink-4)" }}>{money(Number(selectedClient.balance||0))} remaining</div>
-                  {termEnd && <div style={{ fontSize:11, color:"var(--ink-5)", marginTop:3 }}>Est. completion: {fmt(toStr(termEnd))} · may vary</div>}
+                  <div style={{ fontSize:12, color:"var(--ink-3)" }}>{money(Number(selectedClient.balance||0))} remaining</div>
+                  {termEnd && <div style={{ fontSize:11, color:"var(--ink-4)", marginTop:3 }}>Est. completion: {fmt(toStr(termEnd))} · may vary</div>}
                 </div>
               </div>
               <div style={{ height:7, background:"var(--parchment-3)", borderRadius:4, overflow:"hidden", marginBottom:12, boxShadow:"inset 0 1px 2px rgba(0,0,0,0.05)" }}>
@@ -352,10 +352,10 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
                 </div>
               </div>
               <div style={{ display:"flex", gap:14 }}>
-                <div style={{ display:"flex", alignItems:"center", gap:5, fontSize:11, color:"var(--ink-4)" }}>
+                <div style={{ display:"flex", alignItems:"center", gap:5, fontSize:11, color:"var(--ink-3)" }}>
                   <div style={{ width:10, height:3, borderRadius:1, background:"var(--gold)" }} />Paid to date
                 </div>
-                <div style={{ display:"flex", alignItems:"center", gap:5, fontSize:11, color:"var(--ink-5)" }}>
+                <div style={{ display:"flex", alignItems:"center", gap:5, fontSize:11, color:"var(--ink-4)" }}>
                   <div style={{ width:10, height:3, borderRadius:1, background:"var(--parchment-3)" }} />Remaining
                 </div>
               </div>
@@ -368,7 +368,7 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
               <div style={{ width:42, height:42, borderRadius:12, background:"var(--gold-surface)", border:"1px solid var(--gold-border)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:19, flexShrink:0 }}>{milestone.icon}</div>
               <div>
                 <div style={{ fontSize:13, fontWeight:600, color:variantTitle[milestone.variant], letterSpacing:"-0.01em", marginBottom:5 }}>{milestone.title}</div>
-                <div style={{ fontSize:12, color:"var(--ink-3)", lineHeight:1.6 }}>{milestone.msg}</div>
+                <div style={{ fontSize:12, color:"var(--ink-2)", lineHeight:1.6 }}>{milestone.msg}</div>
               </div>
             </div>
           )}
@@ -382,7 +382,7 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
                 </div>
                 <div>
                   <div style={{ fontSize:13, fontWeight:600, color:"var(--sage)" }}>Account in good standing</div>
-                  <div style={{ fontSize:11, color:"var(--ink-3)", marginTop:2 }}>Your payments are up to date. Keep it up.</div>
+                  <div style={{ fontSize:11, color:"var(--ink-2)", marginTop:2 }}>Your payments are up to date. Keep it up.</div>
                 </div>
               </div>
             ) : (
@@ -392,7 +392,7 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
                 </div>
                 <div>
                   <div style={{ fontSize:13, fontWeight:600, color:"var(--sienna)" }}>Account needs attention</div>
-                  <div style={{ fontSize:11, color:"var(--ink-3)", marginTop:2 }}>Please contact Fellipe to discuss getting current.</div>
+                  <div style={{ fontSize:11, color:"var(--ink-2)", marginTop:2 }}>Please contact Fellipe to discuss getting current.</div>
                 </div>
               </div>
             )
@@ -402,17 +402,17 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
           <div style={sCard}>
             {sCardRule}
             <div style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:20, fontWeight:500, color:"var(--ink-1)", marginBottom:4 }}>Make a payment</div>
-            <div style={{ fontSize:12, color:"var(--ink-4)", marginBottom:18, lineHeight:1.5 }}>Every payment reduces your balance dollar for dollar. Paying ahead of schedule accelerates your path to renewal eligibility.</div>
-            <a href="https://pay.cfgmerchants.com" target="_blank" rel="noopener noreferrer"
+            <div style={{ fontSize:12, color:"var(--ink-3)", marginBottom:18, lineHeight:1.5 }}>Every payment reduces your balance dollar for dollar. Paying ahead of schedule accelerates your path to renewal eligibility.</div>
+            <a href="https://paycfg.com" target="_blank" rel="noopener noreferrer"
               style={{ display:"flex", width:"100%", alignItems:"center", justifyContent:"center", gap:8, background:"var(--ink-1)", color:"var(--gold-muted)", border:"1px solid rgba(196,154,90,0.2)", padding:13, borderRadius:10, fontSize:13, fontWeight:500, textDecoration:"none", marginBottom:10, boxShadow:"0 2px 8px rgba(30,16,4,0.12)", transition:"all 0.2s" }}>
               <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><rect x="1" y="4" width="10" height="7" rx="1.5" stroke="currentColor" strokeWidth="1.3"/><path d="M3.5 4V3a2.5 2.5 0 015 0v1" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/></svg>
               Pay online
             </a>
-            <div style={{ fontSize:11, color:"var(--ink-5)", marginBottom:12 }}>Online payments include a 3.5% processing fee. For a {money(Number(selectedClient.payment||0))} payment, submit {money(Number(selectedClient.payment||0)*1.035)}.</div>
+            <div style={{ fontSize:11, color:"var(--ink-4)", marginBottom:12 }}>Online payments include a 3.5% processing fee. For a {money(Number(selectedClient.payment||0))} payment, submit {money(Number(selectedClient.payment||0)*1.035)}.</div>
             <div style={{ background:"var(--parchment-2)", border:"1px solid var(--border)", borderRadius:10, padding:"13px 16px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
               <div>
                 <div style={{ fontSize:12, fontWeight:600, color:"var(--ink-2)" }}>Zelle &nbsp;·&nbsp; invoices@cfgms.com</div>
-                <div style={{ fontSize:11, color:"var(--ink-4)", marginTop:2 }}>Include invoice {selectedClient.invoice} or your business name &nbsp;·&nbsp; no fee</div>
+                <div style={{ fontSize:11, color:"var(--ink-3)", marginTop:2 }}>Include invoice {selectedClient.invoice} or your business name &nbsp;·&nbsp; no fee</div>
               </div>
               <div style={{ fontSize:11, color:"var(--sage)", fontWeight:500 }}>Recommended</div>
             </div>
@@ -423,14 +423,14 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
             <div style={{ position:"absolute", top:0, left:22, right:22, height:1, background:"linear-gradient(90deg,transparent,var(--gold-border),transparent)", zIndex:1 }} />
             <div style={{ padding:"18px 22px", borderBottom:"1px solid var(--border)" }}>
               <div style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:18, fontWeight:500, color:"var(--ink-1)" }}>Payment history</div>
-              <div style={{ fontSize:11, color:"var(--ink-4)", marginTop:2 }}>{payments.length} transaction{payments.length!==1?"s":""}{payments.length>0 ? ` · ${money(payments.filter(p=>p.debit>0).reduce((s,p)=>s+Number(p.debit),0))} received` : ""}</div>
+              <div style={{ fontSize:11, color:"var(--ink-3)", marginTop:2 }}>{payments.length} transaction{payments.length!==1?"s":""}{payments.length>0 ? ` · ${money(payments.filter(p=>p.debit>0).reduce((s,p)=>s+Number(p.debit),0))} received` : ""}</div>
             </div>
-            <div style={{ maxHeight:480, overflowY:"auto", overflowX:"auto" }}>
+            <div style={{ maxHeight:520, overflowY:"scroll", overflowX:"auto", scrollbarWidth:"thin", scrollbarColor:"var(--parchment-3) var(--parchment-2)" }}>
               <table style={{ width:"100%", borderCollapse:"collapse", minWidth:540 }}>
                 <thead>
                   <tr style={{ background:"var(--parchment-2)", position:"sticky", top:0, zIndex:2 }}>
                     {["ACH date","Settles","Amount","Balance after","Status"].map(h=>(
-                      <th key={h} style={{ padding:"10px 22px", fontSize:10, fontWeight:600, color:"var(--ink-4)", textTransform:"uppercase", letterSpacing:"0.09em", textAlign:"left", borderBottom:"1px solid var(--border)" }}>{h}</th>
+                      <th key={h} style={{ padding:"10px 22px", fontSize:11, fontWeight:600, color:"var(--ink-3)", textTransform:"uppercase", letterSpacing:"0.09em", textAlign:"left", borderBottom:"1px solid var(--border)" }}>{h}</th>
                     ))}
                   </tr>
                 </thead>
@@ -447,24 +447,24 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
                       <tr key={p.id||i} style={{ borderBottom:"1px solid var(--border)" }}
                         onMouseEnter={e=>(e.currentTarget.style.background="var(--surface-2)")}
                         onMouseLeave={e=>(e.currentTarget.style.background="transparent")}>
-                        <td style={{ padding:"14px 22px", fontFamily:"'DM Mono',monospace", fontSize:11.5, color:"var(--ink-3)" }}>{fmt(p.ach_date||p.payment_date)}</td>
-                        <td style={{ padding:"14px 22px", fontFamily:"'DM Mono',monospace", fontSize:11.5, color: isPending?"var(--sky)":"var(--ink-5)" }}>{p.settlement_date?fmt(p.settlement_date):"—"}</td>
-                        <td style={{ padding:"14px 22px", fontFamily:"'DM Mono',monospace", fontSize:12, fontWeight:500, color: isRet?"var(--sienna)":isMissed?"var(--sienna)":isPending?"var(--sky)":"var(--ink-2)" }}>{amt>0?money(Number(amt)):"—"}</td>
-                        <td style={{ padding:"14px 22px", fontFamily:"'DM Mono',monospace", fontSize:12, color: isPending?"var(--ink-5)":"var(--ink-3)" }}>
-                          {isPending ? <em style={{ fontStyle:"italic", fontSize:11, color:"var(--ink-5)" }}>settling…</em> : p.running_balance!=null ? money(Number(p.running_balance)) : "—"}
+                        <td style={{ padding:"14px 22px", fontFamily:"'DM Mono',monospace", fontVariantNumeric:"normal", fontSize:13, color:"var(--ink-2)" }}>{fmt(p.ach_date||p.payment_date)}</td>
+                        <td style={{ padding:"14px 22px", fontFamily:"'DM Mono',monospace", fontVariantNumeric:"normal", fontSize:13, color: isPending?"var(--sky)":"var(--ink-5)" }}>{p.settlement_date?fmt(p.settlement_date):"—"}</td>
+                        <td style={{ padding:"14px 22px", fontFamily:"'DM Mono',monospace", fontVariantNumeric:"normal", fontSize:12, fontWeight:500, color: isRet?"var(--sienna)":isMissed?"var(--sienna)":isPending?"var(--sky)":"var(--ink-2)" }}>{amt>0?money(Number(amt)):"—"}</td>
+                        <td style={{ padding:"14px 22px", fontFamily:"'DM Mono',monospace", fontVariantNumeric:"normal", fontSize:12, color: isPending?"var(--ink-5)":"var(--ink-3)" }}>
+                          {isPending ? <em style={{ fontStyle:"italic", fontSize:11, color:"var(--ink-4)" }}>settling…</em> : p.running_balance!=null ? money(Number(p.running_balance)) : "—"}
                         </td>
                         <td style={{ padding:"14px 22px" }}>
                           {isPending ? (
-                            <span style={{ display:"inline-flex", alignItems:"center", gap:5, padding:"3px 9px", borderRadius:5, background:"var(--sky-surface)", border:"1px solid var(--sky-border)", color:"var(--sky)", fontSize:10, fontWeight:500 }}>
-                              <span style={{ width:4,height:4,borderRadius:"50%",background:"var(--sky)",display:"inline-block" }} /> Pending
+                            <span style={{ display:"inline-flex", alignItems:"center", gap:6, padding:"4px 11px", borderRadius:6, background:"rgba(74,126,160,0.15)", border:"1.5px solid rgba(74,126,160,0.4)", color:"#4A7EA0", fontSize:11, fontWeight:700, letterSpacing:"0.01em" }}>
+                              <span style={{ width:6,height:6,borderRadius:"50%",background:"#4A7EA0",display:"inline-block" }} /> Pending
                             </span>
                           ) : isRet||isMissed ? (
-                            <span style={{ display:"inline-flex", alignItems:"center", gap:5, padding:"3px 9px", borderRadius:5, background:"var(--sienna-surface)", border:"1px solid var(--sienna-border)", color:"var(--sienna)", fontSize:10, fontWeight:500 }}>
-                              <span style={{ width:4,height:4,borderRadius:"50%",background:"var(--sienna)",display:"inline-block" }} /> {isRet?"Returned":"Missed"}
+                            <span style={{ display:"inline-flex", alignItems:"center", gap:6, padding:"4px 11px", borderRadius:6, background:"rgba(200,60,30,0.12)", border:"1.5px solid rgba(200,60,30,0.45)", color:"#C83C1E", fontSize:11, fontWeight:700, letterSpacing:"0.01em" }}>
+                              <span style={{ width:6,height:6,borderRadius:"50%",background:"#C83C1E",display:"inline-block" }} /> {isRet?"Returned":"Missed"}
                             </span>
                           ) : (
-                            <span style={{ display:"inline-flex", alignItems:"center", gap:5, padding:"3px 9px", borderRadius:5, background:"var(--sage-surface)", border:"1px solid var(--sage-border)", color:"var(--sage)", fontSize:10, fontWeight:500 }}>
-                              <span style={{ width:4,height:4,borderRadius:"50%",background:"var(--sage)",display:"inline-block" }} /> Posted
+                            <span style={{ display:"inline-flex", alignItems:"center", gap:6, padding:"4px 11px", borderRadius:6, background:"rgba(60,140,90,0.12)", border:"1.5px solid rgba(60,140,90,0.35)", color:"#2D7A4F", fontSize:11, fontWeight:700, letterSpacing:"0.01em" }}>
+                              <span style={{ width:6,height:6,borderRadius:"50%",background:"#2D7A4F",display:"inline-block" }} /> Posted
                             </span>
                           )}
                         </td>
@@ -472,7 +472,7 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
                     );
                   })}
                   {payments.length===0&&(
-                    <tr><td colSpan={5} style={{ padding:"40px", textAlign:"center", fontSize:13, color:"var(--ink-4)", fontFamily:"'Cormorant Garamond',serif", fontStyle:"italic" }}>No payment history yet.</td></tr>
+                    <tr><td colSpan={5} style={{ padding:"40px", textAlign:"center", fontSize:13, color:"var(--ink-3)", fontFamily:"'Cormorant Garamond',serif", fontStyle:"italic" }}>No payment history yet.</td></tr>
                   )}
                 </tbody>
               </table>
@@ -486,21 +486,21 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
           <div style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:16, padding:20, boxShadow:"0 1px 4px rgba(30,16,4,0.06)", position:"relative", overflow:"hidden" }}>
             <div style={{ position:"absolute", top:0, left:16, right:16, height:1, background:"linear-gradient(90deg,transparent,var(--gold-border),transparent)" }} />
             <div style={{ fontSize:12, fontWeight:600, color:"var(--ink-2)", marginBottom:2 }}>Payment calendar</div>
-            <div style={{ fontSize:10, color:"var(--ink-5)", marginBottom:14 }}>
+            <div style={{ fontSize:11, color:"var(--ink-4)", marginBottom:14 }}>
               {selectedClient.total_term} {isWeekly?"weekly":"business day"} term{termEnd?` · ends ${fmt(toStr(termEnd))}`:""}
             </div>
 
             {/* Month nav */}
             <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
-              <button onClick={prevMonth} disabled={!canPrev} style={{ background:"none", border:"none", color:"var(--ink-4)", cursor:canPrev?"pointer":"default", fontSize:16, padding:"2px 6px", borderRadius:5, opacity:canPrev?1:0.3 }}>‹</button>
+              <button onClick={prevMonth} disabled={!canPrev} style={{ background:"none", border:"none", color:"var(--ink-3)", cursor:canPrev?"pointer":"default", fontSize:16, padding:"2px 6px", borderRadius:5, opacity:canPrev?1:0.3 }}>‹</button>
               <span style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:15, fontWeight:500, color:"var(--ink-2)", letterSpacing:"-0.01em" }}>{MONTH_NAMES[calMonth]} {calYear}</span>
-              <button onClick={nextMonth} disabled={!canNext} style={{ background:"none", border:"none", color:"var(--ink-4)", cursor:canNext?"pointer":"default", fontSize:16, padding:"2px 6px", borderRadius:5, opacity:canNext?1:0.3 }}>›</button>
+              <button onClick={nextMonth} disabled={!canNext} style={{ background:"none", border:"none", color:"var(--ink-3)", cursor:canNext?"pointer":"default", fontSize:16, padding:"2px 6px", borderRadius:5, opacity:canNext?1:0.3 }}>›</button>
             </div>
 
             {/* Day headers */}
             <div style={{ display:"grid", gridTemplateColumns:"repeat(7,1fr)", marginBottom:3 }}>
               {["S","M","T","W","T","F","S"].map((d,i)=>(
-                <div key={i} style={{ textAlign:"center", fontSize:9, fontWeight:600, color:"var(--ink-5)", padding:"3px 0", textTransform:"uppercase", letterSpacing:"0.05em" }}>{d}</div>
+                <div key={i} style={{ textAlign:"center", fontSize:9, fontWeight:600, color:"var(--ink-4)", padding:"3px 0", textTransform:"uppercase", letterSpacing:"0.05em" }}>{d}</div>
               ))}
             </div>
 
@@ -516,14 +516,14 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
                 const received = receivedDays.has(ds);
                 const missed = missedDays.has(ds);
                 const moved = holidayMovedDays.has(ds);
-                let bg="", color=isWknd?"var(--ink-5)":"var(--ink-3)";
-                if(isHol){bg="rgba(160,120,64,0.08)";color="var(--gold)";}
-                else if(received){bg="var(--sage-surface)";color="var(--sage)";}
-                else if(missed){bg="var(--sienna-surface)";color="var(--sienna)";}
-                else if(moved){bg="rgba(120,100,60,0.1)";color="var(--gold)";}
-                else if(inTerm){bg="var(--sky-surface)";color="var(--sky)";}
+                let bg="", color=isWknd?"var(--ink-5)":"var(--ink-2)";
+                if(isHol){bg="rgba(160,120,64,0.25)";color="#8B6420";}
+                else if(received){bg="rgba(45,122,79,0.2)";color="#1A5C35";}
+                else if(missed){bg="rgba(200,60,30,0.2)";color="#C83C1E";}
+                else if(moved){bg="rgba(160,120,64,0.2)";color="#8B6420";}
+                else if(inTerm){bg="rgba(74,126,160,0.15)";color="#2E6A96";}
                 return(
-                  <div key={ds} style={{ aspectRatio:"1", display:"flex", alignItems:"center", justifyContent:"center", borderRadius:5, fontSize:10, fontWeight:isToday?700:500, background:bg, color, outline: isToday?"1.5px solid var(--gold)":"none", outlineOffset:-1 }}>
+                  <div key={ds} style={{ aspectRatio:"1", display:"flex", alignItems:"center", justifyContent:"center", borderRadius:5, fontSize:11, fontWeight:isToday?700:500, background:bg, color, outline: isToday?"1.5px solid var(--gold)":"none", outlineOffset:-1 }}>
                     {date.getDate()}
                   </div>
                 );
@@ -533,14 +533,14 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
             {/* Legend */}
             <div style={{ marginTop:12, paddingTop:10, borderTop:"1px solid var(--border)", display:"flex", flexDirection:"column", gap:5 }}>
               {[
-                { color:"var(--sky-surface)", border:"1px solid var(--sky-border)", label:"Expected" },
-                { color:"var(--sage-surface)", border:"1px solid var(--sage-border)", label:"Received" },
-                { color:"var(--sienna-surface)", border:"1px solid var(--sienna-border)", label:"Returned" },
-                { color:"rgba(160,120,64,0.08)", border:"1px solid var(--gold-border)", label:"Holiday" },
+                { bg:"rgba(74,126,160,0.2)", border:"1.5px solid rgba(74,126,160,0.5)", label:"Expected", labelColor:"#4A7EA0" },
+                { bg:"rgba(45,122,79,0.2)", border:"1.5px solid rgba(45,122,79,0.5)", label:"Received", labelColor:"#2D7A4F" },
+                { bg:"rgba(200,60,30,0.2)", border:"1.5px solid rgba(200,60,30,0.5)", label:"Returned", labelColor:"#C83C1E" },
+                { bg:"rgba(160,120,64,0.2)", border:"1.5px solid rgba(160,120,64,0.4)", label:"Holiday", labelColor:"var(--gold)" },
               ].map(l=>(
                 <div key={l.label} style={{ display:"flex", alignItems:"center", gap:6 }}>
-                  <div style={{ width:8, height:8, borderRadius:2, background:l.color, border:l.border, flexShrink:0 }} />
-                  <span style={{ fontSize:10, color:"var(--ink-4)" }}>{l.label}</span>
+                  <div style={{ width:10, height:10, borderRadius:2, background:l.bg, border:l.border, flexShrink:0 }} />
+                  <span style={{ fontSize:11, color:l.labelColor, fontWeight:600 }}>{l.label}</span>
                 </div>
               ))}
             </div>
@@ -548,19 +548,19 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
 
           {/* Need help */}
           <div style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:14, padding:"16px 18px", marginTop:14, boxShadow:"0 1px 4px rgba(30,16,4,0.06)" }}>
-            <div style={{ fontSize:11, fontWeight:600, color:"var(--ink-3)", marginBottom:6 }}>Need help?</div>
-            <div style={{ fontSize:11, color:"var(--ink-4)", lineHeight:1.5 }}>
+            <div style={{ fontSize:11, fontWeight:600, color:"var(--ink-2)", marginBottom:6 }}>Need help?</div>
+            <div style={{ fontSize:11, color:"var(--ink-3)", lineHeight:1.5 }}>
               Contact Fellipe directly for any questions about your account.
             </div>
-            <div style={{ marginTop:10, fontSize:11, color:"var(--ink-3)", fontWeight:500 }}>fbusato@cfgms.com</div>
-            <div style={{ fontSize:11, color:"var(--ink-4)" }}>+1 (917) 920-0881</div>
+            <div style={{ marginTop:10, fontSize:11, color:"var(--ink-2)", fontWeight:500 }}>fbusato@cfgms.com</div>
+            <div style={{ fontSize:11, color:"var(--ink-3)" }}>+1 (917) 920-0881</div>
           </div>
         </div>
 
       </div>{/* end layout */}
 
       {/* Footer */}
-      <div style={{ marginTop:40, textAlign:"center", fontSize:11, color:"var(--ink-5)", lineHeight:1.6 }}>
+      <div style={{ marginTop:40, textAlign:"center", fontSize:11, color:"var(--ink-4)", lineHeight:1.6 }}>
         This portal is a personal organizational tool operated independently by Fellipe Busato.<br />
         It is not affiliated with, endorsed by, or operated on behalf of CFG Merchant Solutions or any other entity.<br />
         Information displayed is for informational purposes only and does not constitute an official financial record.
