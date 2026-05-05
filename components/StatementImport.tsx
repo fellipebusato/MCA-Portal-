@@ -200,6 +200,7 @@ export default function StatementImport({
     }
   }
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (step === "review" && parsed && !parsed.client && parsed.invoice) {
       supabase
