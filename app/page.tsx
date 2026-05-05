@@ -105,6 +105,8 @@ export default function Home() {
     businessName: "", invoice: "", ownerName: "", clientEmail: "",
     fundedDate: "", funded: "", payback: "", payment: "", totalTerm: "",
     paymentFrequency: "daily", paymentDay: "",
+    state: "", sicCode: "", businessType: "", ficoScore: "",
+    avgMonthlyRevenue: "", timeInBusinessMonths: "", position: "",
   });
 
   const isAdmin = user?.email === ADMIN_EMAIL;
@@ -242,6 +244,13 @@ export default function Home() {
     });
     await fetchClients();
     setView("admin");
+    const [newClient, setNewClient] = useState({
+      businessName: "", invoice: "", ownerName: "", clientEmail: "",
+      fundedDate: "", funded: "", payback: "", payment: "", totalTerm: "",
+      paymentFrequency: "daily", paymentDay: "",
+      state: "", sicCode: "", businessType: "", ficoScore: "",
+      avgMonthlyRevenue: "", timeInBusinessMonths: "", position: "",
+    });
   }
 
   async function deleteClient(client: any) {
