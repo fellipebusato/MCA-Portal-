@@ -72,6 +72,7 @@ export default function FundingsPanel({ client, isAdminView, onFundingAdded, onB
     setLoading(false);
   }
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { loadFundings(); }, [client.id]);
 
   async function handleAddFunding() {
