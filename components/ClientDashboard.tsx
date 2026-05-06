@@ -369,15 +369,15 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
           <div style={{ textAlign: "right" }}>
             {isAdminView && selectedClient.client_email && (
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end", marginBottom: 8 }}>
-                <a href={`mailto:${selectedClient.client_email}?subject=${encodeURIComponent("Your MCA Account — Action Requir  ed")}&body=${encodeURIComponent(`Dear ${selectedClient.owner_name},\n\nI am reaching out regarding your account ${selectedClient.invoice}. Please contact me at your earliest convenience to discuss your account status.\n\n— Fellipe Busato\nfbusato@cfgms.com\n+1 (917) 920-0881`).replace(/%0A/g, '%0D%0A')}
+                <a href={`mailto:${selectedClient.client_email}?subject=Your%20MCA%20Account%20%E2%80%94%20Action%20Required&body=Dear%20${encodeURIComponent(selectedClient.owner_name)}%2C%0D%0A%0D%0AI%20am%20reaching%20out%20regarding%20your%20account%20${encodeURIComponent(selectedClient.invoice)}.%20Please%20contact%20me%20at%20your%20earliest%20convenience%20to%20discuss%20your%20account%20status.%0D%0A%0D%0A%E2%80%94%20Fellipe%20Busato%0D%0Afbusato%40cfgms.com%0D%0A%2B1%20(917)%20920-0881`}
                   style={{ fontSize: 14, color: "var(--ink-3)", border: "1px solid var(--border-mid)", borderRadius: 7, padding: "5px 12px", textDecoration: "none", fontFamily: "'DM Sans', sans-serif" }}>
                   Send notice
                 </a>
                 {hasMissedPayments && (
-                  <a href={`mailto:${selectedClient.client_email}?subject=${encodeURIComponent("Missed Payment Notice — " + selectedClient.invoice + " — " + selectedClient.business_name)}&body=${encodeURIComponent(`Dear ${selectedClient.owner_name},\n\nI noticed a recent payment on your account ${selectedClient.invoice} was missed or returned. To keep your account in good standing and avoid further action, please make up this payment as soon as possible via Zelle (invoices@cfgms.com) or online at https://cfgms.com/pay.\n\n— Fellipe Busato`).replace(/%0A/g, '%0D%0A')}
-                    style={{ fontSize: 14, color: "var(--sienna)", border: "1px solid var(--sienna-border)", background: "var(--sienna-surface)", borderRadius: 7, padding: "5px 12px", textDecoration: "none", fontFamily: "'DM Sans', sans-serif" }}>
-                    Missed payment notice
-                  </a>
+                  <a href={`mailto:${selectedClient.client_email}?subject=Missed%20Payment%20Notice%20%E2%80%94%20${encodeURIComponent(selectedClient.invoice)}%20%E2%80%94%20${encodeURIComponent(selectedClient.business_name)}&body=Dear%20${encodeURIComponent(selectedClient.owner_name)}%2C%0D%0A%0D%0AI%20noticed%20a%20recent%20payment%20on%20your%20account%20${encodeURIComponent(selectedClient.invoice)}%20was%20missed%20or%20returned.%20To%20keep%20your%20account%20in%20good%20standing%20and%20avoid%20further%20action%2C%20please%20make%20up%20this%20payment%20as%20soon%20as%20possible%20via%20Zelle%20(invoices%40cfgms.com)%20or%20online%20at%20https%3A%2F%2Fcfgms.com%2Fpay.%0D%0A%0D%0A%E2%80%94%20Fellipe%20Busato`}
+                  style={{ fontSize: 14, color: "var(--sienna)", border: "1px solid var(--sienna-border)", background: "var(--sienna-surface)", borderRadius: 7, padding: "5px 12px", textDecoration: "none", fontFamily: "'DM Sans', sans-serif" }}>
+                  Missed payment notice
+                </a>
                 )}
               </div>
             )}
