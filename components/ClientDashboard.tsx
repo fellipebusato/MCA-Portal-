@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import PaymentHistory from "./PaymentHistory";
 import ActivityLog from "./ActivityLog";
 import FundingsPanel from "./FundingsPanel";
@@ -24,6 +24,23 @@ const DAY_NAME_TO_NUM: Record<string, number> = {
 };
 const DAY_NUM_TO_NAME = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
 
+// ── Status config ────────────────────────────────────────────────────────────
+function getStatusConfig(status: string) {
+  switch (status) {
+    case "Good Standing":
+      return { bg: "var(--sage-surface)", border: "var(--sage-border)", color: "var(--sage)", dot: "var(--sage)", label: "Account in good standing", sub: "Your payments are up to date. Keep it up.", icon: "check" };
+    case "Paused":
+      return { bg: "rgba(196,140,40,0.08)", border: "rgba(196,140,40,0.25)", color: "#a07010", dot: "#c48c28", label: "Account paused", sub: "Payments are temporarily paused. ACH will resume on the scheduled end date.", icon: "pause" };
+    case "Blocked":
+      return { bg: "var(--ink-1)", border: "var(--ink-1)", color: "rgba(255,255,255,0.9)", dot: "rgba(255,255,255,0.6)", label: "Account blocked", sub: "This account has been blocked. Please contact us immediately.", icon: "block" };
+    case "Payment Issues":
+      return { bg: "rgba(220,100,20,0.08)", border: "rgba(220,100,20,0.25)", color: "#c45010", dot: "#e06020", label: "Payment issues on file", sub: "There are payment issues with this account. Please contact us to resolve.", icon: "warning" };
+    default: // Needs Attention
+      return { bg: "var(--sienna-surface)", border: "var(--sienna-border)", color: "var(--sienna)", dot: "var(--sienna)", label: "Account needs attention", sub: "", icon: "warning" };
+  }
+}
+
+// ── Calendar helpers ─────────────────────────────────────────────────────────
 function buildDailyTermDays(startDate: Date, totalTerm: number): Set<string> {
   const days = new Set<string>();
   const cursor = new Date(startDate);
@@ -79,9 +96,7 @@ function buildMissedDays(payments: Payment[]): Set<string> {
 }
 
 function getNextPaymentDate(client: Client): { label: string; amount: number } | null {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-
+  const today = new Date(); today.setHours(0, 0, 0, 0);
   if (client.payment_frequency === "daily") {
     const next = new Date(today);
     next.setDate(next.getDate() + 1);
@@ -90,7 +105,6 @@ function getNextPaymentDate(client: Client): { label: string; amount: number } |
     const label = diff === 1 ? `Tomorrow, ${DAY_NUM_TO_NAME[next.getDay()]}` : DAY_NUM_TO_NAME[next.getDay()];
     return { label, amount: Number(client.payment) };
   }
-
   if (client.payment_frequency === "weekly" && client.payment_day) {
     const targetDow = DAY_NAME_TO_NUM[client.payment_day.toLowerCase()] ?? 5;
     const next = new Date(today);
@@ -104,25 +118,52 @@ function getNextPaymentDate(client: Client): { label: string; amount: number } |
     const label = daysUntil === 1 ? "Tomorrow" : daysUntil <= 7 ? `This ${DAY_NUM_TO_NAME[next.getDay()]}` : `${DAY_NUM_TO_NAME[next.getDay()]} ${formatDate(toDateStr(next))}`;
     return { label, amount: Number(client.payment) };
   }
-
   return null;
 }
 
 function getPendingPayments(payments: Payment[]): { count: number; total: number } {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  const today = new Date(); today.setHours(0, 0, 0, 0);
   let count = 0, total = 0;
   for (const p of payments) {
     if (!p.settlement_date) continue;
     const desc = (p.description || "").toLowerCase();
     if (desc.includes("missed") || desc.includes("return")) continue;
-    const settlDate = new Date(p.settlement_date);
-    settlDate.setHours(0, 0, 0, 0);
+    const settlDate = new Date(p.settlement_date); settlDate.setHours(0, 0, 0, 0);
     if (settlDate > today && p.debit > 0) { count++; total += Number(p.debit); }
   }
   return { count, total };
 }
 
+// ── Expected progress calculation ─────────────────────────────────────────────
+function getExpectedProgress(client: Client): number {
+  if (!client.funded_date || !client.total_term || !client.payment) return 0;
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const funded = new Date(client.funded_date + "T00:00:00");
+  const payback = Number(client.payback || 0);
+  if (payback === 0) return 0;
+
+  let paymentsMadeByNow = 0;
+  if (client.payment_frequency === "weekly" && client.payment_day) {
+    const targetDow = DAY_NAME_TO_NUM[(client.payment_day || "").toLowerCase()] ?? 5;
+    const cursor = new Date(funded);
+    while (cursor.getDay() !== targetDow) cursor.setDate(cursor.getDate() + 1);
+    while (cursor <= today) {
+      paymentsMadeByNow++;
+      cursor.setDate(cursor.getDate() + 7);
+    }
+  } else {
+    const cursor = new Date(funded);
+    while (cursor <= today) {
+      if (isBusinessDay(cursor)) paymentsMadeByNow++;
+      cursor.setDate(cursor.getDate() + 1);
+    }
+  }
+
+  const expectedPaid = Math.min(paymentsMadeByNow * Number(client.payment), payback);
+  return Math.min(100, (expectedPaid / payback) * 100);
+}
+
+// ── Mini Calendar ─────────────────────────────────────────────────────────────
 function MiniCalendar({ year, month, termDays, paymentDays, missedDays, holidayMovedDays, today, onPrev, onNext, canPrev, canNext }: {
   year: number; month: number; termDays: Set<string>; paymentDays: Set<string>;
   missedDays: Set<string>; holidayMovedDays: Set<string>; today: Date;
@@ -162,7 +203,6 @@ function MiniCalendar({ year, month, termDays, paymentDays, missedDays, holidayM
 
           let bg = "transparent";
           let color = isWknd ? "var(--ink-5)" : "var(--ink-2)";
-          // Vibrant colors
           if (isHol) { bg = "rgba(196,154,90,0.25)"; color = "#b8860b"; }
           else if (paid) { bg = "rgba(34,139,34,0.18)"; color = "#1a7a1a"; }
           else if (missed) { bg = "rgba(190,60,40,0.18)"; color = "#b83220"; }
@@ -199,30 +239,46 @@ function MiniCalendar({ year, month, termDays, paymentDays, missedDays, holidayM
   );
 }
 
+// ── Main Component ────────────────────────────────────────────────────────────
 export default function ClientDashboard({ selectedClient, payments, isAdminView, onPaymentAdded }: ClientDashboardProps) {
   const today = new Date();
   const [calYear, setCalYear] = useState(today.getFullYear());
   const [calMonth, setCalMonth] = useState(today.getMonth());
   const [activityRefresh, setActivityRefresh] = useState(0);
+  const [combinedBalance, setCombinedBalance] = useState<number | null>(null);
+  const [combinedPayback, setCombinedPayback] = useState<number | null>(null);
 
-  const percentPaid = 100 - (Number(selectedClient.balance || 0) / Number(selectedClient.payback || 1)) * 100;
+  const primaryBalance = Number(selectedClient.balance || 0);
+  const primaryPayback = Number(selectedClient.payback || 0);
+  const effectiveBalance = combinedBalance !== null ? combinedBalance : primaryBalance;
+  const effectivePayback = combinedPayback !== null ? combinedPayback : primaryPayback;
+
+  const totalPaid = effectivePayback - effectiveBalance;
+  const percentPaid = effectivePayback > 0 ? (totalPaid / effectivePayback) * 100 : 0;
   const safePercent = Math.max(0, Math.min(100, percentPaid));
+
+  // Expected progress based on original schedule
+  const expectedPercent = Math.max(0, Math.min(100, getExpectedProgress(selectedClient)));
+  const isBehind = safePercent < expectedPercent - 1;
+
   const isWeeklyClient = selectedClient.payment_frequency === "weekly";
   const paymentDayName = (selectedClient.payment_day || "").toLowerCase();
   const paymentFrequencyLabel = isWeeklyClient
     ? `Weekly · ${paymentDayName ? paymentDayName.charAt(0).toUpperCase() + paymentDayName.slice(1) + "s" : ""}`
     : "Daily";
-  const totalPaid = Number(selectedClient.payback || 0) - Number(selectedClient.balance || 0);
 
   const { count: pendingCount, total: pendingTotal } = getPendingPayments(payments);
-  const pendingBalance = Math.max(0, Number(selectedClient.balance || 0) - pendingTotal);
+  const pendingBalance = Math.max(0, primaryBalance - pendingTotal);
   const nextPayment = getNextPaymentDate(selectedClient);
+
+  const status = selectedClient.status || "Good Standing";
+  const statusConfig = getStatusConfig(status);
 
   const returnedPayments = payments.filter(p => {
     const desc = (p.description || "").toLowerCase();
     return desc.includes("return") || desc.includes("missed");
   });
-  const badStanding = isWeeklyClient ? returnedPayments.length >= 1 : returnedPayments.length >= 2;
+  const badStanding = status !== "Good Standing" && status !== "Paused";
   const hasMissedPayments = returnedPayments.length > 0;
 
   const fundedDate = selectedClient.funded_date ? new Date(selectedClient.funded_date + "T00:00:00") : null;
@@ -250,7 +306,7 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
     }
   }
 
-  // Est. completion based on current balance / payment amount (not original term)
+  // Est completion from live balance
   const balance = Number(selectedClient.balance || 0);
   const paymentAmount = Number(selectedClient.payment || 0);
   let estCompletionDate: Date | null = null;
@@ -262,10 +318,7 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
       cursor.setDate(cursor.getDate() + 1);
       while (cursor.getDay() !== targetDow) cursor.setDate(cursor.getDate() + 1);
       let count = 0;
-      while (count < paymentsLeft - 1) {
-        cursor.setDate(cursor.getDate() + 7);
-        count++;
-      }
+      while (count < paymentsLeft - 1) { cursor.setDate(cursor.getDate() + 7); count++; }
       estCompletionDate = new Date(cursor);
     } else {
       estCompletionDate = addBusinessDays(today, paymentsLeft);
@@ -288,10 +341,7 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
   function prevMonth() { if (calMonth === 0) { setCalMonth(11); setCalYear(y => y - 1); } else setCalMonth(m => m - 1); }
   function nextMonth() { if (calMonth === 11) { setCalMonth(0); setCalYear(y => y + 1); } else setCalMonth(m => m + 1); }
 
-  function handlePaymentAdded() {
-    setActivityRefresh(r => r + 1);
-    onPaymentAdded?.();
-  }
+  function handlePaymentAdded() { setActivityRefresh(r => r + 1); onPaymentAdded?.(); }
 
   const card: React.CSSProperties = {
     background: "var(--surface)",
@@ -301,10 +351,11 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
     boxShadow: "0 1px 4px rgba(30,16,4,0.06)",
   };
 
+  // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
 
-      {/* ── Header ─────────────────────────────────────────────────────── */}
+      {/* ── Header ── */}
       <div style={{ ...card }}>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 16, justifyContent: "space-between", alignItems: "flex-start" }}>
           <div>
@@ -337,7 +388,7 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
         </div>
       </div>
 
-      {/* ── Main layout ─────────────────────────────────────────────────── */}
+      {/* ── Main layout ── */}
       <div style={{ display: "flex", gap: 16, alignItems: "flex-start", flexWrap: "wrap" }}>
 
         {/* Left column */}
@@ -347,9 +398,17 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
             {[
               { label: "Funded", value: money(Number(selectedClient.funded || 0)) },
-              { label: "Payback", value: money(Number(selectedClient.payback || 0)) },
-              { label: "Balance", value: money(Number(selectedClient.balance || 0)), sub: pendingCount > 0 ? `${money(pendingBalance)} once ${pendingCount} pending clear` : "Settled payments only" },
-              { label: paymentFrequencyLabel + " payment", value: money(Number(selectedClient.payment || 0)), sub: nextPayment ? `Next ACH: ${nextPayment.label}` : undefined },
+              { label: "Payback", value: money(effectivePayback) },
+              {
+                label: "Balance",
+                value: money(effectiveBalance),
+                sub: pendingCount > 0 ? `${money(pendingBalance)} once ${pendingCount} pending clear` : "Settled payments only"
+              },
+              {
+                label: paymentFrequencyLabel + " payment",
+                value: money(Number(selectedClient.payment || 0)),
+                sub: nextPayment ? `Next ACH: ${nextPayment.label}` : undefined
+              },
             ].map(({ label, value, sub }) => (
               <div key={label} style={{ ...card, padding: "16px 18px" }}>
                 <p style={{ fontSize: 17, color: "var(--ink-4)", textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 600, fontFamily: "'DM Sans', sans-serif", marginBottom: 6 }}>{label}</p>
@@ -368,46 +427,102 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
             </div>
           )}
 
-          {/* Progress */}
+          {/* Progress bar — actual (green) + expected (red) */}
           <div style={{ ...card }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
               <p style={{ fontSize: 15, fontWeight: 500, color: "var(--ink-1)", fontFamily: "'DM Sans', sans-serif" }}>Repayment progress</p>
               <p style={{ fontSize: 15, fontWeight: 600, color: "var(--ink-1)", fontFamily: "'DM Sans', sans-serif" }}>{Math.round(safePercent)}% paid</p>
             </div>
-            <div style={{ height: 6, borderRadius: 99, background: "var(--parchment-3)", overflow: "hidden" }}>
-              <div style={{ height: 6, borderRadius: 99, background: "var(--sage)", width: `${safePercent}%`, transition: "width 0.5s ease" }} />
+
+            {/* Progress bar container */}
+            <div style={{ position: "relative", height: 10, borderRadius: 99, background: "var(--parchment-3)", overflow: "hidden" }}>
+              {/* Expected progress (red) — shown behind if client is behind */}
+              {isBehind && (
+                <div style={{
+                  position: "absolute", left: 0, top: 0, height: "100%",
+                  width: `${expectedPercent}%`,
+                  background: "rgba(190,60,40,0.25)",
+                  borderRadius: 99,
+                  transition: "width 0.5s ease",
+                }} />
+              )}
+              {/* Actual progress (green) */}
+              <div style={{
+                position: "absolute", left: 0, top: 0, height: "100%",
+                width: `${safePercent}%`,
+                background: isBehind ? "var(--sage)" : "var(--sage)",
+                borderRadius: 99,
+                transition: "width 0.5s ease",
+              }} />
             </div>
+
+            {/* Legend */}
+            {isBehind && (
+              <div style={{ display: "flex", alignItems: "center", gap: 16, marginTop: 6 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                  <div style={{ width: 8, height: 8, borderRadius: 2, background: "var(--sage)" }} />
+                  <span style={{ fontSize: 11, color: "var(--ink-4)", fontFamily: "'DM Sans', sans-serif" }}>Actual ({Math.round(safePercent)}%)</span>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                  <div style={{ width: 8, height: 8, borderRadius: 2, background: "rgba(190,60,40,0.4)" }} />
+                  <span style={{ fontSize: 11, color: "var(--sienna)", fontFamily: "'DM Sans', sans-serif" }}>Expected ({Math.round(expectedPercent)}%) — {Math.round(expectedPercent - safePercent)}% behind schedule</span>
+                </div>
+              </div>
+            )}
+
             <div style={{ display: "flex", justifyContent: "space-between", marginTop: 8 }}>
               <p style={{ fontSize: 14, color: "var(--ink-4)", fontWeight: 600, fontFamily: "'DM Sans', sans-serif" }}>{money(totalPaid)} paid</p>
               <p style={{ fontSize: 14, color: "var(--ink-4)", fontWeight: 600, fontFamily: "'DM Sans', sans-serif" }}>
-                {estCompletionDate
-                  ? `Est. completion: ${formatDate(estCompletionDate.toISOString().split("T")[0])}`
-                  : termEndDate
-                  ? `Est. completion: ${formatDate(termEndDate.toISOString().split("T")[0])}`
-                  : `${money(Number(selectedClient.balance || 0))} remaining`}
+                {(estCompletionDate || termEndDate)
+                  ? `Est. completion: ${formatDate((estCompletionDate || termEndDate)!.toISOString().split("T")[0])}`
+                  : `${money(effectiveBalance)} remaining`}
               </p>
             </div>
           </div>
 
-          {/* Standing */}
-          {!badStanding ? (
-            <div style={{ background: "var(--sage-surface)", border: "1px solid var(--sage-border)", borderRadius: 12, padding: "14px 18px", display: "flex", alignItems: "center", gap: 12 }}>
+          {/* Status banner — all statuses */}
+          {status === "Good Standing" ? (
+            <div style={{ background: statusConfig.bg, border: `1px solid ${statusConfig.border}`, borderRadius: 12, padding: "14px 18px", display: "flex", alignItems: "center", gap: 12 }}>
               <div style={{ width: 28, height: 28, borderRadius: "50%", background: "rgba(90,138,106,0.15)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                 <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2.5 7l3 3 6-6" stroke="var(--sage)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
               </div>
               <div>
-                <p style={{ fontSize: 15, fontWeight: 500, color: "var(--sage)", fontFamily: "'DM Sans', sans-serif" }}>Account in good standing</p>
-                <p style={{ fontSize: 14, color: "var(--ink-3)", fontFamily: "'DM Sans', sans-serif", marginTop: 2 }}>Your payments are up to date. Keep it up.</p>
+                <p style={{ fontSize: 15, fontWeight: 500, color: statusConfig.color, fontFamily: "'DM Sans', sans-serif" }}>{statusConfig.label}</p>
+                <p style={{ fontSize: 14, color: "var(--ink-3)", fontFamily: "'DM Sans', sans-serif", marginTop: 2 }}>{statusConfig.sub}</p>
+              </div>
+            </div>
+          ) : status === "Paused" ? (
+            <div style={{ background: statusConfig.bg, border: `1px solid ${statusConfig.border}`, borderRadius: 12, padding: "14px 18px", display: "flex", alignItems: "center", gap: 12 }}>
+              <div style={{ width: 28, height: 28, borderRadius: "50%", background: "rgba(196,140,40,0.15)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                  <rect x="3" y="2.5" width="2.5" height="9" rx="1" fill="#c48c28"/>
+                  <rect x="8.5" y="2.5" width="2.5" height="9" rx="1" fill="#c48c28"/>
+                </svg>
+              </div>
+              <div>
+                <p style={{ fontSize: 15, fontWeight: 500, color: statusConfig.color, fontFamily: "'DM Sans', sans-serif" }}>{statusConfig.label}</p>
+                <p style={{ fontSize: 14, color: "var(--ink-3)", fontFamily: "'DM Sans', sans-serif", marginTop: 2 }}>{statusConfig.sub}</p>
+              </div>
+            </div>
+          ) : status === "Blocked" ? (
+            <div style={{ background: statusConfig.bg, border: `1px solid ${statusConfig.border}`, borderRadius: 12, padding: "14px 18px", display: "flex", alignItems: "center", gap: 12 }}>
+              <div style={{ width: 28, height: 28, borderRadius: "50%", background: "rgba(255,255,255,0.1)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="5.5" stroke="rgba(255,255,255,0.7)" strokeWidth="1.2"/><path d="M3.5 3.5l7 7" stroke="rgba(255,255,255,0.7)" strokeWidth="1.5" strokeLinecap="round"/></svg>
+              </div>
+              <div>
+                <p style={{ fontSize: 15, fontWeight: 500, color: statusConfig.color, fontFamily: "'DM Sans', sans-serif" }}>{statusConfig.label}</p>
+                <p style={{ fontSize: 14, color: "rgba(255,255,255,0.6)", fontFamily: "'DM Sans', sans-serif", marginTop: 2 }}>{statusConfig.sub}</p>
               </div>
             </div>
           ) : (
-            <div style={{ background: "var(--sienna-surface)", border: "1px solid var(--sienna-border)", borderRadius: 12, padding: "14px 18px" }}>
+            // Needs Attention / Payment Issues
+            <div style={{ background: statusConfig.bg, border: `1px solid ${statusConfig.border}`, borderRadius: 12, padding: "14px 18px" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
                 <div style={{ width: 28, height: 28, borderRadius: "50%", background: "rgba(154,90,58,0.15)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 4v4M7 10v.5" stroke="var(--sienna)" strokeWidth="1.8" strokeLinecap="round"/><circle cx="7" cy="7" r="5.5" stroke="var(--sienna)" strokeWidth="1.2"/></svg>
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 4v4M7 10v.5" stroke={statusConfig.color} strokeWidth="1.8" strokeLinecap="round"/><circle cx="7" cy="7" r="5.5" stroke={statusConfig.color} strokeWidth="1.2"/></svg>
                 </div>
                 <div>
-                  <p style={{ fontSize: 15, fontWeight: 500, color: "var(--sienna)", fontFamily: "'DM Sans', sans-serif" }}>Account needs attention</p>
+                  <p style={{ fontSize: 15, fontWeight: 500, color: statusConfig.color, fontFamily: "'DM Sans', sans-serif" }}>{statusConfig.label}</p>
                   <p style={{ fontSize: 14, color: "var(--ink-3)", fontFamily: "'DM Sans', sans-serif", marginTop: 2 }}>
                     {isWeeklyClient ? "1 or more weekly payments have" : "2 or more daily payments have"} been returned or missed.
                   </p>
@@ -415,16 +530,16 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
               </div>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 <a href={PAYMENT_LINK} target="_blank" rel="noopener noreferrer"
-                  style={{ fontSize: 15, fontWeight: 500, color: "white", background: "var(--sienna)", borderRadius: 8, padding: "8px 16px", textDecoration: "none", fontFamily: "'DM Sans', sans-serif" }}>
+                  style={{ fontSize: 15, fontWeight: 500, color: "white", background: statusConfig.color, borderRadius: 8, padding: "8px 16px", textDecoration: "none", fontFamily: "'DM Sans', sans-serif" }}>
                   Pay now online →
                 </a>
-                <span style={{ fontSize: 14, color: "var(--sienna)", alignSelf: "center", fontFamily: "'DM Sans', sans-serif" }}>or Zelle: invoices@cfgms.com</span>
+                <span style={{ fontSize: 14, color: statusConfig.color, alignSelf: "center", fontFamily: "'DM Sans', sans-serif" }}>or Zelle: invoices@cfgms.com</span>
               </div>
             </div>
           )}
 
-          {/* Payment panel */}
-          {!badStanding && (
+          {/* Payment panel — only when not blocked */}
+          {status !== "Blocked" && !badStanding && (
             <div style={{ ...card }}>
               <p style={{ fontSize: 15, fontWeight: 500, color: "var(--ink-1)", fontFamily: "'DM Sans', sans-serif", marginBottom: 4 }}>Make a payment</p>
               <p style={{ fontSize: 14, color: "var(--ink-4)", fontWeight: 600, fontFamily: "'DM Sans', sans-serif", marginBottom: 14 }}>Every extra payment reduces your balance dollar for dollar.</p>
@@ -450,7 +565,7 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
                 {isWeeklyClient
                   ? `${Math.ceil(balance / paymentAmount)} payments remaining`
                   : `${totalTerm} Business Days Term`}
-              {(estCompletionDate || termEndDate) && ` · Ends ${formatDate((estCompletionDate || termEndDate)!.toISOString().split("T")[0])}`}
+                {(estCompletionDate || termEndDate) && ` · Ends ${formatDate((estCompletionDate || termEndDate)!.toISOString().split("T")[0])}`}
               </p>
               <MiniCalendar
                 year={calYear} month={calMonth}
@@ -464,13 +579,17 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
         )}
       </div>
 
-      {/* ── FundingsPanel ───────────────────────────────────────────────── */}
+      {/* FundingsPanel */}
       <FundingsPanel
         client={selectedClient}
         isAdminView={isAdminView}
+        onBalanceChange={(cb, cp) => {
+          setCombinedBalance(cb);
+          setCombinedPayback(cp);
+        }}
       />
 
-      {/* ── Payment History ─────────────────────────────────────────────── */}
+      {/* Payment History */}
       <PaymentHistory
         payments={payments}
         client={selectedClient}
@@ -478,13 +597,12 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
         onPaymentAdded={handlePaymentAdded}
       />
 
-      {/* ── Activity log ────────────────────────────────────────────────── */}
+      {/* Activity Log */}
       <ActivityLog
         invoice={selectedClient.invoice}
         isAdminView={isAdminView}
         refreshTrigger={activityRefresh}
       />
-
     </div>
   );
 }
