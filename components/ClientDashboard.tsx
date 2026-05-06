@@ -140,12 +140,12 @@ function MiniCalendar({ year, month, termDays, paymentDays, missedDays, holidayM
     <div>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
         <button onClick={onPrev} disabled={!canPrev} style={{ background: "none", border: "none", cursor: canPrev ? "pointer" : "not-allowed", opacity: canPrev ? 1 : 0.25, fontSize: 16, color: "var(--ink-3)", padding: "2px 8px" }}>‹</button>
-        <span style={{ fontSize: 14, fontWeight: 600, color: "var(--ink-2)", fontFamily: "'DM Sans', sans-serif" }}>{monthNames[month]} {year}</span>
+        <span style={{ fontSize: 14, fontWeight: 700, color: "var(--ink-1)", fontFamily: "'DM Sans', sans-serif" }}>{monthNames[month]} {year}</span>
         <button onClick={onNext} disabled={!canNext} style={{ background: "none", border: "none", cursor: canNext ? "pointer" : "not-allowed", opacity: canNext ? 1 : 0.25, fontSize: 16, color: "var(--ink-3)", padding: "2px 8px" }}>›</button>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", marginBottom: 2 }}>
         {["S","M","T","W","T","F","S"].map((d, i) => (
-          <div key={i} style={{ textAlign: "center", fontSize: 15, color: "var(--ink-4)", fontWeight: 600, padding: "2px 0", fontFamily: "'DM Sans', sans-serif" }}>{d}</div>
+          <div key={i} style={{ textAlign: "center", fontSize: 11, color: "var(--ink-3)", fontWeight: 700, padding: "2px 0", fontFamily: "'DM Sans', sans-serif" }}>{d}</div>
         ))}
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 1 }}>
@@ -162,18 +162,19 @@ function MiniCalendar({ year, month, termDays, paymentDays, missedDays, holidayM
 
           let bg = "transparent";
           let color = isWknd ? "var(--ink-5)" : "var(--ink-2)";
-          if (isHol) { bg = "rgba(160,120,64,0.12)"; color = "var(--gold)"; }
-          else if (paid) { bg = "var(--sage-surface)"; color = "var(--sage)"; }
-          else if (missed) { bg = "var(--sienna-surface)"; color = "var(--sienna)"; }
-          else if (isMoved) { bg = "rgba(180,130,60,0.10)"; color = "var(--gold-bright)"; }
-          else if (inTerm) { bg = "var(--sky-surface)"; color = "var(--sky)"; }
+          // Vibrant colors
+          if (isHol) { bg = "rgba(196,154,90,0.25)"; color = "#b8860b"; }
+          else if (paid) { bg = "rgba(34,139,34,0.18)"; color = "#1a7a1a"; }
+          else if (missed) { bg = "rgba(190,60,40,0.18)"; color = "#b83220"; }
+          else if (isMoved) { bg = "rgba(180,130,60,0.20)"; color = "#9a6e10"; }
+          else if (inTerm) { bg = "rgba(40,110,190,0.15)"; color = "#1a5fa8"; }
 
           return (
             <div key={dateStr} style={{
               aspectRatio: "1", display: "flex", alignItems: "center", justifyContent: "center",
-              borderRadius: 4, background: bg, color, fontSize: 15, fontWeight: isToday ? 700 : 500,
+              borderRadius: 4, background: bg, color, fontSize: 12, fontWeight: isToday ? 800 : 500,
               fontFamily: "'DM Sans', sans-serif",
-              outline: isToday ? "1.5px solid var(--ink-2)" : "none", outlineOffset: -1,
+              outline: isToday ? "2px solid var(--ink-2)" : "none", outlineOffset: -1,
             }}>
               {date.getDate()}
             </div>
@@ -182,15 +183,15 @@ function MiniCalendar({ year, month, termDays, paymentDays, missedDays, holidayM
       </div>
       <div style={{ marginTop: 8, display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px 8px" }}>
         {[
-          { bg: "var(--sky-surface)", border: "1px solid var(--sky-border)", label: "Expected" },
-          { bg: "var(--sage-surface)", border: "1px solid var(--sage-border)", label: "Received" },
-          { bg: "var(--sienna-surface)", border: "1px solid var(--sienna-border)", label: "Missed" },
-          { bg: "rgba(160,120,64,0.12)", border: "1px solid var(--gold-border)", label: "Holiday" },
-          { bg: "rgba(180,130,60,0.10)", border: "1px solid var(--gold-border)", label: "Moved to Monday" },
+          { bg: "rgba(40,110,190,0.15)", border: "1px solid rgba(40,110,190,0.3)", label: "Expected" },
+          { bg: "rgba(34,139,34,0.18)", border: "1px solid rgba(34,139,34,0.35)", label: "Received" },
+          { bg: "rgba(190,60,40,0.18)", border: "1px solid rgba(190,60,40,0.35)", label: "Missed" },
+          { bg: "rgba(196,154,90,0.25)", border: "1px solid rgba(196,154,90,0.4)", label: "Holiday" },
+          { bg: "rgba(180,130,60,0.20)", border: "1px solid rgba(180,130,60,0.35)", label: "Moved to Monday" },
         ].map(({ bg, border, label }) => (
           <div key={label} style={{ display: "flex", alignItems: "center", gap: 4 }}>
             <div style={{ width: 8, height: 8, borderRadius: 2, background: bg, border, flexShrink: 0 }} />
-            <span style={{ fontSize: 15, color: "var(--ink-4)", fontWeight: 600, fontFamily: "'DM Sans', sans-serif" }}>{label}</span>
+            <span style={{ fontSize: 11, color: "var(--ink-3)", fontWeight: 600, fontFamily: "'DM Sans', sans-serif" }}>{label}</span>
           </div>
         ))}
       </div>
@@ -270,7 +271,6 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
     onPaymentAdded?.();
   }
 
-  // ── Shared card style ────────────────────────────────────────────────────
   const card: React.CSSProperties = {
     background: "var(--surface)",
     border: "1px solid var(--border)",
@@ -330,9 +330,9 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
               { label: paymentFrequencyLabel + " payment", value: money(Number(selectedClient.payment || 0)), sub: nextPayment ? `Next ACH: ${nextPayment.label}` : undefined },
             ].map(({ label, value, sub }) => (
               <div key={label} style={{ ...card, padding: "16px 18px" }}>
-                <p style={{ fontSize: 15, color: "var(--ink-4)", textTransform: "uppercase", letterSpacing: "0.08em", fontFamily: "'DM Sans', sans-serif", marginBottom: 4 }}>{label}</p>
-                <p style={{ fontSize: 28, fontWeight: 500, color: "var(--ink-1)", fontFamily: "'Cormorant Garamond', serif" }}>{value}</p>
-                {sub && <p style={{ fontSize: 14, color: "var(--sky)", fontWeight: 600, fontFamily: "'DM Sans', sans-serif", marginTop: 4 }}>{sub}</p>}
+                <p style={{ fontSize: 17, color: "var(--ink-4)", textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 600, fontFamily: "'DM Sans', sans-serif", marginBottom: 6 }}>{label}</p>
+                <p style={{ fontSize: 34, fontWeight: 500, color: "var(--ink-1)", fontFamily: "'Cormorant Garamond', serif", lineHeight: 1.1 }}>{value}</p>
+                {sub && <p style={{ fontSize: 14, color: "var(--sky)", fontWeight: 600, fontFamily: "'DM Sans', sans-serif", marginTop: 6 }}>{sub}</p>}
               </div>
             ))}
           </div>
@@ -419,11 +419,11 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
 
         {/* Calendar sidebar */}
         {fundedDate && (
-          <div style={{ flexShrink: 0, width: 196, position: "sticky", top: 80 }}>
+          <div style={{ flexShrink: 0, width: 210, position: "sticky", top: 80 }}>
             <div style={{ ...card, padding: "16px 18px" }}>
-              <p style={{ fontSize: 13, fontWeight: 500, color: "var(--ink-1)", fontFamily: "'DM Sans', sans-serif", marginBottom: 4, textAlign: "center" }}>Payment Calendar</p>
-              <p style={{ fontSize: 15, color: "var(--ink-4)", fontWeight: 600, fontFamily: "'DM Sans', sans-serif", marginBottom: 10 }}>
-                {totalTerm} {isWeeklyClient ? "weekly" : "Business Day"} Term
+              <p style={{ fontSize: 14, fontWeight: 700, color: "var(--ink-1)", fontFamily: "'DM Sans', sans-serif", marginBottom: 4, textAlign: "center" }}>Payment Calendar</p>
+              <p style={{ fontSize: 12, color: "var(--ink-4)", fontWeight: 600, fontFamily: "'DM Sans', sans-serif", marginBottom: 10, textAlign: "center", lineHeight: 1.4 }}>
+                {totalTerm} {isWeeklyClient ? "Weekly" : "Business Days"} Term
                 {termEndDate && ` · Ends ${formatDate(termEndDate.toISOString().split("T")[0])}`}
               </p>
               <MiniCalendar
@@ -438,13 +438,13 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
         )}
       </div>
 
-      {/* ── FundingsPanel — add-on fundings (only shown if client has positions) */}
+      {/* ── FundingsPanel ───────────────────────────────────────────────── */}
       <FundingsPanel
         client={selectedClient}
         isAdminView={isAdminView}
       />
 
-      {/* ── Payment history ─────────────────────────────────────────────── */}
+      {/* ── Payment History ─────────────────────────────────────────────── */}
       <PaymentHistory
         payments={payments}
         client={selectedClient}
