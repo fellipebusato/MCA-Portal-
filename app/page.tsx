@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { addBusinessDays, toDateStr as toDateString } from "@/lib/holidays";
 import AdminDashboard from "@/components/AdminDashboard";
 import ClientDashboard from "@/components/ClientDashboard";
 import AddClientForm from "@/components/AddClientForm";
@@ -12,6 +11,20 @@ import ReturnsImport from "@/components/ReturnsImport";
 
 const ADMIN_EMAIL = "fbusato@cfgms.com";
 
+function addBusinessDays(date: Date, days: number): Date {
+  const result = new Date(date);
+  let added = 0;
+  while (added < days) {
+    result.setDate(result.getDate() + 1);
+    const dow = result.getDay();
+    if (dow !== 0 && dow !== 6) added++;
+  }
+  return result;
+}
+
+function toDateString(date: Date): string {
+  return date.toISOString().split("T")[0];
+}
 
 function parseXLSRows(text: string): { invoice: string; date: string; amount: number }[] {
   const results: { invoice: string; date: string; amount: number }[] = [];
@@ -91,12 +104,12 @@ export default function Home() {
   const [forgotMessage, setForgotMessage] = useState("");
 
   const [newClient, setNewClient] = useState<{
-  businessName: string; invoice: string; ownerName: string; clientEmail: string;
-  fundedDate: string; funded: string; payback: string; payment: string; totalTerm: string;
-  paymentFrequency: "daily" | "weekly"; paymentDay: string;
-  state: string; sicCode: string; businessType: string; ficoScore: string;
-  avgMonthlyRevenue: string; timeInBusinessMonths: string; position: string;
-}>({
+    businessName: string; invoice: string; ownerName: string; clientEmail: string;
+    fundedDate: string; funded: string; payback: string; payment: string; totalTerm: string;
+    paymentFrequency: "daily" | "weekly"; paymentDay: string;
+    state: string; sicCode: string; businessType: string; ficoScore: string;
+    avgMonthlyRevenue: string; timeInBusinessMonths: string; position: string;
+  }>({
     businessName: "", invoice: "", ownerName: "", clientEmail: "",
     fundedDate: "", funded: "", payback: "", payment: "", totalTerm: "",
     paymentFrequency: "daily" as const, paymentDay: "",
@@ -185,7 +198,6 @@ export default function Home() {
 
   async function fetchClients() {
     setLoading(true);
-    // Fetch sorted by funded_date ascending (oldest first)
     const { data, error } = await supabase
       .from("clients")
       .select("*")
@@ -362,7 +374,6 @@ export default function Home() {
       }
     }
 
-    // Flag missing
     for (const client of localClients) {
       if (!reportInvoices.includes(client.invoice)) {
         const day = today.getDay();
@@ -411,8 +422,6 @@ export default function Home() {
     return (
       <main style={{ display: "flex", minHeight: "100vh", alignItems: "center", justifyContent: "center", background: "var(--parchment)", padding: 24 }}>
         <div style={{ width: "100%", maxWidth: 400 }}>
-
-          {/* Logo */}
           <div style={{ textAlign: "center", marginBottom: 36 }}>
             <div style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 52, height: 52, borderRadius: 14, background: "var(--ink-1)", border: "1px solid rgba(196,154,90,0.25)", marginBottom: 16 }}>
               <span style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 18, fontWeight: 600, color: "var(--gold-bright)", letterSpacing: "0.05em" }}>FB</span>
@@ -423,7 +432,6 @@ export default function Home() {
             <div style={{ fontSize: 12, color: "var(--ink-3)", marginTop: 6 }}>Sign in to your account</div>
           </div>
 
-          {/* Card */}
           <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 20, padding: 32, boxShadow: "0 4px 24px rgba(30,16,4,0.08)", position: "relative", overflow: "hidden" }}>
             <div style={{ position: "absolute", top: 0, left: 22, right: 22, height: 1, background: "linear-gradient(90deg, transparent, var(--gold-border), transparent)" }} />
 
@@ -507,7 +515,7 @@ export default function Home() {
     return <ConsentPage userEmail={user.email} onAgree={handleConsent} onDecline={handleDecline} />;
   }
 
-  // ── Client view ──────────────────────────────────────────────────────────
+  // ── Client view (non-admin) ───────────────────────────────────────────────
   if (!isAdmin) {
     if (!clientRecord) {
       return (
@@ -550,12 +558,30 @@ export default function Home() {
   }
 
   // ── Admin view ───────────────────────────────────────────────────────────
+  // Shared nav button style helper
+  function navBtn(active: boolean, color: { bg: string; border: string; text: string }) {
+    return {
+      padding: "7px 16px",
+      borderRadius: 7,
+      border: `1px solid ${color.border}`,
+      background: active ? color.bg : "rgba(255,255,255,0.04)",
+      color: active ? color.text : "rgba(255,255,255,0.6)",
+      fontSize: 13,
+      fontWeight: 500,
+      cursor: "pointer",
+      fontFamily: "'DM Sans', sans-serif",
+      transition: "all 0.15s",
+    } as React.CSSProperties;
+  }
+
   return (
     <main style={{ minHeight: "100vh", background: "var(--parchment)" }}>
 
-      {/* Admin nav */}
-      <nav style={{ background: "var(--ink-1)", padding: "0 28px", display: "flex", alignItems: "center", height: 62, position: "sticky", top: 0, zIndex: 10, gap: 2 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginRight: 24 }}>
+      {/* ── Single Admin Nav ── */}
+      <nav style={{ background: "var(--ink-1)", padding: "0 28px", display: "flex", alignItems: "center", height: 62, position: "sticky", top: 0, zIndex: 10, gap: 6 }}>
+
+        {/* Logo */}
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginRight: 20 }}>
           <button onClick={() => setView("admin")} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 10 }}>
             <div style={{ width: 30, height: 30, borderRadius: 8, border: "1px solid var(--gold-border)", background: "rgba(160,120,64,0.12)", display: "flex", alignItems: "center", justifyContent: "center" }}>
               <span style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 12, fontWeight: 600, color: "var(--gold-bright)" }}>FB</span>
@@ -568,40 +594,41 @@ export default function Home() {
         {/* Dashboard */}
         <button
           onClick={() => setView("admin")}
-          style={{ padding: "7px 14px", borderRadius: 7, border: "none", background: view === "admin" ? "rgba(160,120,64,0.15)" : "transparent", color: view === "admin" ? "var(--gold-bright)" : "rgba(255,255,255,0.65)", fontSize: 13, fontWeight: 500, cursor: "pointer", fontFamily: "'DM Sans', sans-serif" }}>
+          style={navBtn(view === "admin", { bg: "rgba(160,120,64,0.2)", border: "rgba(160,120,64,0.4)", text: "var(--gold-bright)" })}>
           Dashboard
         </button>
 
-        {/* Import returns */}
+        {/* Import Returns */}
         <button
           onClick={() => setView("returns" as any)}
-          style={{ padding: "7px 14px", borderRadius: 7, border: "1px solid rgba(154,90,58,0.35)", background: "rgba(154,90,58,0.08)", color: "#E8926A", fontSize: 13, fontWeight: 500, cursor: "pointer", fontFamily: "'DM Sans', sans-serif" }}>
+          style={navBtn((view as string) === "returns", { bg: "rgba(154,90,58,0.2)", border: "rgba(154,90,58,0.4)", text: "#E8926A" })}>
           Import returns
         </button>
 
-        {/* Add client */}
-        <button
-          onClick={() => setView("add")}
-          style={{ padding: "7px 14px", borderRadius: 7, border: "none", background: view === "add" ? "rgba(160,120,64,0.15)" : "transparent", color: view === "add" ? "var(--gold-bright)" : "rgba(255,255,255,0.65)", fontSize: 13, fontWeight: 500, cursor: "pointer", fontFamily: "'DM Sans', sans-serif" }}>
-          + Add client
-        </button>
-
-        {/* Import statement */}
+        {/* Import Statement */}
         <button
           onClick={() => setView("statement" as any)}
-          style={{ padding: "7px 14px", borderRadius: 7, border: "1px solid rgba(74,126,160,0.35)", background: "rgba(74,126,160,0.08)", color: "#8BAED4", fontSize: 13, fontWeight: 500, cursor: "pointer", fontFamily: "'DM Sans', sans-serif" }}>
+          style={navBtn((view as string) === "statement", { bg: "rgba(74,126,160,0.2)", border: "rgba(74,126,160,0.4)", text: "#8BAED4" })}>
           Import statement
         </button>
 
-        {/* Client view */}
+        {/* Add Client */}
+        <button
+          onClick={() => setView("add")}
+          style={navBtn(view === "add", { bg: "rgba(90,138,106,0.2)", border: "rgba(90,138,106,0.4)", text: "#7ab89a" })}>
+          + Add client
+        </button>
+
+        {/* Client View — only when a client is selected */}
         {selectedClient && (
           <button
             onClick={() => openClient(selectedClient)}
-            style={{ padding: "7px 14px", borderRadius: 7, border: "none", background: view === "client" ? "rgba(160,120,64,0.15)" : "transparent", color: view === "client" ? "var(--gold-bright)" : "rgba(255,255,255,0.65)", fontSize: 13, fontWeight: 500, cursor: "pointer", fontFamily: "'DM Sans', sans-serif" }}>
+            style={navBtn(view === "client", { bg: "rgba(255,255,255,0.1)", border: "rgba(255,255,255,0.2)", text: "rgba(255,255,255,0.9)" })}>
             Client view
           </button>
         )}
 
+        {/* Right side */}
         <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 12 }}>
           <span style={{ fontSize: 11, color: "rgba(255,255,255,0.4)" }}>{user.email}</span>
           <button onClick={logout} style={{ padding: "5px 12px", borderRadius: 6, border: "1px solid rgba(255,255,255,0.12)", background: "transparent", color: "rgba(255,255,255,0.45)", fontSize: 11, cursor: "pointer", fontFamily: "'DM Sans', sans-serif" }}>
@@ -610,8 +637,10 @@ export default function Home() {
         </div>
       </nav>
 
-      {/* Admin body */}
+      {/* ── Admin body ── */}
       <div style={{ maxWidth: 1200, margin: "0 auto" }}>
+
+        {/* Back to dashboard button when in client view */}
         {view === "client" && selectedClient && (
           <div style={{ padding: "20px 32px 0" }}>
             <button
@@ -620,7 +649,7 @@ export default function Home() {
               ← Dashboard
             </button>
             <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 26, fontWeight: 500, color: "var(--ink-1)", letterSpacing: "-0.02em", marginBottom: 20 }}>
-              Welcome, {selectedClient.owner_name}
+              {selectedClient.business_name}
             </div>
           </div>
         )}
@@ -634,6 +663,7 @@ export default function Home() {
             updateClient={updateClient}
           />
         )}
+
         {view === "client" && selectedClient && (
           <div style={{ padding: "0 32px 40px" }}>
             <ClientDashboard
@@ -651,6 +681,7 @@ export default function Home() {
             />
           </div>
         )}
+
         {view === "add" && (
           <div style={{ padding: "32px" }}>
             <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 26, fontWeight: 500, color: "var(--ink-1)", letterSpacing: "-0.02em", marginBottom: 24 }}>
@@ -659,6 +690,7 @@ export default function Home() {
             <AddClientForm newClient={newClient} setNewClient={setNewClient} addClient={addClient} />
           </div>
         )}
+
         {(view as string) === "returns" && (
           <div style={{ padding: "32px" }}>
             <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 26, fontWeight: 500, color: "var(--ink-1)", letterSpacing: "-0.02em", marginBottom: 24 }}>
@@ -667,6 +699,7 @@ export default function Home() {
             <ReturnsImport clients={clients} onImportComplete={async () => { await fetchClients(); setView("admin"); }} />
           </div>
         )}
+
         {(view as string) === "statement" && (
           <div style={{ padding: "32px" }}>
             <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 26, fontWeight: 500, color: "var(--ink-1)", letterSpacing: "-0.02em", marginBottom: 24 }}>
