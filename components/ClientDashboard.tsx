@@ -427,6 +427,57 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
             </div>
           )}
 
+          {/* ── Smart client alerts ── */}
+          {(() => {
+            const returnedOnly = payments.filter(p => (p.description || "").toLowerCase().includes("return"));
+            const returnCount = returnedOnly.length;
+            const returnTotal = returnedOnly.reduce((s, p) => s + Number(p.returns || 0), 0);
+            const paymentsLeft = paymentAmount > 0 ? Math.ceil(balance / paymentAmount) : 0;
+            const weeksLeft = isWeeklyClient ? paymentsLeft : Math.ceil(paymentsLeft / 5);
+            const isOnTrack = safePercent >= expectedPercent - 2;
+
+            if ((status as string) === "Good Standing" && isOnTrack && paymentsLeft > 0) {
+              return (
+                <div style={{ background: "var(--sage-surface)", border: "1px solid var(--sage-border)", borderRadius: 12, padding: "14px 18px", display: "flex", alignItems: "center", gap: 10 }}>
+                  <span style={{ fontSize: 20 }}>🎯</span>
+                  <p style={{ fontSize: 14, color: "var(--sage)", fontFamily: "'DM Sans', sans-serif", fontWeight: 500 }}>
+                    You&apos;re on track! Only <strong>{paymentsLeft} payment{paymentsLeft !== 1 ? "s" : ""}</strong> remaining — est. payoff in <strong>{weeksLeft} week{weeksLeft !== 1 ? "s" : ""}</strong>. Keep it up!
+                  </p>
+                </div>
+              );
+            }
+            if ((status as string) === "Good Standing" && !isOnTrack && paymentsLeft > 0) {
+              return (
+                <div style={{ background: "rgba(196,140,40,0.08)", border: "1px solid rgba(196,140,40,0.25)", borderRadius: 12, padding: "14px 18px", display: "flex", alignItems: "center", gap: 10 }}>
+                  <span style={{ fontSize: 20 }}>📈</span>
+                  <p style={{ fontSize: 14, color: "#a07010", fontFamily: "'DM Sans', sans-serif", fontWeight: 500 }}>
+                    You&apos;re a little behind schedule. Making extra payments now will help you stay on track and protect your payment history.
+                  </p>
+                </div>
+              );
+            }
+            if (returnCount === 1) {
+              return (
+                <div style={{ background: "var(--sienna-surface)", border: "1px solid var(--sienna-border)", borderRadius: 12, padding: "14px 18px", display: "flex", alignItems: "center", gap: 10 }}>
+                  <span style={{ fontSize: 20 }}>⚠️</span>
+                  <p style={{ fontSize: 14, color: "var(--sienna)", fontFamily: "'DM Sans', sans-serif", fontWeight: 500 }}>
+                    Your payment of <strong>{money(returnTotal)}</strong> was returned. Make up this payment to keep your account in good standing.
+                  </p>
+                </div>
+              );
+            }
+            if (returnCount > 1) {
+              return (
+                <div style={{ background: "var(--sienna-surface)", border: "1px solid var(--sienna-border)", borderRadius: 12, padding: "14px 18px", display: "flex", alignItems: "center", gap: 10 }}>
+                  <span style={{ fontSize: 20 }}>🚨</span>
+                  <p style={{ fontSize: 14, color: "var(--sienna)", fontFamily: "'DM Sans', sans-serif", fontWeight: 500 }}>
+                    You have <strong>{returnCount} returned payments</strong> totaling <strong>{money(returnTotal)}</strong>. Resolving these promptly keeps your account protected from going to collections and in Good Standing.
+                  </p>
+                </div>
+              );
+            }
+            return null;
+          })()}
           {/* Progress bar — actual (green) + expected (red) */}
           <div style={{ ...card }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
@@ -602,7 +653,15 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
         invoice={selectedClient.invoice}
         isAdminView={isAdminView}
         refreshTrigger={activityRefresh}
+        clientEmail={selectedClient.client_email}
       />
+
+      {/* ── Legal notice ── */}
+      {!isAdminView && (
+        <div style={{ textAlign: "center", padding: "20px 12px", fontSize: 11, color: "var(--ink-5)", lineHeight: 1.7, fontFamily: "'DM Sans', sans-serif" }}>
+          This portal is an independent organizational tool operated by Fellipe Busato and is not affiliated with, endorsed by, or operated on behalf of CFG Merchant Solutions or any other entity. Information displayed is for reference and organizational purposes only and does not constitute an official financial record, legal document, or binding statement of account.
+        </div>
+      )}
     </div>
   );
 }
