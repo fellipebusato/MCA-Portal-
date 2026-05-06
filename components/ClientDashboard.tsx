@@ -447,8 +447,10 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
             <div style={{ ...card, padding: "16px 18px" }}>
               <p style={{ fontSize: 14, fontWeight: 700, color: "var(--ink-1)", fontFamily: "'DM Sans', sans-serif", marginBottom: 4, textAlign: "center" }}>Payment Calendar</p>
               <p style={{ fontSize: 12, color: "var(--ink-4)", fontWeight: 600, fontFamily: "'DM Sans', sans-serif", marginBottom: 10, textAlign: "center", lineHeight: 1.4 }}>
-                {totalTerm} {isWeeklyClient ? "Weekly" : "Business Days"} Term
-                {(estCompletionDate || termEndDate) && ` · Ends ${formatDate((estCompletionDate || termEndDate)!.toISOString().split("T")[0])}`}
+                {isWeeklyClient
+                  ? `${Math.ceil(balance / paymentAmount)} payments remaining`
+                  : `${totalTerm} Business Days Term`}
+              {(estCompletionDate || termEndDate) && ` · Ends ${formatDate((estCompletionDate || termEndDate)!.toISOString().split("T")[0])}`}
               </p>
               <MiniCalendar
                 year={calYear} month={calMonth}
