@@ -278,7 +278,7 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
     const desc = (p.description || "").toLowerCase();
     return desc.includes("return") || desc.includes("missed");
   });
-  const badStanding = status !== "Good Standing" && status !== "Paused";
+  const badStanding = !["Good Standing", "Paused"].includes(status as string);
   const hasMissedPayments = returnedPayments.length > 0;
 
   const fundedDate = selectedClient.funded_date ? new Date(selectedClient.funded_date + "T00:00:00") : null;
