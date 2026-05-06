@@ -28,7 +28,7 @@ export interface Client {
   total_term: number;
   payment_frequency: "daily" | "weekly";
   payment_day: string | null;
-  status: "Good Standing" | "Needs Attention" | "Default";
+  status: string;
   payment_status: PaymentStatus;
   pause_start: string | null;
   pause_end: string | null;
