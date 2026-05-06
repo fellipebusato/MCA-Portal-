@@ -653,7 +653,6 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
         invoice={selectedClient.invoice}
         isAdminView={isAdminView}
         refreshTrigger={activityRefresh}
-        clientEmail={selectedClient.client_email}
       />
 
       {/* ── Legal notice ── */}
