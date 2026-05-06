@@ -284,7 +284,7 @@ export default function AdminDashboard({
           {[
             { label: "Total clients", value: clients.length.toString(), sub: `${dailyClients} daily · ${weeklyClients} weekly`, color: "var(--ink-1)" },
             { label: "Open balance", value: money(totalBalance), sub: "Across all clients", color: "var(--ink-2)", mono: true },
-            { label: "Needs attention", value: String(attentionClients.length), sub: attentionClients.length > 0 ? "Review now →" : "All accounts current", color: attentionClients.length > 0 ? "var(--sienna)" : "var(--sage)", clickable: true, onClick: () => { setFilterAttention(v => !v); setSearchQuery(""); } },
+            { label: "Needs attention", value: String(attentionClients.length), sub: attentionClients.length > 0 ? "Review now →" : "All accounts current", color: attentionClients.length > 0 ? "var(--sienna)" : "var(--sage)", clickable: true, onClick: () => { setFilterAttention(true); setSearchQuery(""); } },
             { label: "Good standing", value: String(goodClients.length), sub: clients.length > 0 ? `${Math.round((goodClients.length / clients.length) * 100)}% of portfolio` : "—", color: "var(--sage)" },
           ].map((card, i) => (
             <div key={i}
@@ -461,6 +461,14 @@ export default function AdminDashboard({
                 const sched = client.payment_frequency === "weekly"
                   ? `Weekly${client.payment_day ? ` · ${client.payment_day.charAt(0).toUpperCase() + client.payment_day.slice(1)}` : ""}`
                   : "Daily";
+
+                // Calculate weeks behind based on returned payments only
+                const totalReturns = Number(client.total_returns || 0);
+                const weeksBehind = client.payment_frequency === "weekly"
+                  ? totalReturns
+                  : Math.floor(totalReturns / 5);
+                const isBehind1Week = weeksBehind === 1;
+                const isBehind2PlusWeeks = weeksBehind >= 2;
                 return (
                   <tr key={client.id}
                     style={{ borderBottom: "1px solid var(--border)", cursor: "pointer", transition: "background 0.1s" }}
@@ -481,7 +489,19 @@ export default function AdminDashboard({
                       <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 13, color: "var(--ink-2)", fontWeight: 500 }}>{money(Number(client.balance || 0))}</span>
                     </td>
                     <td style={{ padding: "17px 26px" }}>
-                      <span style={{ fontSize: 12, color: "var(--ink-4)" }}>{sched}</span>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                        <span style={{ fontSize: 12, color: "var(--ink-4)" }}>{sched}</span>
+                        {isBehind2PlusWeeks && (
+                          <span style={{ fontSize: 10, fontWeight: 600, color: "#b83220", background: "rgba(190,60,40,0.1)", border: "1px solid rgba(190,60,40,0.25)", borderRadius: 99, padding: "1px 7px", fontFamily: "'DM Sans', sans-serif" }}>
+                            {weeksBehind}w behind
+                          </span>
+                        )}
+                        {isBehind1Week && (
+                          <span style={{ fontSize: 10, fontWeight: 600, color: "#a07010", background: "rgba(196,140,40,0.1)", border: "1px solid rgba(196,140,40,0.25)", borderRadius: 99, padding: "1px 7px", fontFamily: "'DM Sans', sans-serif" }}>
+                            1w behind
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td style={{ padding: "17px 26px" }}>
                       <StandingBadge status={client.status} />
