@@ -63,7 +63,7 @@ export default function MorningDashboard({ clients }: { clients: any[] }) {
       returnsSettling.push({ invoice: p.invoice, business_name: client.business_name, amount: Number(p.returns) });
     }
 
-    // Who was expected but NOT in today's file (missed)
+    // Who was expected but NOT in today file (missed)
     const notInFile: TodayStats["notInFile"] = [];
     if (dayOfWeek === 5) { // Friday — settlement day
       for (const client of clients) {
@@ -104,7 +104,7 @@ export default function MorningDashboard({ clients }: { clients: any[] }) {
             </svg>
           </div>
           <div>
-            <p style={{ fontSize: 14, fontWeight: 600, color: "var(--ink-1)", fontFamily: "'DM Sans', sans-serif" }}>Today's settlement picture</p>
+            <p style={{ fontSize: 14, fontWeight: 600, color: "var(--ink-1)", fontFamily: "'DM Sans', sans-serif" }}>Today&apos;s settlement picture</p>
             <p style={{ fontSize: 11, color: "var(--ink-4)", marginTop: 2, fontFamily: "'DM Sans', sans-serif" }}>{dayName}, {monthDay} · Internal only</p>
           </div>
         </div>
