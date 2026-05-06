@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import MonthlyRiskPanel from "@/components/MonthlyRiskPanel";
+import MorningDashboard from "@/components/MorningDashboard";
 
 type AdminDashboardProps = {
   clients: any[];
@@ -35,7 +36,7 @@ function StandingBadge({ status }: { status: string }) {
   return (
     <span style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "4px 11px", borderRadius: 6, background: "var(--sienna-surface)", border: "1px solid var(--sienna-border)", color: "var(--sienna)", fontSize: 11, fontWeight: 500 }}>
       <span style={{ width: 5, height: 5, borderRadius: "50%", background: "var(--sienna)", display: "inline-block", flexShrink: 0 }} />
-      {status || "Needs attention"}
+      Needs attention
     </span>
   );
 }
@@ -52,10 +53,13 @@ const EDIT_FIELDS: [string, string, string][] = [
   ["payment", "Payment amount ($)", "text"],
   ["total_term", "Total term (days)", "text"],
   ["status", "Standing", "select"],
+  ["pause_start", "Pause start date", "date"],
+  ["pause_end", "Pause end date", "date"],
 ];
 
 const DAYS = ["monday", "tuesday", "wednesday", "thursday", "friday"];
 
+// Shared style objects
 const navStyles: React.CSSProperties = {
   background: "var(--ink-1)",
   padding: "0 28px",
@@ -77,28 +81,6 @@ const cardStyle: React.CSSProperties = {
   cursor: "default",
 };
 
-const inputStyle: React.CSSProperties = {
-  width: "100%",
-  borderRadius: 9,
-  border: "1px solid var(--border-mid)",
-  background: "var(--surface)",
-  padding: "9px 12px",
-  fontSize: 13,
-  color: "var(--ink-1)",
-  outline: "none",
-  fontFamily: "'DM Sans', sans-serif",
-};
-
-const labelStyle: React.CSSProperties = {
-  display: "block",
-  fontSize: 10,
-  color: "var(--ink-4)",
-  marginBottom: 5,
-  textTransform: "uppercase",
-  letterSpacing: "0.07em",
-  fontWeight: 600,
-};
-
 export default function AdminDashboard({
   clients, openClient, handlePaymentUpload, handlePaymentUploadWithPreview,
   deleteClient, updateClient,
@@ -110,6 +92,7 @@ export default function AdminDashboard({
   const [previewFile, setPreviewFile] = useState<File | null>(null);
   const [menuClient, setMenuClient] = useState<any | null>(null);
 
+  // Sort by funded_date oldest → newest
   const sortedClients = [...clients].sort((a, b) => {
     if (!a.funded_date) return 1;
     if (!b.funded_date) return -1;
@@ -134,12 +117,14 @@ export default function AdminDashboard({
       })
     : baseClients;
 
+  // Pre-upload preview handler
   async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
     setPreviewFile(file);
 
     const text = await file.text();
+    // Parse preview rows (simplified — real parse happens in page.tsx)
     const isXML = text.trim().startsWith("<?xml") || text.includes("<Workbook");
     const rows: any[] = [];
 
@@ -177,95 +162,19 @@ export default function AdminDashboard({
     }
 
     setPreviewRows(rows);
+    // Reset input so same file can be re-selected
     e.target.value = "";
   }
 
   function handleConfirmUpload() {
     if (!previewFile) return;
+    // Create synthetic event to pass to original handler
     const dt = new DataTransfer();
     dt.items.add(previewFile);
     const syntheticEvent = { target: { files: dt.files } } as any;
     handlePaymentUpload(syntheticEvent);
     setPreviewRows(null);
     setPreviewFile(null);
-  }
-
-  function renderEditPanel(client: any) {
-    if (editingClient?.id !== client.id) return null;
-    return (
-      <tr key={`edit-${client.id}`}>
-        <td colSpan={7} style={{ padding: 0, background: "var(--parchment-2)", borderBottom: "2px solid var(--gold-border)" }}>
-          <div style={{ padding: "24px 26px" }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
-              <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 20, fontWeight: 500, color: "var(--ink-1)" }}>
-                Editing — {editingClient.business_name}
-              </div>
-              <button onClick={() => setEditingClient(null)} style={{ fontSize: 11, color: "var(--ink-4)", background: "none", border: "none", cursor: "pointer" }}>Cancel</button>
-            </div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12 }}>
-              {EDIT_FIELDS.map(([field, label, type]) => (
-                <div key={field}>
-                  <label style={labelStyle}>{label}</label>
-                  {type === "select" ? (
-                    <select
-                      style={inputStyle}
-                      value={editingClient[field] || ""}
-                      onChange={e => setEditingClient({ ...editingClient, [field]: e.target.value })}>
-                      <option value="Good Standing">Good Standing</option>
-                      <option value="Paused">Paused</option>
-                      <option value="Blocked">Blocked</option>
-                      <option value="Needs Attention">Needs Attention</option>
-                      <option value="Payment Issues">Payment Issues</option>
-                    </select>
-                  ) : (
-                    <input
-                      type={type}
-                      style={inputStyle}
-                      value={editingClient[field] || ""}
-                      onChange={e => setEditingClient({ ...editingClient, [field]: e.target.value })}
-                    />
-                  )}
-                </div>
-              ))}
-              <div>
-                <label style={labelStyle}>Frequency</label>
-                <select
-                  style={inputStyle}
-                  value={editingClient.payment_frequency || "daily"}
-                  onChange={e => setEditingClient({ ...editingClient, payment_frequency: e.target.value })}>
-                  <option value="daily">Daily</option>
-                  <option value="weekly">Weekly</option>
-                </select>
-              </div>
-              {editingClient.payment_frequency === "weekly" && (
-                <div>
-                  <label style={labelStyle}>Payment day</label>
-                  <select
-                    style={inputStyle}
-                    value={editingClient.payment_day || ""}
-                    onChange={e => setEditingClient({ ...editingClient, payment_day: e.target.value })}>
-                    <option value="">Select day</option>
-                    {DAYS.map(d => <option key={d} value={d}>{d.charAt(0).toUpperCase() + d.slice(1)}</option>)}
-                  </select>
-                </div>
-              )}
-            </div>
-            <div style={{ marginTop: 16, display: "flex", gap: 10 }}>
-              <button
-                onClick={() => { updateClient(editingClient); setEditingClient(null); }}
-                style={{ background: "var(--ink-1)", color: "var(--gold-muted)", border: "1px solid rgba(196,154,90,0.2)", padding: "10px 20px", borderRadius: 9, fontSize: 13, fontWeight: 500, cursor: "pointer" }}>
-                Save changes
-              </button>
-              <button
-                onClick={() => setEditingClient(null)}
-                style={{ background: "transparent", color: "var(--ink-3)", border: "1px solid var(--border-mid)", padding: "10px 20px", borderRadius: 9, fontSize: 13, fontWeight: 500, cursor: "pointer" }}>
-                Cancel
-              </button>
-            </div>
-          </div>
-        </td>
-      </tr>
-    );
   }
 
   return (
@@ -295,6 +204,8 @@ export default function AdminDashboard({
               {clients.length} active {clients.length === 1 ? "client" : "clients"} &nbsp;·&nbsp; {money(totalBalance)} open balance
             </div>
           </div>
+
+          {/* Upload trigger */}
           <label style={{ display: "flex", alignItems: "center", gap: 8, background: "var(--ink-1)", color: "var(--gold-bright)", border: "1px solid rgba(196,154,90,0.35)", padding: "12px 22px", borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: "pointer", boxShadow: "0 2px 12px rgba(30,16,4,0.12)", transition: "all 0.2s" }}>
             <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
               <path d="M6.5 1v8M3 4L6.5 1 10 4M1.5 10.5h10" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
@@ -308,7 +219,9 @@ export default function AdminDashboard({
         {previewRows !== null && (
           <div style={{ position: "fixed", inset: 0, background: "rgba(28,20,12,0.6)", zIndex: 50, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
             <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 20, width: "100%", maxWidth: 680, maxHeight: "80vh", overflow: "hidden", display: "flex", flexDirection: "column", boxShadow: "0 20px 60px rgba(28,20,12,0.3)", position: "relative" }}>
+              {/* Gold rule */}
               <div style={{ position: "absolute", top: 0, left: 22, right: 22, height: 1, background: "linear-gradient(90deg, transparent, var(--gold-border), transparent)" }} />
+
               <div style={{ padding: "24px 28px", borderBottom: "1px solid var(--border)" }}>
                 <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 22, fontWeight: 500, color: "var(--ink-1)", marginBottom: 4 }}>
                   Review before processing
@@ -317,6 +230,7 @@ export default function AdminDashboard({
                   {previewRows.length} payment{previewRows.length !== 1 ? "s" : ""} found in {previewFile?.name} &nbsp;·&nbsp; {previewRows.filter(r => r.matched).length} matched to clients
                 </div>
               </div>
+
               <div style={{ overflowY: "auto", flex: 1 }}>
                 <table style={{ width: "100%", borderCollapse: "collapse" }}>
                   <thead>
@@ -356,6 +270,7 @@ export default function AdminDashboard({
                   </tbody>
                 </table>
               </div>
+
               <div style={{ padding: "20px 28px", borderTop: "1px solid var(--border)", display: "flex", gap: 12 }}>
                 <button
                   onClick={handleConfirmUpload}
@@ -392,6 +307,90 @@ export default function AdminDashboard({
           ))}
         </div>
 
+        {/* ── Edit panel ── */}
+        {editingClient && (
+          <div style={{ ...cardStyle, marginBottom: 20, cursor: "default" }}>
+            <div style={{ position: "absolute", top: 0, left: 22, right: 22, height: 1, background: "linear-gradient(90deg, transparent, var(--gold-border), transparent)" }} />
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+              <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 20, fontWeight: 500, color: "var(--ink-1)" }}>
+                Editing — {editingClient.business_name}
+              </div>
+              <button onClick={() => setEditingClient(null)} style={{ fontSize: 11, color: "var(--ink-4)", background: "none", border: "none", cursor: "pointer" }}>Cancel</button>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12 }}>
+              {EDIT_FIELDS.map(([field, label, type]) => (
+                <div key={field}>
+                  <label style={{ display: "block", fontSize: 10, color: "var(--ink-4)", marginBottom: 5, textTransform: "uppercase", letterSpacing: "0.07em", fontWeight: 600 }}>{label}</label>
+                  {type === "select" ? (
+                    <select
+                      style={{ width: "100%", borderRadius: 9, border: "1px solid var(--border-mid)", background: "var(--parchment-2)", padding: "9px 12px", fontSize: 13, color: "var(--ink-1)", outline: "none", fontFamily: "'DM Sans', sans-serif" }}
+                      value={editingClient[field] || ""}
+                      onChange={e => setEditingClient({ ...editingClient, [field]: e.target.value })}>
+                      <option value="Good Standing">Good Standing</option>
+                      <option value="Paused">Paused</option>
+                      <option value="Blocked">Blocked</option>
+                      <option value="Needs Attention">Needs Attention</option>
+                      <option value="Payment Issues">Payment Issues</option>
+                    </select>
+                  ) : (
+                    <input
+                      type={type}
+                      style={{ width: "100%", borderRadius: 9, border: "1px solid var(--border-mid)", background: "var(--parchment-2)", padding: "9px 12px", fontSize: 13, color: "var(--ink-1)", outline: "none", fontFamily: "'DM Sans', sans-serif" }}
+                      value={editingClient[field] || ""}
+                      onChange={e => setEditingClient({ ...editingClient, [field]: e.target.value })}
+                    />
+                  )}
+                </div>
+              ))}
+              <div>
+                <label style={{ display: "block", fontSize: 10, color: "var(--ink-4)", marginBottom: 5, textTransform: "uppercase", letterSpacing: "0.07em", fontWeight: 600 }}>Frequency</label>
+                <select
+                  style={{ width: "100%", borderRadius: 9, border: "1px solid var(--border-mid)", background: "var(--parchment-2)", padding: "9px 12px", fontSize: 13, color: "var(--ink-1)", outline: "none", fontFamily: "'DM Sans', sans-serif" }}
+                  value={editingClient.payment_frequency || "daily"}
+                  onChange={e => setEditingClient({ ...editingClient, payment_frequency: e.target.value })}>
+                  <option value="daily">Daily</option>
+                  <option value="weekly">Weekly</option>
+                </select>
+              </div>
+              {editingClient.payment_frequency === "weekly" && (
+                <div>
+                  <label style={{ display: "block", fontSize: 10, color: "var(--ink-4)", marginBottom: 5, textTransform: "uppercase", letterSpacing: "0.07em", fontWeight: 600 }}>Payment day</label>
+                  <select
+                    style={{ width: "100%", borderRadius: 9, border: "1px solid var(--border-mid)", background: "var(--parchment-2)", padding: "9px 12px", fontSize: 13, color: "var(--ink-1)", outline: "none", fontFamily: "'DM Sans', sans-serif" }}
+                    value={editingClient.payment_day || ""}
+                    onChange={e => setEditingClient({ ...editingClient, payment_day: e.target.value })}>
+                    <option value="">Select day</option>
+                    {DAYS.map(d => <option key={d} value={d}>{d.charAt(0).toUpperCase() + d.slice(1)}</option>)}
+                  </select>
+                </div>
+              )}
+            </div>
+            {/* Pause note */}
+            {(editingClient.status === "Paused" || editingClient.pause_start) && (
+              <div style={{ marginTop: 12, padding: "12px 14px", background: "rgba(196,140,40,0.08)", border: "1px solid rgba(196,140,40,0.2)", borderRadius: 10 }}>
+                <p style={{ fontSize: 11, color: "#a07010", fontWeight: 600, fontFamily: "'DM Sans', sans-serif", marginBottom: 4 }}>
+                  ⏸ Pause period set: {editingClient.pause_start || "—"} → {editingClient.pause_end || "—"}
+                </p>
+                <p style={{ fontSize: 11, color: "var(--ink-4)", fontFamily: "'DM Sans', sans-serif" }}>
+                  Client will see a paused status. ACH will not be collected during this period.
+                </p>
+              </div>
+            )}
+            <div style={{ marginTop: 16, display: "flex", gap: 10 }}>
+              <button
+                onClick={() => { updateClient(editingClient); setEditingClient(null); }}
+                style={{ background: "var(--ink-1)", color: "var(--gold-muted)", border: "1px solid rgba(196,154,90,0.2)", padding: "10px 20px", borderRadius: 9, fontSize: 13, fontWeight: 500, cursor: "pointer" }}>
+                Save changes
+              </button>
+              <button
+                onClick={() => setEditingClient(null)}
+                style={{ background: "transparent", color: "var(--ink-3)", border: "1px solid var(--border-mid)", padding: "10px 20px", borderRadius: 9, fontSize: 13, fontWeight: 500, cursor: "pointer" }}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* ── Attention panel ── */}
         {filterAttention && attentionClients.length > 0 && (
           <div style={{ background: "var(--sienna-surface)", border: "1px solid var(--sienna-border)", borderRadius: 16, padding: 22, marginBottom: 20 }}>
@@ -416,7 +415,10 @@ export default function AdminDashboard({
           </div>
         )}
 
-        {/* ── Monthly default risk panel ── */}
+        {/* ── Monthly default risk panel (full interactive component) ── */}
+        {/* ── Morning Dashboard ── */}
+        <MorningDashboard clients={clients} />
+
         <MonthlyRiskPanel clients={clients} />
 
         {/* ── Client roster ── */}
@@ -469,58 +471,55 @@ export default function AdminDashboard({
                   ? `Weekly${client.payment_day ? ` · ${client.payment_day.charAt(0).toUpperCase() + client.payment_day.slice(1)}` : ""}`
                   : "Daily";
                 return (
-                  <>
-                    <tr key={client.id}
-                      style={{ borderBottom: "1px solid var(--border)", cursor: "pointer", transition: "background 0.1s" }}
-                      onClick={() => { setMenuClient(null); openClient(client); }}
-                      onMouseEnter={e => (e.currentTarget.style.background = "var(--surface-2)")}
-                      onMouseLeave={e => (e.currentTarget.style.background = editingClient?.id === client.id ? "var(--parchment-2)" : "transparent")}>
-                      <td style={{ padding: "17px 26px" }}>
-                        <div style={{ fontSize: 13, fontWeight: 500, color: "var(--ink-1)", letterSpacing: "-0.01em" }}>{client.business_name}</div>
-                        <div style={{ fontSize: 11, color: "var(--ink-4)", marginTop: 2 }}>{client.owner_name}</div>
-                      </td>
-                      <td style={{ padding: "17px 26px" }}>
-                        <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: "var(--ink-4)" }}>{client.invoice}</span>
-                      </td>
-                      <td style={{ padding: "17px 26px" }}>
-                        <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: "var(--ink-4)" }}>{formatDate(client.funded_date)}</span>
-                      </td>
-                      <td style={{ padding: "17px 26px" }}>
-                        <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 13, color: "var(--ink-2)", fontWeight: 500 }}>{money(Number(client.balance || 0))}</span>
-                      </td>
-                      <td style={{ padding: "17px 26px" }}>
-                        <span style={{ fontSize: 12, color: "var(--ink-4)" }}>{sched}</span>
-                      </td>
-                      <td style={{ padding: "17px 26px" }}>
-                        <StandingBadge status={client.status} />
-                      </td>
-                      <td style={{ padding: "17px 26px", textAlign: "right" }} onClick={e => e.stopPropagation()}>
-                        <div style={{ position: "relative", display: "inline-block" }}>
-                          <div
-                            style={{ width: 30, height: 30, borderRadius: 8, border: "1px solid var(--border-mid)", background: menuClient?.id === client.id ? "var(--gold-surface)" : "transparent", color: menuClient?.id === client.id ? "var(--gold)" : "var(--ink-4)", display: "inline-flex", alignItems: "center", justifyContent: "center", cursor: "pointer", fontSize: 15, fontWeight: 700, letterSpacing: "0.05em", transition: "all 0.15s" }}
-                            onClick={e => { e.stopPropagation(); setMenuClient(menuClient?.id === client.id ? null : client); }}>
-                            ···
-                          </div>
-                          {menuClient?.id === client.id && (
-                            <div style={{ position: "absolute", right: 0, top: 36, zIndex: 50, background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 10, boxShadow: "0 8px 24px rgba(30,16,4,0.14)", minWidth: 140, overflow: "hidden" }}>
-                              <button
-                                onClick={e => { e.stopPropagation(); setEditingClient(editingClient?.id === client.id ? null : { ...client }); setMenuClient(null); }}
-                                style={{ width: "100%", textAlign: "left", padding: "11px 16px", fontSize: 13, color: "var(--ink-2)", background: "none", border: "none", cursor: "pointer", fontFamily: "'DM Sans', sans-serif", display: "flex", alignItems: "center", gap: 8 }}>
-                                ✏️ Edit client
-                              </button>
-                              <div style={{ height: 1, background: "var(--border)", margin: "0 12px" }} />
-                              <button
-                                onClick={e => { e.stopPropagation(); setMenuClient(null); deleteClient(client); }}
-                                style={{ width: "100%", textAlign: "left", padding: "11px 16px", fontSize: 13, color: "#C83C1E", background: "none", border: "none", cursor: "pointer", fontFamily: "'DM Sans', sans-serif", display: "flex", alignItems: "center", gap: 8 }}>
-                                🗑️ Delete client
-                              </button>
-                            </div>
-                          )}
+                  <tr key={client.id}
+                    style={{ borderBottom: "1px solid var(--border)", cursor: "pointer", transition: "background 0.1s" }}
+                    onClick={() => { setMenuClient(null); openClient(client); }}
+                    onMouseEnter={e => (e.currentTarget.style.background = "var(--surface-2)")}
+                    onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
+                    <td style={{ padding: "17px 26px" }}>
+                      <div style={{ fontSize: 13, fontWeight: 500, color: "var(--ink-1)", letterSpacing: "-0.01em" }}>{client.business_name}</div>
+                      <div style={{ fontSize: 11, color: "var(--ink-4)", marginTop: 2 }}>{client.owner_name}</div>
+                    </td>
+                    <td style={{ padding: "17px 26px" }}>
+                      <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: "var(--ink-4)" }}>{client.invoice}</span>
+                    </td>
+                    <td style={{ padding: "17px 26px" }}>
+                      <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: "var(--ink-4)" }}>{formatDate(client.funded_date)}</span>
+                    </td>
+                    <td style={{ padding: "17px 26px" }}>
+                      <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 13, color: "var(--ink-2)", fontWeight: 500 }}>{money(Number(client.balance || 0))}</span>
+                    </td>
+                    <td style={{ padding: "17px 26px" }}>
+                      <span style={{ fontSize: 12, color: "var(--ink-4)" }}>{sched}</span>
+                    </td>
+                    <td style={{ padding: "17px 26px" }}>
+                      <StandingBadge status={client.status} />
+                    </td>
+                    <td style={{ padding: "17px 26px", textAlign: "right" }} onClick={e => e.stopPropagation()}>
+                      <div style={{ position: "relative", display: "inline-block" }}>
+                        <div
+                          style={{ width: 30, height: 30, borderRadius: 8, border: "1px solid var(--border-mid)", background: menuClient?.id === client.id ? "var(--gold-surface)" : "transparent", color: menuClient?.id === client.id ? "var(--gold)" : "var(--ink-4)", display: "inline-flex", alignItems: "center", justifyContent: "center", cursor: "pointer", fontSize: 15, fontWeight: 700, letterSpacing: "0.05em", transition: "all 0.15s" }}
+                          onClick={e => { e.stopPropagation(); setMenuClient(menuClient?.id === client.id ? null : client); }}>
+                          ···
                         </div>
-                      </td>
-                    </tr>
-                    {renderEditPanel(client)}
-                  </>
+                        {menuClient?.id === client.id && (
+                          <div style={{ position: "absolute", right: 0, top: 36, zIndex: 50, background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 10, boxShadow: "0 8px 24px rgba(30,16,4,0.14)", minWidth: 140, overflow: "hidden" }}>
+                            <button
+                              onClick={e => { e.stopPropagation(); setEditingClient({ ...client }); setMenuClient(null); }}
+                              style={{ width: "100%", textAlign: "left", padding: "11px 16px", fontSize: 13, color: "var(--ink-2)", background: "none", border: "none", cursor: "pointer", fontFamily: "'DM Sans', sans-serif", display: "flex", alignItems: "center", gap: 8 }}>
+                              ✏️ Edit client
+                            </button>
+                            <div style={{ height: 1, background: "var(--border)", margin: "0 12px" }} />
+                            <button
+                              onClick={e => { e.stopPropagation(); setMenuClient(null); deleteClient(client); }}
+                              style={{ width: "100%", textAlign: "left", padding: "11px 16px", fontSize: 13, color: "#C83C1E", background: "none", border: "none", cursor: "pointer", fontFamily: "'DM Sans', sans-serif", display: "flex", alignItems: "center", gap: 8 }}>
+                              🗑️ Delete client
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
                 );
               })}
               {displayedClients.length === 0 && (
