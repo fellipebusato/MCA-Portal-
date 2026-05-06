@@ -369,12 +369,12 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
           <div style={{ textAlign: "right" }}>
             {isAdminView && selectedClient.client_email && (
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end", marginBottom: 8 }}>
-                <a href={`mailto:${selectedClient.client_email}?subject=${encodeURIComponent("Your MCA Account — Action Required")}`}
+                <a href={`mailto:${selectedClient.client_email}?subject=${encodeURIComponent("Your MCA Account — Action Required")}&body=${encodeURIComponent(`Dear ${selectedClient.owner_name},\n\nI am reaching out regarding your account ${selectedClient.invoice}. Please contact me at your earliest convenience to discuss your account status.\n\n— Fellipe Busato\nfbusato@cfgms.com\n+1 (917) 920-0881`)}`}
                   style={{ fontSize: 14, color: "var(--ink-3)", border: "1px solid var(--border-mid)", borderRadius: 7, padding: "5px 12px", textDecoration: "none", fontFamily: "'DM Sans', sans-serif" }}>
                   Send notice
                 </a>
                 {hasMissedPayments && (
-                  <a href={`mailto:${selectedClient.client_email}?subject=${encodeURIComponent("Missed Payment Notice — " + selectedClient.invoice)}`}
+                  <a href={`mailto:${selectedClient.client_email}?subject=${encodeURIComponent("Missed Payment Notice — " + selectedClient.invoice + " — " + selectedClient.business_name)}&body=${encodeURIComponent(`Dear ${selectedClient.owner_name},\n\nI noticed a recent payment on your account ${selectedClient.invoice} was missed or returned. To keep your account in good standing and avoid further action, please make up this payment as soon as possible via Zelle (invoices@cfgms.com) or online at ${encodeURIComponent("https://cfgms.com/pay")}.\n\n— Fellipe Busato`)}`}
                     style={{ fontSize: 14, color: "var(--sienna)", border: "1px solid var(--sienna-border)", background: "var(--sienna-surface)", borderRadius: 7, padding: "5px 12px", textDecoration: "none", fontFamily: "'DM Sans', sans-serif" }}>
                     Missed payment notice
                   </a>
