@@ -250,6 +250,28 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
     }
   }
 
+  // Est. completion based on current balance / payment amount (not original term)
+  const balance = Number(selectedClient.balance || 0);
+  const paymentAmount = Number(selectedClient.payment || 0);
+  let estCompletionDate: Date | null = null;
+  if (balance > 0 && paymentAmount > 0) {
+    const paymentsLeft = Math.ceil(balance / paymentAmount);
+    if (isWeeklyClient && paymentDayName) {
+      const targetDow = DAY_NAME_TO_NUM[paymentDayName.toLowerCase()] ?? 5;
+      const cursor = new Date(today);
+      cursor.setDate(cursor.getDate() + 1);
+      while (cursor.getDay() !== targetDow) cursor.setDate(cursor.getDate() + 1);
+      let count = 0;
+      while (count < paymentsLeft - 1) {
+        cursor.setDate(cursor.getDate() + 7);
+        count++;
+      }
+      estCompletionDate = new Date(cursor);
+    } else {
+      estCompletionDate = addBusinessDays(today, paymentsLeft);
+    }
+  }
+
   const paymentDays = buildPaymentDays(payments);
   const missedDays = buildMissedDays(payments);
 
@@ -358,7 +380,9 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
             <div style={{ display: "flex", justifyContent: "space-between", marginTop: 8 }}>
               <p style={{ fontSize: 14, color: "var(--ink-4)", fontWeight: 600, fontFamily: "'DM Sans', sans-serif" }}>{money(totalPaid)} paid</p>
               <p style={{ fontSize: 14, color: "var(--ink-4)", fontWeight: 600, fontFamily: "'DM Sans', sans-serif" }}>
-                {termEndDate
+                {estCompletionDate
+                  ? `Est. completion: ${formatDate(estCompletionDate.toISOString().split("T")[0])}`
+                  : termEndDate
                   ? `Est. completion: ${formatDate(termEndDate.toISOString().split("T")[0])}`
                   : `${money(Number(selectedClient.balance || 0))} remaining`}
               </p>
@@ -424,7 +448,7 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
               <p style={{ fontSize: 14, fontWeight: 700, color: "var(--ink-1)", fontFamily: "'DM Sans', sans-serif", marginBottom: 4, textAlign: "center" }}>Payment Calendar</p>
               <p style={{ fontSize: 12, color: "var(--ink-4)", fontWeight: 600, fontFamily: "'DM Sans', sans-serif", marginBottom: 10, textAlign: "center", lineHeight: 1.4 }}>
                 {totalTerm} {isWeeklyClient ? "Weekly" : "Business Days"} Term
-                {termEndDate && ` · Ends ${formatDate(termEndDate.toISOString().split("T")[0])}`}
+                {(estCompletionDate || termEndDate) && ` · Ends ${formatDate((estCompletionDate || termEndDate)!.toISOString().split("T")[0])}`}
               </p>
               <MiniCalendar
                 year={calYear} month={calMonth}
