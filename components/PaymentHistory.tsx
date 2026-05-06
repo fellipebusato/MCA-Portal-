@@ -254,14 +254,14 @@ export default function PaymentHistory({ payments, client, isAdminView, onPaymen
     <div className="rounded-xl bg-white border border-gray-100 overflow-hidden">
       <div className="px-4 md:px-5 py-4 border-b border-gray-100 flex items-center justify-between gap-3">
         <div>
-          <h3 className="text-sm font-semibold text-gray-900">Payment history</h3>
+          <h3 className="text-sm font-semibold text-gray-900">Payment History</h3>
           <p className="text-xs text-gray-400 mt-0.5">{payments.length} transaction{payments.length !== 1 ? "s" : ""}</p>
         </div>
         <div className="flex items-center gap-3">
           {hasPending && (
             <span className="flex items-center gap-1.5 text-xs text-blue-500 font-medium">
               <span className="w-1.5 h-1.5 rounded-full bg-blue-400 inline-block" />
-              Some payments pending settlement
+              Pending payments
             </span>
           )}
           {isAdminView && client && (
@@ -288,7 +288,7 @@ export default function PaymentHistory({ payments, client, isAdminView, onPaymen
       {hasPending && (
         <div className="px-4 md:px-5 py-3 border-b border-gray-50">
           <p className="text-xs text-blue-600">
-            Payments clear ACH Works immediately but take <span className="font-semibold">4 business days</span> to settle and apply to your balance. Pending payments are shown but do not yet affect your balance.
+            Payments done via ACH takes <span className="font-semibold">4 business days</span> to settle and apply to your balance. Pending payments are shown but do not yet affect your balance.
           </p>
         </div>
       )}
@@ -382,7 +382,7 @@ export default function PaymentHistory({ payments, client, isAdminView, onPaymen
             {payments.length === 0 && (
               <tr>
                 <td colSpan={isAdminView ? 8 : 7} className="px-5 py-8 text-center text-sm text-gray-400">
-                  No payment history yet.
+                  No  yet.
                 </td>
               </tr>
             )}
