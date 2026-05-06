@@ -191,7 +191,7 @@ function MiniCalendar({ year, month, termDays, paymentDays, missedDays, holidayM
         ].map(({ bg, border, label }) => (
           <div key={label} style={{ display: "flex", alignItems: "center", gap: 4 }}>
             <div style={{ width: 8, height: 8, borderRadius: 2, background: bg, border, flexShrink: 0 }} />
-            <span style={{ fontSize: 11, color: "var(--ink-3)", fontWeight: 600, fontFamily: "'DM Sans', sans-serif" }}>{label}</span>
+            <span style={{ fontSize: 10, color: "var(--ink-3)", fontWeight: 600, fontFamily: "'DM Sans', sans-serif" }}>{label}</span>
           </div>
         ))}
       </div>
