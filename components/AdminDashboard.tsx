@@ -490,7 +490,7 @@ export default function AdminDashboard({
                         {menuClient?.id === client.id && (
                           <div style={{ position: "absolute", right: 0, top: 36, zIndex: 50, background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 10, boxShadow: "0 8px 24px rgba(30,16,4,0.14)", minWidth: 140, overflow: "hidden" }}>
                             <button
-                              onClick={e => { e.stopPropagation(); setEditingClient({ ...client }); setMenuClient(null); }}
+                              onClick={e => { e.stopPropagation(); setEditingClient({ ...client }); setMenuClient(null); setTimeout(() => editPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 50); }}
                               style={{ width: "100%", textAlign: "left", padding: "11px 16px", fontSize: 13, color: "var(--ink-2)", background: "none", border: "none", cursor: "pointer", fontFamily: "'DM Sans', sans-serif", display: "flex", alignItems: "center", gap: 8 }}>
                               ✏️ Edit client
                             </button>
