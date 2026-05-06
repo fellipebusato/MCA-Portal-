@@ -186,11 +186,11 @@ function MiniCalendar({ year, month, termDays, paymentDays, missedDays, holidayM
           { bg: "var(--sage-surface)", border: "1px solid var(--sage-border)", label: "Received" },
           { bg: "var(--sienna-surface)", border: "1px solid var(--sienna-border)", label: "Missed" },
           { bg: "rgba(160,120,64,0.12)", border: "1px solid var(--gold-border)", label: "Holiday" },
-          { bg: "rgba(180,130,60,0.10)", border: "1px solid var(--gold-border)", label: "Moved to Mon" },
+          { bg: "rgba(180,130,60,0.10)", border: "1px solid var(--gold-border)", label: "Moved to Monday" },
         ].map(({ bg, border, label }) => (
           <div key={label} style={{ display: "flex", alignItems: "center", gap: 4 }}>
             <div style={{ width: 8, height: 8, borderRadius: 2, background: bg, border, flexShrink: 0 }} />
-            <span style={{ fontSize: 15, color: "var(--ink-4)", fontFamily: "'DM Sans', sans-serif" }}>{label}</span>
+            <span style={{ fontSize: 15, color: "var(--ink-4)", fontWeight: 600, fontFamily: "'DM Sans', sans-serif" }}>{label}</span>
           </div>
         ))}
       </div>
@@ -289,7 +289,7 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
             <h1 style={{ fontSize: 22, fontWeight: 500, color: "var(--ink-1)", fontFamily: "'Cormorant Garamond', serif", letterSpacing: "-0.02em", marginBottom: 4 }}>
               {selectedClient.business_name}
             </h1>
-            <p style={{ fontSize: 15, color: "var(--ink-4)", fontFamily: "'DM Sans', sans-serif" }}>
+            <p style={{ fontSize: 15, color: "var(--ink-4)", fontWeight: 600, fontFamily: "'DM Sans', sans-serif" }}>
               {selectedClient.invoice} · Funded {formatDate(selectedClient.funded_date)}
             </p>
           </div>
@@ -308,7 +308,7 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
                 )}
               </div>
             )}
-            <p style={{ fontSize: 14, color: "var(--ink-4)", fontFamily: "'DM Sans', sans-serif", marginBottom: 2 }}>Need help? Contact Fellipe:</p>
+            <p style={{ fontSize: 14, color: "var(--ink-4)", fontWeight: 600, fontFamily: "'DM Sans', sans-serif", marginBottom: 2 }}>Need help? Contact Fellipe:</p>
             <p style={{ fontSize: 15, fontWeight: 500, color: "var(--ink-2)", fontFamily: "'DM Sans', sans-serif" }}>{CONTACT.email}</p>
             <p style={{ fontSize: 15, color: "var(--ink-3)", fontFamily: "'DM Sans', sans-serif" }}>{CONTACT.phone}</p>
           </div>
@@ -332,7 +332,7 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
               <div key={label} style={{ ...card, padding: "16px 18px" }}>
                 <p style={{ fontSize: 15, color: "var(--ink-4)", textTransform: "uppercase", letterSpacing: "0.08em", fontFamily: "'DM Sans', sans-serif", marginBottom: 4 }}>{label}</p>
                 <p style={{ fontSize: 28, fontWeight: 500, color: "var(--ink-1)", fontFamily: "'Cormorant Garamond', serif" }}>{value}</p>
-                {sub && <p style={{ fontSize: 14, color: "var(--sky)", fontFamily: "'DM Sans', sans-serif", marginTop: 4 }}>{sub}</p>}
+                {sub && <p style={{ fontSize: 14, color: "var(--sky)", fontWeight: 600, fontFamily: "'DM Sans', sans-serif", marginTop: 4 }}>{sub}</p>}
               </div>
             ))}
           </div>
@@ -340,7 +340,7 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
           {/* Pending bar */}
           {pendingCount > 0 && (
             <div style={{ background: "var(--sky-surface)", border: "1px solid var(--sky-border)", borderRadius: 10, padding: "10px 16px" }}>
-              <p style={{ fontSize: 15, color: "var(--sky)", fontFamily: "'DM Sans', sans-serif" }}>
+              <p style={{ fontSize: 15, color: "var(--sky)", fontWeight: 600, fontFamily: "'DM Sans', sans-serif" }}>
                 <strong>{pendingCount} payment{pendingCount > 1 ? "s" : ""} totaling {money(pendingTotal)}</strong> are processing and will apply to your balance within 4 business days.
               </p>
             </div>
@@ -356,8 +356,8 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
               <div style={{ height: 6, borderRadius: 99, background: "var(--sage)", width: `${safePercent}%`, transition: "width 0.5s ease" }} />
             </div>
             <div style={{ display: "flex", justifyContent: "space-between", marginTop: 8 }}>
-              <p style={{ fontSize: 14, color: "var(--ink-4)", fontFamily: "'DM Sans', sans-serif" }}>{money(totalPaid)} paid</p>
-              <p style={{ fontSize: 14, color: "var(--ink-4)", fontFamily: "'DM Sans', sans-serif" }}>
+              <p style={{ fontSize: 14, color: "var(--ink-4)", fontWeight: 600, fontFamily: "'DM Sans', sans-serif" }}>{money(totalPaid)} paid</p>
+              <p style={{ fontSize: 14, color: "var(--ink-4)", fontWeight: 600, fontFamily: "'DM Sans', sans-serif" }}>
                 {termEndDate
                   ? `Est. completion: ${formatDate(termEndDate.toISOString().split("T")[0])}`
                   : `${money(Number(selectedClient.balance || 0))} remaining`}
@@ -403,15 +403,15 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
           {!badStanding && (
             <div style={{ ...card }}>
               <p style={{ fontSize: 15, fontWeight: 500, color: "var(--ink-1)", fontFamily: "'DM Sans', sans-serif", marginBottom: 4 }}>Make a payment</p>
-              <p style={{ fontSize: 14, color: "var(--ink-4)", fontFamily: "'DM Sans', sans-serif", marginBottom: 14 }}>Every extra payment reduces your balance dollar for dollar.</p>
+              <p style={{ fontSize: 14, color: "var(--ink-4)", fontWeight: 600, fontFamily: "'DM Sans', sans-serif", marginBottom: 14 }}>Every extra payment reduces your balance dollar for dollar.</p>
               <a href={PAYMENT_LINK} target="_blank" rel="noopener noreferrer"
                 style={{ display: "block", textAlign: "center", fontSize: 15, fontWeight: 500, color: "var(--gold-muted)", background: "var(--ink-1)", borderRadius: 9, padding: "10px 20px", textDecoration: "none", fontFamily: "'DM Sans', sans-serif", marginBottom: 10 }}>
                 Pay online →
               </a>
-              <p style={{ fontSize: 14, color: "var(--ink-4)", fontFamily: "'DM Sans', sans-serif", marginBottom: 8 }}>⚠️ Online payments carry a 3.5% fee.</p>
+              <p style={{ fontSize: 14, color: "var(--ink-4)", fontWeight: 600, fontFamily: "'DM Sans', sans-serif", marginBottom: 8 }}>⚠️ Online payments carry a 3.5% fee.</p>
               <div style={{ background: "var(--parchment-2)", border: "1px solid var(--border)", borderRadius: 8, padding: "10px 14px" }}>
                 <p style={{ fontSize: 15, fontWeight: 500, color: "var(--ink-2)", fontFamily: "'DM Sans', sans-serif" }}>Zelle: invoices@cfgms.com</p>
-                <p style={{ fontSize: 14, color: "var(--ink-4)", fontFamily: "'DM Sans', sans-serif", marginTop: 2 }}>Include your invoice # or business name — no fee</p>
+                <p style={{ fontSize: 14, color: "var(--ink-4)", fontWeight: 600, fontFamily: "'DM Sans', sans-serif", marginTop: 2 }}>Include your invoice # or business name — no fee</p>
               </div>
             </div>
           )}
@@ -421,10 +421,10 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
         {fundedDate && (
           <div style={{ flexShrink: 0, width: 196, position: "sticky", top: 80 }}>
             <div style={{ ...card, padding: "16px 18px" }}>
-              <p style={{ fontSize: 14, fontWeight: 600, color: "var(--ink-2)", fontFamily: "'DM Sans', sans-serif", marginBottom: 2 }}>Payment calendar</p>
-              <p style={{ fontSize: 15, color: "var(--ink-4)", fontFamily: "'DM Sans', sans-serif", marginBottom: 10 }}>
-                {totalTerm} {isWeeklyClient ? "weekly" : "business day"} term
-                {termEndDate && ` · ends ${formatDate(termEndDate.toISOString().split("T")[0])}`}
+              <p style={{ fontSize: 13, fontWeight: 500, color: "var(--ink-1)", fontFamily: "'DM Sans', sans-serif", marginBottom: 4, textAlign: "center" }}>Payment Calendar</p>
+              <p style={{ fontSize: 15, color: "var(--ink-4)", fontWeight: 600, fontFamily: "'DM Sans', sans-serif", marginBottom: 10 }}>
+                {totalTerm} {isWeeklyClient ? "weekly" : "Business Day"} Term
+                {termEndDate && ` · Ends ${formatDate(termEndDate.toISOString().split("T")[0])}`}
               </p>
               <MiniCalendar
                 year={calYear} month={calMonth}
