@@ -59,7 +59,6 @@ function parseReturnEmail(text: string): ReturnRow[] {
     if (invIdx === -1) continue;
 
     const rawInv = cols[invIdx].replace(/invoice\s*#/gi, "").trim();
-
     const amountRaw = cols[cols.length - 1].replace(/[,$]/g, "").trim();
     const amount = parseFloat(amountRaw);
     if (isNaN(amount)) continue;
@@ -68,25 +67,15 @@ function parseReturnEmail(text: string): ReturnRow[] {
     if (codeIdx === -1) continue;
 
     const returnCode = cols[codeIdx];
-
     const dateCols = cols.filter(c => /^\d{1,2}\/\d{1,2}\/\d{4}$/.test(c));
     if (dateCols.length < 2) continue;
 
     const returnDate = parseReturnDate(dateCols[0]);
     const settleDate = parseReturnDate(dateCols[1]);
-
     const merchant = cols.slice(0, invIdx).join(" ").trim();
     const processor = cols[invIdx + 1] || "ACHWorks";
 
-    results.push({
-      merchant,
-      invoice: rawInv,
-      processor,
-      returnDate,
-      settleDate,
-      returnCode,
-      returnAmount: amount,
-    });
+    results.push({ merchant, invoice: rawInv, processor, returnDate, settleDate, returnCode, returnAmount: amount });
   }
 
   return results;
@@ -108,23 +97,19 @@ export default function ReturnsImport({
   function handleParse() {
     if (!pasteText.trim()) return;
     const rows = parseReturnEmail(pasteText);
-
     const matched: MatchedReturn[] = rows.map(row => {
       const client = clients.find(c =>
         c.invoice.trim().toLowerCase() === row.invoice.trim().toLowerCase()
       ) || null;
       return { ...row, client, status: client ? "matched" : "not_found" };
     });
-
     setParsed(matched);
     setStep("review");
   }
 
   async function handleImport() {
     setProcessing(true);
-    let imported = 0;
-    let skipped = 0;
-    let notFound = 0;
+    let imported = 0, skipped = 0, notFound = 0;
 
     for (const row of parsed) {
       if (row.status === "not_found") { notFound++; continue; }
@@ -156,7 +141,7 @@ export default function ReturnsImport({
 
       if (returnError) { console.error("Return insert error:", returnError); continue; }
 
-      // Insert into payments table
+      // Insert into payments table as a return
       await supabase.from("payments").insert({
         invoice: row.invoice,
         payment_date: row.returnDate,
@@ -169,14 +154,13 @@ export default function ReturnsImport({
         running_balance: Number(client.balance),
       });
 
-      // Extend total_term — balance unchanged
+      // ✅ FEATURE 1: Extend total_term on return
       const termExtension = client.payment_frequency === "weekly" ? 5 : 1;
       const newTotalTerm = Number(client.total_term) + termExtension;
       const newTotalReturns = Number(client.total_returns || 0) + 1;
-
       const needsAttention = client.payment_frequency === "weekly"
         ? newTotalReturns >= 1
-        : newTotalReturns >= 5;
+        : newTotalReturns >= 2;
 
       await supabase.from("clients").update({
         total_term: newTotalTerm,
@@ -185,7 +169,7 @@ export default function ReturnsImport({
         status: needsAttention ? "Needs Attention" : client.status,
       }).eq("id", client.id);
 
-      // Log to activity log
+      // Log to activity
       await logActivity(
         row.invoice,
         "return",
@@ -203,47 +187,51 @@ export default function ReturnsImport({
   }
 
   function reset() {
-    setPasteText("");
-    setParsed([]);
-    setStep("paste");
+    setPasteText(""); setParsed([]); setStep("paste");
     setResult({ imported: 0, skipped: 0, notFound: 0 });
   }
+
+  const card: React.CSSProperties = {
+    background: "var(--surface)",
+    border: "1px solid var(--border)",
+    borderRadius: 16,
+    overflow: "hidden",
+    boxShadow: "0 1px 4px rgba(30,16,4,0.06)",
+  };
 
   // ── Step: Paste ──────────────────────────────────────────
   if (step === "paste") {
     return (
-      <div className="rounded-xl bg-white border border-gray-100 p-5">
-        <div className="flex items-center gap-3 mb-4">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-red-50 flex-shrink-0">
+      <div style={{ ...card, padding: 24 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
+          <div style={{ width: 36, height: 36, borderRadius: 10, background: "var(--sienna-surface)", border: "1px solid var(--sienna-border)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <path d="M8 3v5M8 10v.5" stroke="#dc2626" strokeWidth="1.8" strokeLinecap="round"/>
-              <circle cx="8" cy="8" r="6.5" stroke="#dc2626" strokeWidth="1.2"/>
+              <path d="M8 3v5M8 10v.5" stroke="var(--sienna)" strokeWidth="1.8" strokeLinecap="round"/>
+              <circle cx="8" cy="8" r="6.5" stroke="var(--sienna)" strokeWidth="1.2"/>
             </svg>
           </div>
           <div>
-            <p className="text-sm font-semibold text-gray-900">Import returned payments</p>
-            <p className="text-xs text-gray-400 mt-0.5">
-              Copy the table from your daily CFG returns email and paste it below
-            </p>
+            <p style={{ fontSize: 14, fontWeight: 600, color: "var(--ink-1)", fontFamily: "'DM Sans', sans-serif" }}>Import returned payments</p>
+            <p style={{ fontSize: 12, color: "var(--ink-4)", marginTop: 2, fontFamily: "'DM Sans', sans-serif" }}>Copy the table from your daily CFG returns email and paste it below</p>
           </div>
         </div>
 
         <textarea
-          className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-xs text-gray-700 font-mono focus:outline-none focus:border-gray-400 transition-colors resize-none"
+          style={{ width: "100%", borderRadius: 10, border: "1px solid var(--border-mid)", background: "var(--parchment-2)", padding: "12px 14px", fontSize: 12, color: "var(--ink-1)", fontFamily: "monospace", outline: "none", resize: "vertical", boxSizing: "border-box" }}
           rows={8}
           placeholder={`Paste the returns email table here. Example:\n\nMerchant\tINV#\tProcessor\tReturn Date\tSettle Date\tReturn Code\tReturn Amount\nGYA CONSTRUCTION LLC\tInvoice #INV99918\tACHWorks\t5/1/2026\t5/5/2026\tR01\t269.00`}
           value={pasteText}
           onChange={e => setPasteText(e.target.value)}
         />
 
-        <div className="mt-3 flex items-center gap-3">
+        <div style={{ marginTop: 14, display: "flex", alignItems: "center", gap: 12 }}>
           <button
             onClick={handleParse}
             disabled={!pasteText.trim()}
-            className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+            style={{ background: "var(--ink-1)", color: "var(--gold-muted)", border: "1px solid rgba(196,154,90,0.2)", padding: "10px 20px", borderRadius: 9, fontSize: 13, fontWeight: 500, cursor: "pointer", fontFamily: "'DM Sans', sans-serif", opacity: !pasteText.trim() ? 0.4 : 1 }}>
             Parse returns →
           </button>
-          <p className="text-xs text-gray-400">You will review before anything is saved</p>
+          <p style={{ fontSize: 12, color: "var(--ink-4)", fontFamily: "'DM Sans', sans-serif" }}>You will review before anything is saved</p>
         </div>
       </div>
     );
@@ -251,48 +239,48 @@ export default function ReturnsImport({
 
   // ── Step: Review ─────────────────────────────────────────
   if (step === "review") {
-    const matched = parsed.filter(r => r.status === "matched");
-    const notFound = parsed.filter(r => r.status === "not_found");
+    const matchedRows = parsed.filter(r => r.status === "matched");
+    const notFoundRows = parsed.filter(r => r.status === "not_found");
 
     return (
-      <div className="rounded-xl bg-white border border-gray-100 overflow-hidden">
-        <div className="px-5 py-4 border-b border-gray-100">
-          <p className="text-sm font-semibold text-gray-900">Review before importing</p>
-          <p className="text-xs text-gray-400 mt-0.5">
-            {matched.length} matched · {notFound.length} not found — confirm before saving
+      <div style={{ ...card }}>
+        <div style={{ padding: "20px 24px", borderBottom: "1px solid var(--border)" }}>
+          <p style={{ fontSize: 14, fontWeight: 600, color: "var(--ink-1)", fontFamily: "'DM Sans', sans-serif" }}>Review before importing</p>
+          <p style={{ fontSize: 12, color: "var(--ink-4)", marginTop: 2, fontFamily: "'DM Sans', sans-serif" }}>
+            {matchedRows.length} matched · {notFoundRows.length} not found — confirm before saving
           </p>
         </div>
 
-        {matched.length > 0 && (
-          <div className="px-5 py-4">
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
-              Will be imported ({matched.length})
+        {matchedRows.length > 0 && (
+          <div style={{ padding: "20px 24px" }}>
+            <p style={{ fontSize: 10, fontWeight: 600, color: "var(--ink-4)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 12, fontFamily: "'DM Sans', sans-serif" }}>
+              Will be imported ({matchedRows.length})
             </p>
-            <div className="space-y-2">
-              {matched.map((row, idx) => (
-                <div key={idx} className="rounded-lg border border-gray-100 bg-gray-50 px-4 py-3">
-                  <div className="flex flex-wrap items-center gap-3">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900">{row.client?.business_name || row.merchant}</p>
-                      <p className="text-xs text-gray-400 mt-0.5">{row.invoice}</p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {matchedRows.map((row, idx) => (
+                <div key={idx} style={{ background: "var(--parchment-2)", border: "1px solid var(--border)", borderRadius: 10, padding: "14px 18px" }}>
+                  <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 16 }}>
+                    <div style={{ flex: 1, minWidth: 140 }}>
+                      <p style={{ fontSize: 13, fontWeight: 500, color: "var(--ink-1)", fontFamily: "'DM Sans', sans-serif" }}>{row.client?.business_name || row.merchant}</p>
+                      <p style={{ fontSize: 11, color: "var(--ink-4)", marginTop: 2, fontFamily: "'DM Mono', monospace" }}>{row.invoice}</p>
                     </div>
-                    <div className="text-right">
-                      <p className="text-sm font-semibold text-red-600">{money(row.returnAmount)}</p>
-                      <p className="text-xs text-gray-400">returned</p>
+                    <div style={{ textAlign: "right" }}>
+                      <p style={{ fontSize: 13, fontWeight: 600, color: "var(--sienna)", fontFamily: "'DM Mono', monospace" }}>{money(row.returnAmount)}</p>
+                      <p style={{ fontSize: 11, color: "var(--ink-4)", fontFamily: "'DM Sans', sans-serif" }}>returned</p>
                     </div>
-                    <div className="text-right">
-                      <p className="text-xs font-medium text-gray-700">{row.returnCode}</p>
-                      <p className="text-xs text-gray-400">{RETURN_CODES[row.returnCode] || "Unknown"}</p>
+                    <div style={{ textAlign: "right" }}>
+                      <p style={{ fontSize: 12, fontWeight: 500, color: "var(--ink-2)", fontFamily: "'DM Sans', sans-serif" }}>{row.returnCode}</p>
+                      <p style={{ fontSize: 11, color: "var(--ink-4)", fontFamily: "'DM Sans', sans-serif" }}>{RETURN_CODES[row.returnCode] || "Unknown"}</p>
                     </div>
-                    <div className="text-right">
-                      <p className="text-xs text-gray-500">Return: {row.returnDate}</p>
-                      <p className="text-xs text-gray-400">Settles: {row.settleDate}</p>
+                    <div style={{ textAlign: "right" }}>
+                      <p style={{ fontSize: 11, color: "var(--ink-3)", fontFamily: "'DM Sans', sans-serif" }}>Return: {row.returnDate}</p>
+                      <p style={{ fontSize: 11, color: "var(--ink-4)", fontFamily: "'DM Sans', sans-serif" }}>Settles: {row.settleDate}</p>
                     </div>
-                    <div className="text-right">
-                      <p className="text-xs text-amber-600 font-medium">
+                    <div style={{ textAlign: "right" }}>
+                      <p style={{ fontSize: 11, fontWeight: 500, color: "#c48c28", fontFamily: "'DM Sans', sans-serif" }}>
                         +{row.client?.payment_frequency === "weekly" ? "5" : "1"} day term extension
                       </p>
-                      <p className="text-xs text-gray-400">balance unchanged</p>
+                      <p style={{ fontSize: 11, color: "var(--ink-4)", fontFamily: "'DM Sans', sans-serif" }}>balance unchanged</p>
                     </div>
                   </div>
                 </div>
@@ -301,15 +289,15 @@ export default function ReturnsImport({
           </div>
         )}
 
-        {notFound.length > 0 && (
-          <div className="px-5 py-4 border-t border-gray-50">
-            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
-              Invoice not found — will be skipped ({notFound.length})
+        {notFoundRows.length > 0 && (
+          <div style={{ padding: "16px 24px", borderTop: "1px solid var(--border)" }}>
+            <p style={{ fontSize: 10, fontWeight: 600, color: "var(--ink-4)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10, fontFamily: "'DM Sans', sans-serif" }}>
+              Invoice not found — will be skipped ({notFoundRows.length})
             </p>
-            <div className="space-y-1.5">
-              {notFound.map((row, idx) => (
-                <div key={idx} className="flex items-center gap-3 text-xs text-gray-400">
-                  <span className="font-mono">{row.invoice}</span>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {notFoundRows.map((row, idx) => (
+                <div key={idx} style={{ display: "flex", gap: 12, fontSize: 12, color: "var(--ink-4)", fontFamily: "'DM Mono', monospace" }}>
+                  <span>{row.invoice}</span>
                   <span>{row.merchant}</span>
                   <span>{money(row.returnAmount)}</span>
                 </div>
@@ -318,16 +306,16 @@ export default function ReturnsImport({
           </div>
         )}
 
-        <div className="px-5 py-4 border-t border-gray-100 flex items-center gap-3">
+        <div style={{ padding: "16px 24px", borderTop: "1px solid var(--border)", display: "flex", gap: 10 }}>
           <button
             onClick={handleImport}
-            disabled={processing || matched.length === 0}
-            className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
-            {processing ? "Importing..." : `Import ${matched.length} return${matched.length !== 1 ? "s" : ""}`}
+            disabled={processing || matchedRows.length === 0}
+            style={{ background: "var(--sienna)", color: "white", border: "none", padding: "10px 20px", borderRadius: 9, fontSize: 13, fontWeight: 500, cursor: "pointer", fontFamily: "'DM Sans', sans-serif", opacity: processing || matchedRows.length === 0 ? 0.5 : 1 }}>
+            {processing ? "Importing..." : `Import ${matchedRows.length} return${matchedRows.length !== 1 ? "s" : ""}`}
           </button>
           <button
             onClick={reset}
-            className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors">
+            style={{ background: "transparent", color: "var(--ink-3)", border: "1px solid var(--border-mid)", padding: "10px 20px", borderRadius: 9, fontSize: 13, fontWeight: 500, cursor: "pointer", fontFamily: "'DM Sans', sans-serif" }}>
             ← Start over
           </button>
         </div>
@@ -337,23 +325,23 @@ export default function ReturnsImport({
 
   // ── Step: Done ───────────────────────────────────────────
   return (
-    <div className="rounded-xl bg-white border border-gray-100 p-5">
-      <div className="flex items-center gap-3 mb-4">
-        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-50 flex-shrink-0">
+    <div style={{ ...card, padding: 24 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
+        <div style={{ width: 36, height: 36, borderRadius: 10, background: "var(--sage-surface)", border: "1px solid var(--sage-border)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <path d="M3 8l4 4 6-6" stroke="#059669" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+            <path d="M3 8l4 4 6-6" stroke="var(--sage)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
           </svg>
         </div>
         <div>
-          <p className="text-sm font-semibold text-gray-900">Import complete</p>
-          <p className="text-xs text-gray-400 mt-0.5">
+          <p style={{ fontSize: 14, fontWeight: 600, color: "var(--ink-1)", fontFamily: "'DM Sans', sans-serif" }}>Import complete</p>
+          <p style={{ fontSize: 12, color: "var(--ink-4)", marginTop: 2, fontFamily: "'DM Sans', sans-serif" }}>
             {result.imported} imported · {result.skipped} duplicates skipped · {result.notFound} not found
           </p>
         </div>
       </div>
       <button
         onClick={reset}
-        className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors">
+        style={{ background: "transparent", color: "var(--ink-3)", border: "1px solid var(--border-mid)", padding: "10px 20px", borderRadius: 9, fontSize: 13, fontWeight: 500, cursor: "pointer", fontFamily: "'DM Sans', sans-serif" }}>
         Import another batch
       </button>
     </div>
