@@ -284,7 +284,7 @@ export default function AdminDashboard({
           {[
             { label: "Total clients", value: clients.length.toString(), sub: `${dailyClients} daily · ${weeklyClients} weekly`, color: "var(--ink-1)" },
             { label: "Open balance", value: money(totalBalance), sub: "Across all clients", color: "var(--ink-2)", mono: true },
-            { label: "Needs attention", value: String(attentionClients.length), sub: attentionClients.length > 0 ? "Review now →" : "All accounts current", color: attentionClients.length > 0 ? "var(--sienna)" : "var(--sage)", clickable: true, onClick: () => { setFilterAttention(true); setSearchQuery(""); } },
+            { label: "Needs attention", value: String(attentionClients.length), sub: attentionClients.length > 0 ? "Review now →" : "All accounts current", color: attentionClients.length > 0 ? "var(--sienna)" : "var(--sage)", clickable: true, onClick: () => { setFilterAttention(v => !v); setSearchQuery(""); } },
             { label: "Good standing", value: String(goodClients.length), sub: clients.length > 0 ? `${Math.round((goodClients.length / clients.length) * 100)}% of portfolio` : "—", color: "var(--sage)" },
           ].map((card, i) => (
             <div key={i}
