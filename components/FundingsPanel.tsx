@@ -68,7 +68,6 @@ export default function FundingsPanel({ client, isAdminView, onFundingAdded, onB
         Number(client.payback || 0) + positionsPayback
       );
     }
-
     setLoading(false);
   }
 
@@ -101,7 +100,7 @@ export default function FundingsPanel({ client, isAdminView, onFundingAdded, onB
   }
 
   if (loading) return null;
-  if (fundings.length === 0) return null;
+  if (fundings.length === 0 && !isAdminView) return null;
 
   const totalPayback = fundings.reduce((sum, p) => sum + Number(p.payback), 0);
   const totalBalance = fundings.reduce((sum, p) => sum + Number(p.balance), 0);
@@ -109,115 +108,141 @@ export default function FundingsPanel({ client, isAdminView, onFundingAdded, onB
   const combinedPct = totalPayback > 0 ? Math.round((totalPaid / totalPayback) * 100) : 0;
   const trueCombinedBalance = Number(client.balance || 0) + totalBalance;
 
+  const card: React.CSSProperties = {
+    background: "var(--surface)",
+    border: "1px solid var(--border)",
+    borderRadius: 16,
+    overflow: "hidden",
+    boxShadow: "0 1px 4px rgba(30,16,4,0.06)",
+  };
+
+  const inputStyle: React.CSSProperties = {
+    width: "100%",
+    borderRadius: 8,
+    border: "1px solid var(--border-mid)",
+    background: "var(--surface)",
+    padding: "8px 10px",
+    fontSize: 13,
+    color: "var(--ink-1)",
+    outline: "none",
+    fontFamily: "'DM Sans', sans-serif",
+    boxSizing: "border-box",
+  };
+
   return (
-    <div className="rounded-xl bg-white border border-gray-100 overflow-hidden">
-      <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+    <div style={card}>
+      {/* Header */}
+      <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <div>
-          <p className="text-sm font-semibold text-gray-900">Add-on fundings</p>
-          <p className="text-xs text-gray-400 mt-0.5">
+          <p style={{ fontSize: 15, fontWeight: 600, color: "var(--ink-1)", fontFamily: "'DM Sans', sans-serif" }}>Add-on fundings</p>
+          <p style={{ fontSize: 11, color: "var(--ink-4)", marginTop: 2, fontFamily: "'DM Sans', sans-serif" }}>
             {fundings.length} funding{fundings.length !== 1 ? "s" : ""} · {money(trueCombinedBalance)} combined balance · {combinedPct}% paid overall
           </p>
         </div>
         {isAdminView && (
           <button onClick={() => setShowAdd(v => !v)}
-            className="rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-xs font-medium text-indigo-700 hover:bg-indigo-100 transition-colors">
+            style={{ borderRadius: 8, border: "1px solid rgba(99,102,241,0.3)", background: "rgba(99,102,241,0.08)", padding: "6px 14px", fontSize: 12, fontWeight: 500, color: "#6366f1", cursor: "pointer", fontFamily: "'DM Sans', sans-serif" }}>
             + Add funding
           </button>
         )}
       </div>
 
+      {/* Add form */}
       {showAdd && isAdminView && (
-        <div className="px-5 py-4 bg-indigo-50 border-b border-indigo-100">
-          <p className="text-xs font-semibold text-indigo-800 mb-3">New add-on funding</p>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div style={{ padding: "16px 20px", background: "rgba(99,102,241,0.04)", borderBottom: "1px solid rgba(99,102,241,0.12)" }}>
+          <p style={{ fontSize: 12, fontWeight: 600, color: "#6366f1", marginBottom: 12, fontFamily: "'DM Sans', sans-serif" }}>New add-on funding</p>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
             <div>
-              <label className="block text-xs text-indigo-700 mb-1">Invoice #</label>
-              <input type="text" placeholder="INV100133"
-                className="w-full rounded-lg border border-indigo-200 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:border-indigo-400 uppercase placeholder:normal-case placeholder:text-gray-300"
+              <label style={{ display: "block", fontSize: 10, color: "#6366f1", marginBottom: 4, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.07em", fontFamily: "'DM Sans', sans-serif" }}>Invoice #</label>
+              <input type="text" placeholder="INV100133" style={inputStyle}
                 value={newInvoice} onChange={e => setNewInvoice(e.target.value.toUpperCase())} />
             </div>
             <div>
-              <label className="block text-xs text-indigo-700 mb-1">Payback amount ($)</label>
-              <input type="number" placeholder="11272"
-                className="w-full rounded-lg border border-indigo-200 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:border-indigo-400"
+              <label style={{ display: "block", fontSize: 10, color: "#6366f1", marginBottom: 4, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.07em", fontFamily: "'DM Sans', sans-serif" }}>Payback amount ($)</label>
+              <input type="number" placeholder="11272" style={inputStyle}
                 value={newPayback} onChange={e => setNewPayback(e.target.value)} />
             </div>
             <div>
-              <label className="block text-xs text-indigo-700 mb-1">Funded date</label>
-              <input type="date"
-                className="w-full rounded-lg border border-indigo-200 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:border-indigo-400"
+              <label style={{ display: "block", fontSize: 10, color: "#6366f1", marginBottom: 4, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.07em", fontFamily: "'DM Sans', sans-serif" }}>Funded date</label>
+              <input type="date" style={inputStyle}
                 value={newFundedDate} onChange={e => setNewFundedDate(e.target.value)} />
             </div>
           </div>
-          <div className="mt-3 flex gap-2">
+          <div style={{ marginTop: 12, display: "flex", gap: 8 }}>
             <button onClick={handleAddFunding} disabled={adding || !newInvoice.trim() || !newPayback}
-              className="rounded-lg bg-indigo-600 px-4 py-2 text-xs font-medium text-white hover:bg-indigo-700 transition-colors disabled:opacity-40">
+              style={{ background: "#6366f1", color: "white", border: "none", padding: "9px 18px", borderRadius: 8, fontSize: 12, fontWeight: 500, cursor: "pointer", fontFamily: "'DM Sans', sans-serif", opacity: adding || !newInvoice.trim() || !newPayback ? 0.5 : 1 }}>
               {adding ? "Adding..." : `Add as funding ${fundings.length + 1}`}
             </button>
             <button onClick={() => { setShowAdd(false); setNewInvoice(""); setNewPayback(""); setNewFundedDate(""); }}
-              className="rounded-lg border border-gray-200 px-4 py-2 text-xs font-medium text-gray-600 hover:bg-gray-50 transition-colors">
+              style={{ background: "transparent", color: "var(--ink-3)", border: "1px solid var(--border-mid)", padding: "9px 18px", borderRadius: 8, fontSize: 12, fontWeight: 500, cursor: "pointer", fontFamily: "'DM Sans', sans-serif" }}>
               Cancel
             </button>
           </div>
         </div>
       )}
 
-      <div className="divide-y divide-gray-50">
+      {/* Fundings list */}
+      <div>
         {fundings.map((funding, idx) => {
           const paid = Number(funding.payback) - Number(funding.balance);
           const pct = Number(funding.payback) > 0 ? Math.round((paid / Number(funding.payback)) * 100) : 0;
           const isCompleted = funding.status === "completed" || Number(funding.balance) === 0;
           const isCurrent = !isCompleted && (idx === 0 || fundings[idx - 1]?.status === "completed");
+
+          const rowBg = isCompleted ? "rgba(34,139,34,0.03)" : isCurrent ? "var(--surface)" : "var(--parchment-2)";
+          const numBg = isCompleted ? "rgba(34,139,34,0.12)" : isCurrent ? "rgba(99,102,241,0.12)" : "var(--parchment-3)";
+          const numColor = isCompleted ? "var(--sage)" : isCurrent ? "#6366f1" : "var(--ink-4)";
+          const barColor = isCompleted ? "var(--sage)" : "#6366f1";
+
           return (
-            <div key={funding.id} className={`px-5 py-4 ${isCompleted ? "bg-emerald-50/30" : isCurrent ? "bg-white" : "bg-gray-50/50"}`}>
-              <div className="flex items-start justify-between gap-4 flex-wrap">
-                <div className="flex items-center gap-3">
-                  <div className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold flex-shrink-0 ${isCompleted ? "bg-emerald-100 text-emerald-700" : isCurrent ? "bg-indigo-100 text-indigo-700" : "bg-gray-100 text-gray-400"}`}>
+            <div key={funding.id} style={{ padding: "16px 20px", background: rowBg, borderBottom: "1px solid var(--border)" }}>
+              <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <div style={{ width: 28, height: 28, borderRadius: "50%", background: numBg, color: numColor, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, flexShrink: 0, fontFamily: "'DM Sans', sans-serif" }}>
                     {funding.position_order}
                   </div>
                   <div>
-                    <div className="flex items-center gap-2">
-                      <p className="text-sm font-semibold text-gray-900">{funding.invoice}</p>
-                      {isCompleted && <span className="rounded-full bg-emerald-100 border border-emerald-200 px-2 py-0.5 text-[10px] font-medium text-emerald-700">Paid in full</span>}
-                      {isCurrent && !isCompleted && <span className="rounded-full bg-indigo-100 border border-indigo-200 px-2 py-0.5 text-[10px] font-medium text-indigo-700">Active</span>}
-                      {!isCurrent && !isCompleted && <span className="rounded-full bg-gray-100 border border-gray-200 px-2 py-0.5 text-[10px] font-medium text-gray-400">Queued</span>}
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <p style={{ fontSize: 13, fontWeight: 600, color: "var(--ink-1)", fontFamily: "'DM Sans', sans-serif" }}>{funding.invoice}</p>
+                      {isCompleted && <span style={{ borderRadius: 99, background: "rgba(34,139,34,0.1)", border: "1px solid rgba(34,139,34,0.25)", padding: "1px 8px", fontSize: 10, fontWeight: 500, color: "var(--sage)", fontFamily: "'DM Sans', sans-serif" }}>Paid in full</span>}
+                      {isCurrent && !isCompleted && <span style={{ borderRadius: 99, background: "rgba(99,102,241,0.1)", border: "1px solid rgba(99,102,241,0.25)", padding: "1px 8px", fontSize: 10, fontWeight: 500, color: "#6366f1", fontFamily: "'DM Sans', sans-serif" }}>Active</span>}
+                      {!isCurrent && !isCompleted && <span style={{ borderRadius: 99, background: "var(--parchment-3)", border: "1px solid var(--border)", padding: "1px 8px", fontSize: 10, fontWeight: 500, color: "var(--ink-4)", fontFamily: "'DM Sans', sans-serif" }}>Queued</span>}
                     </div>
                     {funding.funded_date && (
-                      <p className="text-xs text-gray-400 mt-0.5">Funded {formatDate(funding.funded_date)}</p>
+                      <p style={{ fontSize: 11, color: "var(--ink-4)", marginTop: 2, fontFamily: "'DM Sans', sans-serif" }}>Funded {formatDate(funding.funded_date)}</p>
                     )}
                   </div>
                 </div>
-                <div className="flex items-center gap-6 flex-wrap">
-                  <div className="text-right">
-                    <p className="text-xs text-gray-400">Payback</p>
-                    <p className="text-sm font-medium text-gray-700">{money(Number(funding.payback))}</p>
+                <div style={{ display: "flex", alignItems: "center", gap: 20, flexWrap: "wrap" }}>
+                  <div style={{ textAlign: "right" }}>
+                    <p style={{ fontSize: 10, color: "var(--ink-4)", fontFamily: "'DM Sans', sans-serif" }}>Payback</p>
+                    <p style={{ fontSize: 13, fontWeight: 500, color: "var(--ink-2)", fontFamily: "'DM Mono', monospace" }}>{money(Number(funding.payback))}</p>
                   </div>
-                  <div className="text-right">
-                    <p className="text-xs text-gray-400">Paid</p>
-                    <p className="text-sm font-medium text-emerald-600">{money(paid)}</p>
+                  <div style={{ textAlign: "right" }}>
+                    <p style={{ fontSize: 10, color: "var(--ink-4)", fontFamily: "'DM Sans', sans-serif" }}>Paid</p>
+                    <p style={{ fontSize: 13, fontWeight: 500, color: "var(--sage)", fontFamily: "'DM Mono', monospace" }}>{money(paid)}</p>
                   </div>
-                  <div className="text-right">
-                    <p className="text-xs text-gray-400">Balance</p>
-                    <p className={`text-sm font-semibold ${isCompleted ? "text-emerald-600" : "text-gray-900"}`}>
+                  <div style={{ textAlign: "right" }}>
+                    <p style={{ fontSize: 10, color: "var(--ink-4)", fontFamily: "'DM Sans', sans-serif" }}>Balance</p>
+                    <p style={{ fontSize: 13, fontWeight: 600, color: isCompleted ? "var(--sage)" : "var(--ink-1)", fontFamily: "'DM Mono', monospace" }}>
                       {isCompleted ? "$0.00" : money(Number(funding.balance))}
                     </p>
                   </div>
                   {isAdminView && !isCompleted && Number(funding.balance) === 0 && (
                     <button onClick={() => markCompleted(funding)}
-                      className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-100 transition-colors">
+                      style={{ borderRadius: 8, border: "1px solid var(--sage-border)", background: "var(--sage-surface)", padding: "5px 12px", fontSize: 11, fontWeight: 500, color: "var(--sage)", cursor: "pointer", fontFamily: "'DM Sans', sans-serif" }}>
                       Mark complete
                     </button>
                   )}
                 </div>
               </div>
-              <div className="mt-3">
-                <div className="flex items-center justify-between mb-1">
-                  <p className="text-[10px] text-gray-400">{pct}% paid</p>
-                  <p className="text-[10px] text-gray-400">{money(paid)} of {money(Number(funding.payback))}</p>
+              <div style={{ marginTop: 10 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                  <p style={{ fontSize: 10, color: "var(--ink-4)", fontFamily: "'DM Sans', sans-serif" }}>{pct}% paid</p>
+                  <p style={{ fontSize: 10, color: "var(--ink-4)", fontFamily: "'DM Sans', sans-serif" }}>{money(paid)} of {money(Number(funding.payback))}</p>
                 </div>
-                <div className="h-1.5 rounded-full bg-gray-100 overflow-hidden">
-                  <div className={`h-1.5 rounded-full transition-all duration-500 ${isCompleted ? "bg-emerald-500" : "bg-indigo-500"}`}
-                    style={{ width: `${Math.min(100, pct)}%` }} />
+                <div style={{ height: 5, borderRadius: 99, background: "var(--parchment-3)", overflow: "hidden" }}>
+                  <div style={{ height: 5, borderRadius: 99, background: barColor, width: `${Math.min(100, pct)}%`, transition: "width 0.5s ease" }} />
                 </div>
               </div>
             </div>
@@ -225,24 +250,21 @@ export default function FundingsPanel({ client, isAdminView, onFundingAdded, onB
         })}
       </div>
 
+      {/* Combined total */}
       {fundings.length > 1 && (
-        <div className="px-5 py-3 bg-gray-50 border-t border-gray-100">
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-medium text-gray-500">Combined total</p>
-            <div className="flex items-center gap-6">
-              <div className="text-right">
-                <p className="text-[10px] text-gray-400">Total payback</p>
-                <p className="text-xs font-semibold text-gray-700">{money(totalPayback)}</p>
+        <div style={{ padding: "12px 20px", background: "var(--parchment-2)", borderTop: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <p style={{ fontSize: 12, fontWeight: 500, color: "var(--ink-3)", fontFamily: "'DM Sans', sans-serif" }}>Combined total</p>
+          <div style={{ display: "flex", gap: 20 }}>
+            {[
+              { label: "Total payback", value: money(totalPayback) },
+              { label: "Total paid", value: money(totalPaid), color: "var(--sage)" },
+              { label: "Remaining", value: money(totalBalance) },
+            ].map(item => (
+              <div key={item.label} style={{ textAlign: "right" }}>
+                <p style={{ fontSize: 10, color: "var(--ink-4)", fontFamily: "'DM Sans', sans-serif" }}>{item.label}</p>
+                <p style={{ fontSize: 12, fontWeight: 600, color: item.color || "var(--ink-1)", fontFamily: "'DM Mono', monospace" }}>{item.value}</p>
               </div>
-              <div className="text-right">
-                <p className="text-[10px] text-gray-400">Total paid</p>
-                <p className="text-xs font-semibold text-emerald-600">{money(totalPaid)}</p>
-              </div>
-              <div className="text-right">
-                <p className="text-[10px] text-gray-400">Remaining</p>
-                <p className="text-xs font-semibold text-gray-900">{money(totalBalance)}</p>
-              </div>
-            </div>
+            ))}
           </div>
         </div>
       )}
