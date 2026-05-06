@@ -306,78 +306,7 @@ export default function AdminDashboard({
           ))}
         </div>
 
-        {/* ── Edit panel ── */}
-        {editingClient && (
-          <div ref={editPanelRef} style={{ ...cardStyle, marginBottom: 20, cursor: "default" }}>
-            <div style={{ position: "absolute", top: 0, left: 22, right: 22, height: 1, background: "linear-gradient(90deg, transparent, var(--gold-border), transparent)" }} />
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
-              <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 20, fontWeight: 500, color: "var(--ink-1)" }}>
-                Editing — {editingClient.business_name}
-              </div>
-              <button onClick={() => setEditingClient(null)} style={{ fontSize: 11, color: "var(--ink-4)", background: "none", border: "none", cursor: "pointer" }}>Cancel</button>
-            </div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12 }}>
-              {EDIT_FIELDS.map(([field, label, type]) => (
-                <div key={field}>
-                  <label style={{ display: "block", fontSize: 10, color: "var(--ink-4)", marginBottom: 5, textTransform: "uppercase", letterSpacing: "0.07em", fontWeight: 600 }}>{label}</label>
-                  {type === "select" ? (
-                    <select
-                      style={{ width: "100%", borderRadius: 9, border: "1px solid var(--border-mid)", background: "var(--parchment-2)", padding: "9px 12px", fontSize: 13, color: "var(--ink-1)", outline: "none", fontFamily: "'DM Sans', sans-serif" }}
-                      value={editingClient[field] || ""}
-                      onChange={e => setEditingClient({ ...editingClient, [field]: e.target.value })}>
-                      <option value="Good Standing">Good Standing</option>
-                      <option value="Paused">Paused</option>
-                      <option value="Blocked">Blocked</option>
-                      <option value="Needs Attention">Needs Attention</option>
-                      <option value="Payment Issues">Payment Issues</option>
-                    </select>
-                  ) : (
-                    <input
-                      type={type}
-                      style={{ width: "100%", borderRadius: 9, border: "1px solid var(--border-mid)", background: "var(--parchment-2)", padding: "9px 12px", fontSize: 13, color: "var(--ink-1)", outline: "none", fontFamily: "'DM Sans', sans-serif" }}
-                      value={editingClient[field] || ""}
-                      onChange={e => setEditingClient({ ...editingClient, [field]: e.target.value })}
-                    />
-                  )}
-                </div>
-              ))}
-              <div>
-                <label style={{ display: "block", fontSize: 10, color: "var(--ink-4)", marginBottom: 5, textTransform: "uppercase", letterSpacing: "0.07em", fontWeight: 600 }}>Frequency</label>
-                <select
-                  style={{ width: "100%", borderRadius: 9, border: "1px solid var(--border-mid)", background: "var(--parchment-2)", padding: "9px 12px", fontSize: 13, color: "var(--ink-1)", outline: "none", fontFamily: "'DM Sans', sans-serif" }}
-                  value={editingClient.payment_frequency || "daily"}
-                  onChange={e => setEditingClient({ ...editingClient, payment_frequency: e.target.value })}>
-                  <option value="daily">Daily</option>
-                  <option value="weekly">Weekly</option>
-                </select>
-              </div>
-              {editingClient.payment_frequency === "weekly" && (
-                <div>
-                  <label style={{ display: "block", fontSize: 10, color: "var(--ink-4)", marginBottom: 5, textTransform: "uppercase", letterSpacing: "0.07em", fontWeight: 600 }}>Payment day</label>
-                  <select
-                    style={{ width: "100%", borderRadius: 9, border: "1px solid var(--border-mid)", background: "var(--parchment-2)", padding: "9px 12px", fontSize: 13, color: "var(--ink-1)", outline: "none", fontFamily: "'DM Sans', sans-serif" }}
-                    value={editingClient.payment_day || ""}
-                    onChange={e => setEditingClient({ ...editingClient, payment_day: e.target.value })}>
-                    <option value="">Select day</option>
-                    {DAYS.map(d => <option key={d} value={d}>{d.charAt(0).toUpperCase() + d.slice(1)}</option>)}
-                  </select>
-                </div>
-              )}
-            </div>
-            <div style={{ marginTop: 16, display: "flex", gap: 10 }}>
-              <button
-                onClick={() => { updateClient(editingClient); setEditingClient(null); }}
-                style={{ background: "var(--ink-1)", color: "var(--gold-muted)", border: "1px solid rgba(196,154,90,0.2)", padding: "10px 20px", borderRadius: 9, fontSize: 13, fontWeight: 500, cursor: "pointer" }}>
-                Save changes
-              </button>
-              <button
-                onClick={() => setEditingClient(null)}
-                style={{ background: "transparent", color: "var(--ink-3)", border: "1px solid var(--border-mid)", padding: "10px 20px", borderRadius: 9, fontSize: 13, fontWeight: 500, cursor: "pointer" }}>
-                Cancel
-              </button>
-            </div>
-          </div>
-        )}
+        
 
         {/* ── Attention panel ── */}
         {filterAttention && attentionClients.length > 0 && (
@@ -505,6 +434,80 @@ export default function AdminDashboard({
                       </div>
                     </td>
                   </tr>
+                  {editingClient?.id === client.id && (
+                    <tr key={`edit-${client.id}`}>
+                      <td colSpan={7} style={{ padding: "0", background: "var(--parchment-2)", borderBottom: "2px solid var(--gold-border)" }}>
+                        <div style={{ padding: "24px 26px" }}>
+                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+                            <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 20, fontWeight: 500, color: "var(--ink-1)" }}>
+                              Editing — {editingClient.business_name}
+                            </div>
+                            <button onClick={() => setEditingClient(null)} style={{ fontSize: 11, color: "var(--ink-4)", background: "none", border: "none", cursor: "pointer" }}>Cancel</button>
+                          </div>
+                          <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12 }}>
+                            {EDIT_FIELDS.map(([field, label, type]) => (
+                              <div key={field}>
+                                <label style={{ display: "block", fontSize: 10, color: "var(--ink-4)", marginBottom: 5, textTransform: "uppercase", letterSpacing: "0.07em", fontWeight: 600 }}>{label}</label>
+                                {type === "select" ? (
+                                  <select
+                                    style={{ width: "100%", borderRadius: 9, border: "1px solid var(--border-mid)", background: "var(--surface)", padding: "9px 12px", fontSize: 13, color: "var(--ink-1)", outline: "none", fontFamily: "'DM Sans', sans-serif" }}
+                                    value={editingClient[field] || ""}
+                                    onChange={e => setEditingClient({ ...editingClient, [field]: e.target.value })}>
+                                    <option value="Good Standing">Good Standing</option>
+                                    <option value="Paused">Paused</option>
+                                    <option value="Blocked">Blocked</option>
+                                    <option value="Needs Attention">Needs Attention</option>
+                                    <option value="Payment Issues">Payment Issues</option>
+                                  </select>
+                                ) : (
+                                  <input
+                                    type={type}
+                                    style={{ width: "100%", borderRadius: 9, border: "1px solid var(--border-mid)", background: "var(--surface)", padding: "9px 12px", fontSize: 13, color: "var(--ink-1)", outline: "none", fontFamily: "'DM Sans', sans-serif" }}
+                                    value={editingClient[field] || ""}
+                                    onChange={e => setEditingClient({ ...editingClient, [field]: e.target.value })}
+                                  />
+                                )}
+                              </div>
+                            ))}
+                            <div>
+                              <label style={{ display: "block", fontSize: 10, color: "var(--ink-4)", marginBottom: 5, textTransform: "uppercase", letterSpacing: "0.07em", fontWeight: 600 }}>Frequency</label>
+                              <select
+                                style={{ width: "100%", borderRadius: 9, border: "1px solid var(--border-mid)", background: "var(--surface)", padding: "9px 12px", fontSize: 13, color: "var(--ink-1)", outline: "none", fontFamily: "'DM Sans', sans-serif" }}
+                                value={editingClient.payment_frequency || "daily"}
+                                onChange={e => setEditingClient({ ...editingClient, payment_frequency: e.target.value })}>
+                                <option value="daily">Daily</option>
+                                <option value="weekly">Weekly</option>
+                              </select>
+                            </div>
+                            {editingClient.payment_frequency === "weekly" && (
+                              <div>
+                                <label style={{ display: "block", fontSize: 10, color: "var(--ink-4)", marginBottom: 5, textTransform: "uppercase", letterSpacing: "0.07em", fontWeight: 600 }}>Payment day</label>
+                                <select
+                                  style={{ width: "100%", borderRadius: 9, border: "1px solid var(--border-mid)", background: "var(--surface)", padding: "9px 12px", fontSize: 13, color: "var(--ink-1)", outline: "none", fontFamily: "'DM Sans', sans-serif" }}
+                                  value={editingClient.payment_day || ""}
+                                  onChange={e => setEditingClient({ ...editingClient, payment_day: e.target.value })}>
+                                  <option value="">Select day</option>
+                                  {DAYS.map(d => <option key={d} value={d}>{d.charAt(0).toUpperCase() + d.slice(1)}</option>)}
+                                </select>
+                              </div>
+                            )}
+                          </div>
+                          <div style={{ marginTop: 16, display: "flex", gap: 10 }}>
+                            <button
+                              onClick={() => { updateClient(editingClient); setEditingClient(null); }}
+                              style={{ background: "var(--ink-1)", color: "var(--gold-muted)", border: "1px solid rgba(196,154,90,0.2)", padding: "10px 20px", borderRadius: 9, fontSize: 13, fontWeight: 500, cursor: "pointer" }}>
+                              Save changes
+                            </button>
+                            <button
+                              onClick={() => setEditingClient(null)}
+                              style={{ background: "transparent", color: "var(--ink-3)", border: "1px solid var(--border-mid)", padding: "10px 20px", borderRadius: 9, fontSize: 13, fontWeight: 500, cursor: "pointer" }}>
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
                 );
               })}
               {displayedClients.length === 0 && (
