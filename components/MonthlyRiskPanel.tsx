@@ -26,20 +26,20 @@ function getSnapshotDate(): string {
 
 function StatusPill({ status }: { status: SnapshotRow["status"] }) {
   if (status === "safe") return (
-    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 text-xs font-medium text-emerald-700">
-      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "3px 10px", borderRadius: 99, background: "var(--sage-surface)", border: "1px solid var(--sage-border)", color: "var(--sage)", fontSize: 11, fontWeight: 500 }}>
+      <span style={{ width: 5, height: 5, borderRadius: "50%", background: "var(--sage)", display: "inline-block" }} />
       Safe
     </span>
   );
   if (status === "at_risk") return (
-    <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 border border-amber-200 px-2.5 py-0.5 text-xs font-medium text-amber-700">
-      <span className="w-1.5 h-1.5 rounded-full bg-amber-500 inline-block" />
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "3px 10px", borderRadius: 99, background: "rgba(196,140,40,0.1)", border: "1px solid rgba(196,140,40,0.25)", color: "#a07010", fontSize: 11, fontWeight: 500 }}>
+      <span style={{ width: 5, height: 5, borderRadius: "50%", background: "#c48c28", display: "inline-block" }} />
       At risk
     </span>
   );
   return (
-    <span className="inline-flex items-center gap-1 rounded-full bg-red-50 border border-red-200 px-2.5 py-0.5 text-xs font-medium text-red-700">
-      <span className="w-1.5 h-1.5 rounded-full bg-red-500 inline-block" />
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "3px 10px", borderRadius: 99, background: "var(--sienna-surface)", border: "1px solid var(--sienna-border)", color: "var(--sienna)", fontSize: 11, fontWeight: 500 }}>
+      <span style={{ width: 5, height: 5, borderRadius: "50%", background: "var(--sienna)", display: "inline-block" }} />
       Default risk
     </span>
   );
@@ -47,18 +47,18 @@ function StatusPill({ status }: { status: SnapshotRow["status"] }) {
 
 function ProgressBar({ received, minimum }: { received: number; minimum: number }) {
   const pct = minimum > 0 ? Math.min(100, (received / minimum) * 100) : 0;
-  const color = pct >= 100 ? "bg-emerald-500" : pct >= 50 ? "bg-amber-400" : "bg-red-500";
+  const color = pct >= 100 ? "var(--sage)" : pct >= 50 ? "#c48c28" : "var(--sienna)";
   return (
-    <div className="flex items-center gap-2">
-      <div className="flex-1 h-1.5 rounded-full bg-gray-100 overflow-hidden">
-        <div className={`h-1.5 rounded-full transition-all duration-500 ${color}`} style={{ width: `${pct}%` }} />
+    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+      <div style={{ flex: 1, height: 5, borderRadius: 99, background: "var(--parchment-3)", overflow: "hidden" }}>
+        <div style={{ height: 5, borderRadius: 99, background: color, width: `${pct}%`, transition: "width 0.4s ease" }} />
       </div>
-      <span className="text-[10px] text-gray-400 w-8 text-right flex-shrink-0">{Math.round(pct)}%</span>
+      <span style={{ fontSize: 10, color: "var(--ink-4)", width: 30, textAlign: "right", flexShrink: 0 }}>{Math.round(pct)}%</span>
     </div>
   );
 }
 
-export default function MonthlyRiskPanel({ clients, orgId }: { clients: Client[]; orgId?: string }) {
+export default function MonthlyRiskPanel({ clients }: { clients: Client[]; orgId?: string }) {
   const [expanded, setExpanded] = useState(false);
   const [snapshots, setSnapshots] = useState<SnapshotRow[]>([]);
   const [loading, setLoading] = useState(false);
@@ -134,12 +134,12 @@ export default function MonthlyRiskPanel({ clients, orgId }: { clients: Client[]
 
   async function takeSnapshot() {
     setTakingSnapshot(true);
-  
+
     const activeClients = clients.filter(c => Number(c.balance) > 0);
-  
+
     for (const client of activeClients) {
       const minimum = Math.ceil(Number(client.balance) * 0.03 * 100) / 100;
-  
+
       const { error } = await supabase.from("monthly_snapshots").upsert({
         invoice: client.invoice,
         snapshot_date: snapshotDate,
@@ -147,10 +147,10 @@ export default function MonthlyRiskPanel({ clients, orgId }: { clients: Client[]
         minimum_required: minimum,
         received_this_month: 0,
       }, { onConflict: "invoice,snapshot_date" });
-  
+
       if (error) console.error("Snapshot error:", client.invoice, error.message);
     }
-  
+
     setSnapshotTaken(true);
     setTakingSnapshot(false);
     await loadSnapshots();
@@ -158,9 +158,7 @@ export default function MonthlyRiskPanel({ clients, orgId }: { clients: Client[]
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
-    if (expanded && !snapshots.length) {
-      loadSnapshots();
-    }
+    if (expanded) loadSnapshots();
   }, [expanded]);
 
   const filtered = filter === "all"
@@ -172,49 +170,47 @@ export default function MonthlyRiskPanel({ clients, orgId }: { clients: Client[]
   const safeCount = snapshots.filter(s => s.status === "safe").length;
 
   return (
-    <div className={`rounded-xl border transition-colors ${expanded ? "bg-white border-gray-200" : "bg-white border-gray-100"}`}>
+    <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 16, marginBottom: 20, boxShadow: "0 1px 4px rgba(30,16,4,0.06)", overflow: "hidden" }}>
 
-      {/* Header — always visible, click to expand */}
+      {/* Header */}
       <button
         onClick={() => setExpanded(v => !v)}
-        className="w-full px-5 py-4 flex items-center justify-between gap-4 text-left"
-      >
-        <div className="flex items-center gap-3">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gray-50 flex-shrink-0">
+        style={{ width: "100%", padding: "18px 24px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, background: "none", border: "none", cursor: "pointer", textAlign: "left" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <div style={{ width: 32, height: 32, borderRadius: 9, background: "var(--parchment-2)", border: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
             <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
-              <path d="M7.5 1v4M7.5 10v4M1 7.5h4M10 7.5h4" stroke="#6b7280" strokeWidth="1.5" strokeLinecap="round"/>
-              <circle cx="7.5" cy="7.5" r="2.5" stroke="#6b7280" strokeWidth="1.3"/>
+              <path d="M7.5 1v4M7.5 10v4M1 7.5h4M10 7.5h4" stroke="var(--ink-3)" strokeWidth="1.5" strokeLinecap="round"/>
+              <circle cx="7.5" cy="7.5" r="2.5" stroke="var(--ink-3)" strokeWidth="1.3"/>
             </svg>
           </div>
           <div>
-            <p className="text-sm font-semibold text-gray-900">Monthly default risk</p>
-            <p className="text-xs text-gray-400 mt-0.5">{getMonthLabel()} · 3% minimum threshold · Internal only</p>
+            <p style={{ fontSize: 14, fontWeight: 600, color: "var(--ink-1)", fontFamily: "'DM Sans', sans-serif" }}>Monthly default risk</p>
+            <p style={{ fontSize: 11, color: "var(--ink-4)", marginTop: 2, fontFamily: "'DM Sans', sans-serif" }}>{getMonthLabel()} · 3% minimum threshold · Internal only</p>
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           {hasData && !loading && (
-            <div className="hidden sm:flex items-center gap-2">
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
               {defaultCount > 0 && (
-                <span className="inline-flex items-center gap-1 rounded-full bg-red-50 border border-red-200 px-2.5 py-0.5 text-xs font-medium text-red-700">
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "2px 9px", borderRadius: 99, background: "var(--sienna-surface)", border: "1px solid var(--sienna-border)", color: "var(--sienna)", fontSize: 10, fontWeight: 500 }}>
                   {defaultCount} default risk
                 </span>
               )}
               {atRiskCount > 0 && (
-                <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 border border-amber-200 px-2.5 py-0.5 text-xs font-medium text-amber-700">
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "2px 9px", borderRadius: 99, background: "rgba(196,140,40,0.1)", border: "1px solid rgba(196,140,40,0.25)", color: "#a07010", fontSize: 10, fontWeight: 500 }}>
                   {atRiskCount} at risk
                 </span>
               )}
               {safeCount > 0 && (
-                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 text-xs font-medium text-emerald-700">
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "2px 9px", borderRadius: 99, background: "var(--sage-surface)", border: "1px solid var(--sage-border)", color: "var(--sage)", fontSize: 10, fontWeight: 500 }}>
                   {safeCount} safe
                 </span>
               )}
             </div>
           )}
-          <svg
-            width="16" height="16" viewBox="0 0 16 16" fill="none"
-            className={`text-gray-400 transition-transform duration-200 flex-shrink-0 ${expanded ? "rotate-180" : ""}`}>
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"
+            style={{ color: "var(--ink-4)", transition: "transform 0.2s", transform: expanded ? "rotate(180deg)" : "rotate(0deg)", flexShrink: 0 }}>
             <path d="M3 6l5 5 5-5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
           </svg>
         </div>
@@ -222,111 +218,90 @@ export default function MonthlyRiskPanel({ clients, orgId }: { clients: Client[]
 
       {/* Expanded content */}
       {expanded && (
-        <div className="border-t border-gray-100">
+        <div style={{ borderTop: "1px solid var(--border)" }}>
 
-          {/* Loading */}
           {loading && (
-            <div className="px-5 py-8 text-center text-sm text-gray-400">
+            <div style={{ padding: "40px", textAlign: "center", fontSize: 13, color: "var(--ink-4)", fontFamily: "'DM Sans', sans-serif" }}>
               Loading monthly data...
             </div>
           )}
 
-          {/* No snapshot yet */}
           {!loading && !hasData && (
-            <div className="px-5 py-8 text-center">
-              <p className="text-sm font-medium text-gray-700 mb-1">No snapshot for {getMonthLabel()}</p>
-              <p className="text-xs text-gray-400 mb-4">
-                Snapshots are taken automatically on the 1st of each month during your payment upload.
-                You can also take one now to start tracking this month.
+            <div style={{ padding: "40px", textAlign: "center" }}>
+              <p style={{ fontSize: 14, fontWeight: 500, color: "var(--ink-1)", fontFamily: "'DM Sans', sans-serif", marginBottom: 6 }}>No snapshot for {getMonthLabel()}</p>
+              <p style={{ fontSize: 12, color: "var(--ink-4)", fontFamily: "'DM Sans', sans-serif", marginBottom: 20, maxWidth: 420, margin: "0 auto 20px" }}>
+                Snapshots are taken automatically on the 1st of each month during your payment upload. You can also take one now to start tracking this month.
               </p>
               <button
                 onClick={takeSnapshot}
                 disabled={takingSnapshot || clients.length === 0}
-                className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 transition-colors disabled:opacity-40">
+                style={{ background: "var(--ink-1)", color: "var(--gold-muted)", border: "1px solid rgba(196,154,90,0.2)", padding: "11px 22px", borderRadius: 10, fontSize: 13, fontWeight: 500, cursor: "pointer", fontFamily: "'DM Sans', sans-serif", opacity: takingSnapshot ? 0.6 : 1 }}>
                 {takingSnapshot ? "Taking snapshot..." : `Take snapshot now — ${clients.filter(c => Number(c.balance) > 0).length} active clients`}
               </button>
               {snapshotTaken && (
-                <p className="text-xs text-emerald-600 mt-3 font-medium">Snapshot taken successfully.</p>
+                <p style={{ fontSize: 12, color: "var(--sage)", marginTop: 12, fontWeight: 500, fontFamily: "'DM Sans', sans-serif" }}>Snapshot taken successfully.</p>
               )}
             </div>
           )}
 
-          {/* Data */}
           {!loading && hasData && snapshots.length > 0 && (
             <>
               {/* Filter tabs */}
-              <div className="px-5 py-3 flex items-center gap-2 border-b border-gray-50">
+              <div style={{ padding: "12px 24px", display: "flex", alignItems: "center", gap: 8, borderBottom: "1px solid var(--border)" }}>
                 {(["all", "default", "at_risk"] as const).map(f => (
                   <button
                     key={f}
                     onClick={() => setFilter(f)}
-                    className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
-                      filter === f ? "bg-gray-900 text-white" : "text-gray-500 hover:bg-gray-100"
-                    }`}>
+                    style={{ padding: "5px 12px", borderRadius: 7, fontSize: 12, fontWeight: 500, cursor: "pointer", fontFamily: "'DM Sans', sans-serif", border: "1px solid", background: filter === f ? "var(--ink-1)" : "transparent", color: filter === f ? "var(--gold-muted)" : "var(--ink-4)", borderColor: filter === f ? "var(--ink-1)" : "var(--border-mid)" }}>
                     {f === "all" ? `All (${snapshots.length})` : f === "default" ? `Default risk (${defaultCount})` : `At risk (${atRiskCount})`}
                   </button>
                 ))}
                 <button
                   onClick={() => loadSnapshots()}
-                  className="ml-auto text-xs text-gray-400 hover:text-gray-600 transition-colors">
+                  style={{ marginLeft: "auto", fontSize: 12, color: "var(--ink-4)", background: "none", border: "none", cursor: "pointer", fontFamily: "'DM Sans', sans-serif" }}>
                   ↻ Refresh
                 </button>
               </div>
 
               {/* Table */}
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[700px]">
+              <div style={{ overflowX: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 700 }}>
                   <thead>
-                    <tr className="border-b border-gray-50">
-                      <th className="px-5 py-3 text-left text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Client</th>
-                      <th className="px-5 py-3 text-right text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Balance on 1st</th>
-                      <th className="px-5 py-3 text-right text-[10px] font-semibold text-gray-400 uppercase tracking-wider">3% minimum</th>
-                      <th className="px-5 py-3 text-right text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Received</th>
-                      <th className="px-5 py-3 text-left text-[10px] font-semibold text-gray-400 uppercase tracking-wider w-36">Progress</th>
-                      <th className="px-5 py-3 text-left text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Status</th>
+                    <tr style={{ background: "var(--parchment-2)" }}>
+                      {["Client", "Balance on 1st", "3% Minimum", "Received", "Progress", "Status"].map(h => (
+                        <th key={h} style={{ padding: "10px 24px", fontSize: 10, fontWeight: 600, color: "var(--ink-4)", textTransform: "uppercase", letterSpacing: "0.09em", textAlign: h === "Client" || h === "Progress" || h === "Status" ? "left" : "right", borderBottom: "1px solid var(--border)" }}>{h}</th>
+                      ))}
                     </tr>
                   </thead>
                   <tbody>
                     {filtered.map((row) => (
-                      <tr key={row.invoice}
-                        className={`border-b border-gray-50 transition-colors hover:bg-gray-50 ${
-                          row.status === "default" ? "bg-red-50/30" : row.status === "at_risk" ? "bg-amber-50/20" : ""
-                        }`}>
-                        <td className="px-5 py-3.5">
-                          <p className="text-sm font-medium text-gray-900">{row.business_name}</p>
-                          <p className="text-xs text-gray-400 mt-0.5">{row.invoice}</p>
+                      <tr key={row.invoice} style={{ borderBottom: "1px solid var(--border)", background: row.status === "default" ? "rgba(190,60,40,0.03)" : row.status === "at_risk" ? "rgba(196,140,40,0.03)" : "transparent" }}>
+                        <td style={{ padding: "14px 24px" }}>
+                          <p style={{ fontSize: 13, fontWeight: 500, color: "var(--ink-1)", fontFamily: "'DM Sans', sans-serif" }}>{row.business_name}</p>
+                          <p style={{ fontSize: 11, color: "var(--ink-4)", marginTop: 2, fontFamily: "'DM Mono', monospace" }}>{row.invoice}</p>
                         </td>
-                        <td className="px-5 py-3.5 text-sm text-gray-600 text-right">
+                        <td style={{ padding: "14px 24px", textAlign: "right", fontSize: 13, color: "var(--ink-3)", fontFamily: "'DM Mono', monospace" }}>
                           {money(row.balance_at_snapshot)}
                         </td>
-                        <td className="px-5 py-3.5 text-right">
-                          <span className="text-sm font-medium text-gray-900">{money(row.minimum_required)}</span>
+                        <td style={{ padding: "14px 24px", textAlign: "right" }}>
+                          <span style={{ fontSize: 13, fontWeight: 500, color: "var(--ink-1)", fontFamily: "'DM Mono', monospace" }}>{money(row.minimum_required)}</span>
                         </td>
-                        <td className="px-5 py-3.5 text-right">
-                          <span className={`text-sm font-semibold ${
-                            row.received_this_month >= row.minimum_required
-                              ? "text-emerald-600"
-                              : row.received_this_month >= row.minimum_required * 0.5
-                              ? "text-amber-600"
-                              : "text-red-600"
-                          }`}>
+                        <td style={{ padding: "14px 24px", textAlign: "right" }}>
+                          <span style={{ fontSize: 13, fontWeight: 600, color: row.received_this_month >= row.minimum_required ? "var(--sage)" : row.received_this_month >= row.minimum_required * 0.5 ? "#c48c28" : "var(--sienna)", fontFamily: "'DM Mono', monospace" }}>
                             {money(row.received_this_month)}
                           </span>
                         </td>
-                        <td className="px-5 py-3.5 w-36">
-                          <ProgressBar
-                            received={row.received_this_month}
-                            minimum={row.minimum_required}
-                          />
+                        <td style={{ padding: "14px 24px", width: 160 }}>
+                          <ProgressBar received={row.received_this_month} minimum={row.minimum_required} />
                         </td>
-                        <td className="px-5 py-3.5">
+                        <td style={{ padding: "14px 24px" }}>
                           <StatusPill status={row.status} />
                         </td>
                       </tr>
                     ))}
                     {filtered.length === 0 && (
                       <tr>
-                        <td colSpan={6} className="px-5 py-8 text-center text-sm text-gray-400">
+                        <td colSpan={6} style={{ padding: "40px", textAlign: "center", fontSize: 13, color: "var(--ink-4)", fontFamily: "'Cormorant Garamond', serif", fontStyle: "italic" }}>
                           No clients in this category this month.
                         </td>
                       </tr>
@@ -335,10 +310,9 @@ export default function MonthlyRiskPanel({ clients, orgId }: { clients: Client[]
                 </table>
               </div>
 
-              {/* Footer note */}
-              <div className="px-5 py-3 border-t border-gray-50">
-                <p className="text-[10px] text-gray-300 leading-relaxed">
-                  This panel is for internal use only and is never visible to clients. The 3% minimum is calculated from each client&apos;s balance on the 1st of the month. Received amounts reflect settled payments only.
+              <div style={{ padding: "12px 24px", borderTop: "1px solid var(--border)" }}>
+                <p style={{ fontSize: 10, color: "var(--ink-5)", lineHeight: 1.6, fontFamily: "'DM Sans', sans-serif" }}>
+                  Internal use only — never visible to clients. The 3% minimum is calculated from each client&apos;s balance on the 1st of the month. Received amounts reflect settled payments only.
                 </p>
               </div>
             </>
