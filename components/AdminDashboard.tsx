@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import MonthlyRiskPanel from "@/components/MonthlyRiskPanel";
 
 type AdminDashboardProps = {
@@ -51,7 +51,8 @@ const EDIT_FIELDS: [string, string, string][] = [
   ["balance", "Current balance ($)", "text"],
   ["payment", "Payment amount ($)", "text"],
   ["total_term", "Total term (days)", "text"],
-  ["status", "Standing", "text"],
+  ["status", "Standing", "select"],
+
 ];
 
 const DAYS = ["monday", "tuesday", "wednesday", "thursday", "friday"];
@@ -83,6 +84,7 @@ export default function AdminDashboard({
   deleteClient, updateClient,
 }: AdminDashboardProps) {
   const [editingClient, setEditingClient] = useState<any>(null);
+    const editPanelRef = useRef<HTMLDivElement>(null);
   const [filterAttention, setFilterAttention] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [previewRows, setPreviewRows] = useState<any[] | null>(null);
@@ -306,7 +308,7 @@ export default function AdminDashboard({
 
         {/* ── Edit panel ── */}
         {editingClient && (
-          <div style={{ ...cardStyle, marginBottom: 20, cursor: "default" }}>
+          <div ref={editPanelRef} style={{ ...cardStyle, marginBottom: 20, cursor: "default" }}>
             <div style={{ position: "absolute", top: 0, left: 22, right: 22, height: 1, background: "linear-gradient(90deg, transparent, var(--gold-border), transparent)" }} />
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
               <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 20, fontWeight: 500, color: "var(--ink-1)" }}>
@@ -318,12 +320,25 @@ export default function AdminDashboard({
               {EDIT_FIELDS.map(([field, label, type]) => (
                 <div key={field}>
                   <label style={{ display: "block", fontSize: 10, color: "var(--ink-4)", marginBottom: 5, textTransform: "uppercase", letterSpacing: "0.07em", fontWeight: 600 }}>{label}</label>
-                  <input
-                    type={type}
-                    style={{ width: "100%", borderRadius: 9, border: "1px solid var(--border-mid)", background: "var(--parchment-2)", padding: "9px 12px", fontSize: 13, color: "var(--ink-1)", outline: "none", fontFamily: "'DM Sans', sans-serif" }}
-                    value={editingClient[field] || ""}
-                    onChange={e => setEditingClient({ ...editingClient, [field]: e.target.value })}
-                  />
+                  {type === "select" ? (
+                    <select
+                      style={{ width: "100%", borderRadius: 9, border: "1px solid var(--border-mid)", background: "var(--parchment-2)", padding: "9px 12px", fontSize: 13, color: "var(--ink-1)", outline: "none", fontFamily: "'DM Sans', sans-serif" }}
+                      value={editingClient[field] || ""}
+                      onChange={e => setEditingClient({ ...editingClient, [field]: e.target.value })}>
+                      <option value="Good Standing">Good Standing</option>
+                      <option value="Paused">Paused</option>
+                      <option value="Blocked">Blocked</option>
+                      <option value="Needs Attention">Needs Attention</option>
+                      <option value="Payment Issues">Payment Issues</option>
+                    </select>
+                  ) : (
+                    <input
+                      type={type}
+                      style={{ width: "100%", borderRadius: 9, border: "1px solid var(--border-mid)", background: "var(--parchment-2)", padding: "9px 12px", fontSize: 13, color: "var(--ink-1)", outline: "none", fontFamily: "'DM Sans', sans-serif" }}
+                      value={editingClient[field] || ""}
+                      onChange={e => setEditingClient({ ...editingClient, [field]: e.target.value })}
+                    />
+                  )}
                 </div>
               ))}
               <div>
@@ -443,7 +458,7 @@ export default function AdminDashboard({
                 return (
                   <tr key={client.id}
                     style={{ borderBottom: "1px solid var(--border)", cursor: "pointer", transition: "background 0.1s" }}
-                    onClick={() => { setMenuClient(null); openClient(client); }}
+                    onClick={() => { setMenuClient(null); setEditingClient(client); setTimeout(() => editPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 50); }}
                     onMouseEnter={e => (e.currentTarget.style.background = "var(--surface-2)")}
                     onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
                     <td style={{ padding: "17px 26px" }}>
