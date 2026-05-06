@@ -308,7 +308,7 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
                 )}
               </div>
             )}
-            <p style={{ fontSize: 14, color: "var(--ink-4)", fontFamily: "'DM Sans', sans-serif", marginBottom: 2 }}>Need help?</p>
+            <p style={{ fontSize: 14, color: "var(--ink-4)", fontFamily: "'DM Sans', sans-serif", marginBottom: 2 }}>Need help? Contact Fellipe:</p>
             <p style={{ fontSize: 15, fontWeight: 500, color: "var(--ink-2)", fontFamily: "'DM Sans', sans-serif" }}>{CONTACT.email}</p>
             <p style={{ fontSize: 15, color: "var(--ink-3)", fontFamily: "'DM Sans', sans-serif" }}>{CONTACT.phone}</p>
           </div>
