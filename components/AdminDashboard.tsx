@@ -180,18 +180,6 @@ export default function AdminDashboard({
   return (
     <div style={{ minHeight: "calc(100vh - 0px)", background: "var(--parchment)", fontFamily: "'DM Sans', sans-serif" }}>
 
-      {/* ── Navigation ── */}
-      <nav style={navStyles}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12, marginRight: 28 }}>
-          <div style={{ width: 33, height: 33, borderRadius: 9, border: "1px solid var(--gold-border)", background: "rgba(160,120,64,0.12)", display: "flex", alignItems: "center", justifyContent: "center", position: "relative", overflow: "hidden" }}>
-            <span style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 13, fontWeight: 600, color: "var(--gold-bright)", letterSpacing: "0.05em" }}>FB</span>
-          </div>
-          <span style={{ fontSize: 14, fontWeight: 500, color: "rgba(255,255,255,0.72)", letterSpacing: "-0.01em" }}>FB Client Portal</span>
-          <span style={{ fontSize: 9, fontWeight: 600, color: "rgba(255,255,255,0.18)", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.07)", padding: "2px 7px", borderRadius: 4, textTransform: "uppercase", letterSpacing: "0.08em" }}>Admin</span>
-        </div>
-        <span style={{ padding: "7px 14px", borderRadius: 7, background: "rgba(160,120,64,0.12)", color: "var(--gold-muted)", fontSize: 13, fontWeight: 500 }}>Dashboard</span>
-      </nav>
-
       <div style={{ padding: "38px 32px" }}>
 
         {/* ── Header ── */}
