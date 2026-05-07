@@ -437,6 +437,36 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
             const isOnTrack = safePercent >= expectedPercent - 2;
 
             if ((status as string) === "Good Standing" && isOnTrack && paymentsLeft > 0) {
+              if (safePercent >= 90) {
+                return (
+                  <div style={{ background: "var(--sage-surface)", border: "1px solid var(--sage-border)", borderRadius: 12, padding: "14px 18px", display: "flex", alignItems: "center", gap: 10 }}>
+                    <span style={{ fontSize: 20 }}>🚀</span>
+                    <p style={{ fontSize: 14, color: "var(--sage)", fontFamily: "'DM Sans', sans-serif", fontWeight: 500 }}>
+                      Final stretch! You&apos;re almost paid in full with <strong>{paymentsLeft} payment{paymentsLeft !== 1 ? "s" : ""}</strong> remaining. When you&apos;re done, you&apos;re more than welcome to reach out to us for your next funding!
+                    </p>
+                  </div>
+                );
+              }
+              if (safePercent >= 75) {
+                return (
+                  <div style={{ background: "var(--sage-surface)", border: "1px solid var(--sage-border)", borderRadius: 12, padding: "14px 18px", display: "flex", alignItems: "center", gap: 10 }}>
+                    <span style={{ fontSize: 20 }}>🏆</span>
+                    <p style={{ fontSize: 14, color: "var(--sage)", fontFamily: "'DM Sans', sans-serif", fontWeight: 500 }}>
+                      Almost done! You&apos;re 75% of the way through. Just <strong>{paymentsLeft} payment{paymentsLeft !== 1 ? "s" : ""}</strong> left — and you may qualify for a funding renewal. Ask us about it!
+                    </p>
+                  </div>
+                );
+              }
+              if (safePercent >= 50) {
+                return (
+                  <div style={{ background: "var(--sage-surface)", border: "1px solid var(--sage-border)", borderRadius: 12, padding: "14px 18px", display: "flex", alignItems: "center", gap: 10 }}>
+                    <span style={{ fontSize: 20 }}>🎉</span>
+                    <p style={{ fontSize: 14, color: "var(--sage)", fontFamily: "'DM Sans', sans-serif", fontWeight: 500 }}>
+                      Halfway there! You&apos;ve paid off half your balance — and you&apos;re now eligible for additional funding. Contact Fellipe to learn more!
+                    </p>
+                  </div>
+                );
+              }
               return (
                 <div style={{ background: "var(--sage-surface)", border: "1px solid var(--sage-border)", borderRadius: 12, padding: "14px 18px", display: "flex", alignItems: "center", gap: 10 }}>
                   <span style={{ fontSize: 20 }}>🎯</span>
