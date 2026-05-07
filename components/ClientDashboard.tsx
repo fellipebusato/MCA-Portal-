@@ -467,6 +467,26 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
                   </div>
                 );
               }
+              if (safePercent >= 40) {
+                return (
+                  <div style={{ background: "var(--sage-surface)", border: "1px solid var(--sage-border)", borderRadius: 12, padding: "14px 18px", display: "flex", alignItems: "center", gap: 10 }}>
+                    <span style={{ fontSize: 20 }}>📈</span>
+                    <p style={{ fontSize: 14, color: "var(--sage)", fontFamily: "'DM Sans', sans-serif", fontWeight: 500 }}>
+                      You&apos;re almost halfway there! 40% paid and going strong. Stay consistent and you&apos;ll hit the 50% mark — and unlock eligibility for additional funding — very soon!
+                    </p>
+                  </div>
+                );
+              }
+              if (safePercent >= 25) {
+                return (
+                  <div style={{ background: "var(--sage-surface)", border: "1px solid var(--sage-border)", borderRadius: 12, padding: "14px 18px", display: "flex", alignItems: "center", gap: 10 }}>
+                    <span style={{ fontSize: 20 }}>💪</span>
+                    <p style={{ fontSize: 14, color: "var(--sage)", fontFamily: "'DM Sans', sans-serif", fontWeight: 500 }}>
+                      Great start! You&apos;re 25% of the way through. Keep making your payments on time and you&apos;ll be done before you know it!
+                    </p>
+                  </div>
+                );
+              }
               return (
                 <div style={{ background: "var(--sage-surface)", border: "1px solid var(--sage-border)", borderRadius: 12, padding: "14px 18px", display: "flex", alignItems: "center", gap: 10 }}>
                   <span style={{ fontSize: 20 }}>🎯</span>
