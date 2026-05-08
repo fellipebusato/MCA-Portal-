@@ -21,12 +21,42 @@ function badge(label: string, bg: string, border: string, color: string) {
   );
 }
 
-function TypeBadge({ description, isPending }: { description: string; isPending: boolean }) {
-  if (isPending) return badge("Processing", "rgba(40,110,190,0.1)", "rgba(40,110,190,0.25)", "#1a5fa8");
+// 4-state payment status badge — matches ACH Works pipeline exactly
+// pending   = Day 0–1, pull submitted, no verdict
+// processing = Day +2 survived return window, settling soon
+// returned  = appeared in 3PM return report
+// settled   = confirmed in 5PM settlement file
+function TypeBadge({ description, payment_status, settlementDate }: {
+  description: string;
+  payment_status?: string;
+  settlementDate?: Date | null;
+}) {
   const desc = (description || "").toLowerCase();
+
+  // Initial funding credit
   if (desc.includes("initial")) return badge("Initial credit", "rgba(40,110,190,0.08)", "rgba(40,110,190,0.2)", "#1a5fa8");
-  if (desc.includes("return")) return badge("Returned", "rgba(190,60,40,0.1)", "rgba(190,60,40,0.25)", "#b83220");
-  if (desc.includes("missed")) return badge("Missed", "rgba(196,140,40,0.1)", "rgba(196,140,40,0.25)", "#a07010");
+
+  // Returned — from return report
+  if (payment_status === "returned" || desc.includes("returned") || desc.includes("return"))
+    return badge("Returned", "rgba(190,60,40,0.1)", "rgba(190,60,40,0.25)", "#b83220");
+
+  // Missed payment
+  if (desc.includes("missed"))
+    return badge("Missed", "rgba(196,140,40,0.1)", "rgba(196,140,40,0.25)", "#a07010");
+
+  // Processing — survived return window, waiting on settlement file
+  if (payment_status === "processing")
+    return badge("Processing", "rgba(90,160,90,0.1)", "rgba(90,160,90,0.25)", "#1a7a1a");
+
+  // Pending — in-flight, return window not yet passed
+  if (payment_status === "pending")
+    return badge("Pending", "rgba(40,110,190,0.1)", "rgba(40,110,190,0.25)", "#1a5fa8");
+
+  // Legacy pending check (for payments without payment_status column yet)
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  if (settlementDate && settlementDate > today)
+    return badge("Pending", "rgba(40,110,190,0.1)", "rgba(40,110,190,0.25)", "#1a5fa8");
+
   return badge("Settled", "rgba(34,139,34,0.1)", "rgba(34,139,34,0.25)", "#1a7a1a");
 }
 
@@ -284,11 +314,19 @@ export default function PaymentHistory({ payments, client, isAdminView, onPaymen
           </thead>
           <tbody>
             {sortedPayments.map((p, idx) => {
-              const settlDate = p.settlement_date ? new Date(p.settlement_date) : null;
-              if (settlDate) settlDate.setHours(0, 0, 0, 0);
+              const settlDate = p.settlement_date ? new Date(p.settlement_date + "T00:00:00") : null;
               const desc = (p.description || "").toLowerCase();
-              const isPending = !!(settlDate && settlDate > today && !desc.includes("missed") && !desc.includes("return"));
-              const isReturn = desc.includes("return");
+
+              // 4-state status: use payment_status column if available, fall back to description/date
+              const paymentStatus: string = (p as any).payment_status || (
+                desc.includes("return") ? "returned"
+                : desc.includes("missed") ? "settled"
+                : (settlDate && settlDate > today) ? "pending"
+                : "settled"
+              );
+
+              const isPending = paymentStatus === "pending" || paymentStatus === "processing";
+              const isReturn = paymentStatus === "returned" || desc.includes("return");
               const isMissed = desc.includes("missed");
               const isEditing = editingId === p.id;
               const isDeleting = deletingId === p.id;
@@ -297,6 +335,8 @@ export default function PaymentHistory({ payments, client, isAdminView, onPaymen
                 ? "rgba(190,60,40,0.04)"
                 : isMissed
                 ? "rgba(196,140,40,0.04)"
+                : paymentStatus === "processing"
+                ? "rgba(34,139,34,0.03)"
                 : isPending
                 ? "rgba(40,110,190,0.03)"
                 : isEditing
@@ -314,11 +354,14 @@ export default function PaymentHistory({ payments, client, isAdminView, onPaymen
                     <td style={tdStyle}>{formatDate(p.ach_date || p.payment_date)}</td>
                     <td style={tdStyle}>
                       {isPending
-                        ? <span style={{ color: "#1a5fa8", fontWeight: 500 }}>{formatDate(p.settlement_date)}</span>
+                        ? <span style={{ color: paymentStatus === "processing" ? "#1a7a1a" : "#1a5fa8", fontWeight: 500 }}>
+                            {formatDate(p.settlement_date)}
+                            {paymentStatus === "processing" && <span style={{ fontSize: 10, marginLeft: 4, opacity: 0.7 }}>· clearing</span>}
+                          </span>
                         : <span style={{ color: "var(--ink-4)" }}>{p.settlement_date ? formatDate(p.settlement_date) : "—"}</span>}
                     </td>
                     <td style={tdStyle}>
-                      <TypeBadge description={p.description} isPending={isPending} />
+                      <TypeBadge description={p.description} payment_status={paymentStatus} settlementDate={settlDate} />
                     </td>
                     <td style={{ ...tdStyle, textAlign: "right" }}>
                       {p.credit > 0
