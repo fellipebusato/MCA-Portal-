@@ -43,6 +43,9 @@ export interface Client {
   avg_monthly_revenue: number | null;
   time_in_business_months: number | null;
   position: number | null;
+  return_streak: number | null;
+  last_return_code: string | null;
+  x_code_blocked: boolean | null;
 }
 
 export interface Payment {
