@@ -1,5 +1,6 @@
 "use client";
 
+import ACHOperationsCenter from "@/components/ACHOperationsCenter";
 import { useState } from "react";
 import MonthlyRiskPanel from "@/components/MonthlyRiskPanel";
 import MorningDashboard from "@/components/MorningDashboard";
@@ -409,6 +410,7 @@ export default function AdminDashboard({
         {/* ── Monthly default risk panel (full interactive component) ── */}
         {/* ── Morning Dashboard ── */}
         <MorningDashboard clients={clients} />
+        <ACHOperationsCenter clients={clients} />
 
         <MonthlyRiskPanel clients={clients} />
 
