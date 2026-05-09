@@ -202,7 +202,7 @@ export default function MonthlyRiskPanel({ clients }: { clients: Client[]; orgId
                   {atRiskCount} at risk
                 </span>
               )}
-              {safeCount > 0 && (
+              {false && (
                 <span style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "2px 9px", borderRadius: 99, background: "var(--sage-surface)", border: "1px solid var(--sage-border)", color: "var(--sage)", fontSize: 10, fontWeight: 500 }}>
                   {safeCount} safe
                 </span>
