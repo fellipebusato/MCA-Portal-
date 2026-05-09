@@ -104,7 +104,12 @@ export default function AdminDashboard({
   const sortedClients = [...clients].sort((a, b) => {
     if (!a.funded_date) return 1;
     if (!b.funded_date) return -1;
-    return new Date(a.funded_date).getTime() - new Date(b.funded_date).getTime();
+    const dateDiff = new Date(a.funded_date).getTime() - new Date(b.funded_date).getTime();
+    if (dateDiff !== 0) return dateDiff;
+    // Same date — sort by invoice number ascending (INV105007 → INV107083)
+    const aNum = parseInt((a.invoice || "").replace(/\D/g, "")) || 0;
+    const bNum = parseInt((b.invoice || "").replace(/\D/g, "")) || 0;
+    return aNum - bNum;
   });
 
   const totalBalance = clients.reduce((sum, c) => sum + Number(c.balance || 0), 0);
