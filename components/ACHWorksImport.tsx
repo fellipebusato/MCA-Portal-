@@ -299,7 +299,8 @@ export default function ACHWorksImport({
     }
 
     // ── Recalculate running balances ───────────────────────────────────────
-    // Get all settled payments sorted by ach_date and recalculate balances
+    // Always start from client's payback amount — the total they owe
+    // This is correct whether or not a funding row exists
     const { data: allPayments } = await supabase
       .from("payments")
       .select("id, ach_date, debit, returns, payment_status")
@@ -308,16 +309,8 @@ export default function ACHWorksImport({
       .order("ach_date", { ascending: true });
 
     if (allPayments && allPayments.length > 0) {
-      // Find the initial funding credit to start balance from
-      const { data: fundingRow } = await supabase
-        .from("payments")
-        .select("credit")
-        .eq("invoice", selectedInvoice)
-        .gt("credit", 0)
-        .limit(1)
-        .single();
-
-      let runningBalance = fundingRow?.credit || Number(client.balance);
+      // Use payback as the starting balance — always accurate
+      let runningBalance = Number(client.payback);
 
       // Walk through settled payments and update running balances
       for (const p of allPayments) {
