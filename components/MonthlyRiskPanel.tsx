@@ -254,7 +254,7 @@ export default function MonthlyRiskPanel({ clients }: { clients: Client[]; orgId
                     key={f}
                     onClick={() => setFilter(f)}
                     style={{ padding: "5px 12px", borderRadius: 7, fontSize: 12, fontWeight: 500, cursor: "pointer", fontFamily: "'DM Sans', sans-serif", border: "1px solid", background: filter === f ? "var(--ink-1)" : "transparent", color: filter === f ? "var(--gold-muted)" : "var(--ink-4)", borderColor: filter === f ? "var(--ink-1)" : "var(--border-mid)" }}>
-                    {f === "all" ? `All (${snapshots.length})` : f === "default" ? `Default risk (${defaultCount})` : `At risk (${atRiskCount})`}
+                    {f === "all" ? `All (${defaultCount + atRiskCount})` : f === "default" ? `Default risk (${defaultCount})` : `At risk (${atRiskCount})`}
                   </button>
                 ))}
                 <button
