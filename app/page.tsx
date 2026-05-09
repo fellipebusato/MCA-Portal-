@@ -8,6 +8,7 @@ import AddClientForm from "@/components/AddClientForm";
 import ConsentPage from "@/components/ConsentPage";
 import StatementImport from "@/components/StatementImport";
 import ReturnsImport from "@/components/ReturnsImport";
+import ACHWorksImport from "@/components/ACHWorksImport";
 
 const ADMIN_EMAIL = "fbusato@cfgms.com";
 
@@ -110,7 +111,7 @@ export default function Home() {
     state: string; sicCode: string; businessType: string; ficoScore: string;
     avgMonthlyRevenue: string; timeInBusinessMonths: string; position: string;
   }>({
-    businessName: "", invoice: "", ownerName: "", clientEmail: "",
+    businessName: "", invoice: "", achWorksName: "", ownerName: "", clientEmail: "",
     fundedDate: "", funded: "", payback: "", payment: "", totalTerm: "",
     paymentFrequency: "daily" as const, paymentDay: "",
     state: "", sicCode: "", businessType: "", ficoScore: "",
@@ -227,6 +228,7 @@ export default function Home() {
     const client = {
       business_name: newClient.businessName,
       invoice: newClient.invoice,
+      ach_works_name: newClient.achWorksName || null,
       owner_name: newClient.ownerName,
       client_email: newClient.clientEmail,
       funded_date: newClient.fundedDate,
@@ -247,7 +249,7 @@ export default function Home() {
     const { error } = await supabase.from("clients").insert([client]);
     if (error) { alert(error.message); return; }
     setNewClient({
-      businessName: "", invoice: "", ownerName: "", clientEmail: "",
+      businessName: "", invoice: "", achWorksName: "", ownerName: "", clientEmail: "",
       fundedDate: "", funded: "", payback: "", payment: "", totalTerm: "",
       paymentFrequency: "daily" as const, paymentDay: "",
       state: "", sicCode: "", businessType: "", ficoScore: "",
@@ -612,6 +614,13 @@ export default function Home() {
           Import statement
         </button>
 
+        {/* Import ACH Works */}
+        <button
+          onClick={() => setView("achworks" as any)}
+          style={navBtn((view as string) === "achworks", { bg: "rgba(74,100,160,0.2)", border: "rgba(74,100,160,0.4)", text: "#8B9ED4" })}>
+          Import ACH Works
+        </button>
+
         {/* Add Client */}
         <button
           onClick={() => setView("add")}
@@ -706,6 +715,15 @@ export default function Home() {
               Import CFG statement
             </div>
             <StatementImport clients={clients} onImportComplete={async () => { await fetchClients(); setView("admin"); }} />
+          </div>
+        )}
+
+        {(view as string) === "achworks" && (
+          <div style={{ padding: "32px" }}>
+            <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 26, fontWeight: 500, color: "var(--ink-1)", letterSpacing: "-0.02em", marginBottom: 24 }}>
+              Import ACH Works history
+            </div>
+            <ACHWorksImport clients={clients} onImportComplete={async () => { await fetchClients(); setView("admin"); }} />
           </div>
         )}
       </div>
