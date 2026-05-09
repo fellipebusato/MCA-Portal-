@@ -143,7 +143,8 @@ export default function AdminDashboard({
     ? baseClients.filter(c => getPeriodLabel(c.funded_date) === allPeriods[periodIdx === -1 ? allPeriods.length - 1 : Math.min(periodIdx, allPeriods.length - 1)])
     : baseClients;
 
-  const currentPeriod = allPeriods[periodIdx === -1 ? allPeriods.length - 1 : Math.min(periodIdx, allPeriods.length - 1)] || "";
+  const resolvedIdx = periodIdx === -1 ? allPeriods.length - 1 : Math.min(periodIdx, allPeriods.length - 1);
+  const currentPeriod = allPeriods[resolvedIdx] || "";
 
   // Pre-upload preview handler
   async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
