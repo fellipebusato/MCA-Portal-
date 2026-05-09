@@ -227,7 +227,7 @@ export default function StatementImport({
     client: Client | null;
     matchedPosition: Position | null;
   } | null>(null);
-  const [result, setResult] = useState({ payments: 0, returns: 0, skipped: 0 });
+  const [result, setResult] = useState({ payments: 0, returns: 0, skipped: 0, collisions: [] as string[] });
 
   async function loadPositionsForClient(clientId: number) {
     const { data } = await supabase
@@ -293,8 +293,26 @@ export default function StatementImport({
     const paymentRows = parsed.rows.filter(r => r.rowType === "payment");
     const returnRows = parsed.rows.filter(r => r.rowType === "return");
 
+    // Track collisions — same ACH date used by both a settled and returned payment
+    const collisions: string[] = [];
+
     for (const row of paymentRows) {
       const achDate = subtractBusinessDays(row.date, 4);
+
+      // Check if this ACH date already has a returned payment
+      // If so, this is a collision — two events on same pull date
+      const { data: existingOnDate } = await supabase
+        .from("payments")
+        .select("id, payment_status")
+        .eq("invoice", parsed.invoice)
+        .eq("ach_date", achDate)
+        .limit(1);
+
+      if (existingOnDate && existingOnDate.length > 0) {
+        // Collision — log it but still try to insert
+        collisions.push(achDate);
+      }
+
       const { error } = await supabase.from("payments").insert({
         invoice: parsed.invoice,
         payment_date: achDate,
@@ -305,10 +323,16 @@ export default function StatementImport({
         debit: row.debit,
         returns: 0,
         running_balance: row.runningBalance,
+        payment_status: "settled",
       });
       if (error && error.code === "23505") { skipped++; continue; }
       if (error) { console.error("Payment insert error:", error); continue; }
       importedPayments++;
+    }
+
+    // Store collisions for display after import
+    if (collisions.length > 0) {
+      console.warn("ACH date collisions detected:", collisions);
     }
 
     for (const row of returnRows) {
@@ -461,7 +485,7 @@ export default function StatementImport({
       `${importedPayments} payments and ${importedReturns} returns imported · Balance set to ${money(parsed.currentBalance)}`
     );
 
-    setResult({ payments: importedPayments, returns: importedReturns, skipped });
+    setResult({ payments: importedPayments, returns: importedReturns, skipped, collisions });
     setStep("done");
     setProcessing(false);
     onImportComplete();
@@ -473,7 +497,7 @@ export default function StatementImport({
     setParsed(null);
     setPositions([]);
     setStep("paste");
-    setResult({ payments: 0, returns: 0, skipped: 0 });
+    setResult({ payments: 0, returns: 0, skipped: 0, collisions: [] });
   }
 
   if (step === "paste") {
@@ -685,6 +709,19 @@ export default function StatementImport({
           <p className="text-xs text-gray-400 mt-0.5">
             {result.payments} payment{result.payments!==1?"s":""} imported · {result.returns} return{result.returns!==1?"s":""} imported
             {result.skipped > 0 && ` · ${result.skipped} duplicate${result.skipped!==1?"s":""} skipped`}
+            {result.collisions.length > 0 && (
+              <div style={{ marginTop: 12, padding: "10px 14px", background: "rgba(196,140,40,0.08)", border: "1px solid rgba(196,140,40,0.25)", borderRadius: 8 }}>
+                <p style={{ fontSize: 12, fontWeight: 600, color: "#a07010", fontFamily: "'DM Sans', sans-serif", marginBottom: 4 }}>
+                  ⚠️ {result.collisions.length} ACH date collision{result.collisions.length !== 1 ? "s" : ""} detected — manual review needed
+                </p>
+                <p style={{ fontSize: 11, color: "var(--ink-3)", fontFamily: "'DM Sans', sans-serif", marginBottom: 6 }}>
+                  These pull dates had both a settled payment and a return on the same day. One row may have been skipped. Check these dates in Supabase:
+                </p>
+                {result.collisions.map(d => (
+                  <p key={d} style={{ fontSize: 11, fontFamily: "'DM Mono', monospace", color: "var(--ink-2)" }}>{d}</p>
+                ))}
+              </div>
+            )}
           </p>
         </div>
       </div>
