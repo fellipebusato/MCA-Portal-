@@ -106,6 +106,14 @@ export default function AddClientForm({ newClient, setNewClient, addClient }: Ad
           </div>
 
           <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1.5">ACH Works name</label>
+            <input type="text" placeholder="LOFTYLLC"
+              className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm text-gray-900 placeholder:text-gray-300 focus:outline-none focus:border-gray-400 transition-colors"
+              value={newClient.achWorksName} onChange={(e) => handleChange("achWorksName", e.target.value)} />
+            <p className="text-xs text-gray-400 mt-1">Exact name as shown in ACH Works export</p>
+          </div>
+
+          <div>
             <label className="block text-xs font-medium text-gray-500 mb-1.5">Owner name</label>
             <input type="text" placeholder="John Smith"
               className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm text-gray-900 placeholder:text-gray-300 focus:outline-none focus:border-gray-400 transition-colors"
