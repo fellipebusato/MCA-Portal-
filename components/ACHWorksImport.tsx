@@ -382,7 +382,7 @@ export default function ACHWorksImport({
               Import from ACH Works
             </p>
             <p style={{ fontSize: 12, color: "var(--ink-4)", marginTop: 2, fontFamily: "'DM Sans', sans-serif" }}>
-              Export the client's transaction history from ACH Works as Excel, then paste or upload it here.
+              Export the client&apos;s transaction history from ACH Works as Excel, then paste or upload it here.
             </p>
           </div>
         </div>
