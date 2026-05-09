@@ -127,6 +127,7 @@ export default function AdminDashboard({
   const allPeriods = Array.from(
     new Set(sortedClients.map(c => getPeriodLabel(c.funded_date)))
   );
+  const resolvedIdx = periodIdx === null ? allPeriods.length - 1 : Math.min(Math.max(0, periodIdx), allPeriods.length - 1);
 
   const baseClients = filterAttention ? attentionClients : sortedClients;
 
@@ -140,10 +141,10 @@ export default function AdminDashboard({
         );
       })
     : allPeriods.length > 0
-    ? baseClients.filter(c => getPeriodLabel(c.funded_date) === allPeriods[Math.min(periodIdx, allPeriods.length - 1)])
+    ? baseClients.filter(c => getPeriodLabel(c.funded_date) === allPeriods[resolvedIdx])
     : baseClients;
 
-  const currentPeriod = allPeriods[Math.min(periodIdx, allPeriods.length - 1)] || "";
+  const currentPeriod = allPeriods[resolvedIdx] || "";
 
   // Pre-upload preview handler
   async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
