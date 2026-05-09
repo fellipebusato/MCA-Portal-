@@ -105,7 +105,7 @@ export default function Home() {
   const [forgotMessage, setForgotMessage] = useState("");
 
   const [newClient, setNewClient] = useState<{
-    businessName: string; invoice: string; ownerName: string; clientEmail: string;
+    businessName: string; invoice: string; achWorksName: string; ownerName: string; clientEmail: string;
     fundedDate: string; funded: string; payback: string; payment: string; totalTerm: string;
     paymentFrequency: "daily" | "weekly"; paymentDay: string;
     state: string; sicCode: string; businessType: string; ficoScore: string;
