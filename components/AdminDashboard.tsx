@@ -411,7 +411,8 @@ export default function AdminDashboard({
                 const isBehind1Week = weeksBehind === 1;
                 const isBehind2PlusWeeks = weeksBehind >= 2;
                 return (
-                  <tr key={client.id}
+                  <React.Fragment key={client.id}>
+                  <tr
                     style={{ borderBottom: "1px solid var(--border)", cursor: "pointer", transition: "background 0.1s" }}
                     onClick={() => { setMenuClient(null); openClient(client); }}
                     onMouseEnter={e => (e.currentTarget.style.background = "var(--surface-2)")}
