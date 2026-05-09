@@ -97,7 +97,7 @@ export default function AdminDashboard({
   const [previewRows, setPreviewRows] = useState<any[] | null>(null);
   const [previewFile, setPreviewFile] = useState<File | null>(null);
   const [menuClient, setMenuClient] = useState<any | null>(null);
-  const [periodIdx, setPeriodIdx] = useState(-1); // -1 = show latest period
+  const [periodIdx, setPeriodIdx] = useState<number | null>(null);
   const [settlementOpen, setSettlementOpen] = useState(false);
 
   // Sort by funded_date oldest → newest
@@ -140,11 +140,10 @@ export default function AdminDashboard({
         );
       })
     : allPeriods.length > 0
-    ? baseClients.filter(c => getPeriodLabel(c.funded_date) === allPeriods[periodIdx === -1 ? allPeriods.length - 1 : Math.min(periodIdx, allPeriods.length - 1)])
+    ? baseClients.filter(c => getPeriodLabel(c.funded_date) === allPeriods[Math.min(periodIdx, allPeriods.length - 1)])
     : baseClients;
 
-  const resolvedIdx = periodIdx === -1 ? allPeriods.length - 1 : Math.min(periodIdx, allPeriods.length - 1);
-  const currentPeriod = allPeriods[resolvedIdx] || "";
+  const currentPeriod = allPeriods[Math.min(periodIdx, allPeriods.length - 1)] || "";
 
   // Pre-upload preview handler
   async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
@@ -249,36 +248,8 @@ export default function AdminDashboard({
               </div>
 
               <div style={{ overflowY: "auto", flex: 1 }}>
-                <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                  {/* Period navigation — hidden when searching */}
-              {!searchQuery.trim() && allPeriods.length > 1 && (
-                <tr>
-                  <td colSpan={7} style={{ padding: "12px 26px 0" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                      <button
-                        onClick={() => setPeriodIdx(resolvedIdx > 0 ? resolvedIdx - 1 : 0)}
-                        disabled={resolvedIdx === 0}
-                        style={{ width: 28, height: 28, borderRadius: 8, border: "1px solid var(--border-mid)", background: "transparent", color: periodIdx === 0 ? "var(--ink-5)" : "var(--ink-3)", cursor: periodIdx === 0 ? "default" : "pointer", fontSize: 14, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                        ←
-                      </button>
-                      <span style={{ fontSize: 12, fontWeight: 600, color: "var(--ink-2)", fontFamily: "'DM Sans', sans-serif", minWidth: 160, textAlign: "center" }}>
-                        {currentPeriod}
-                        <span style={{ fontWeight: 400, color: "var(--ink-4)", marginLeft: 6 }}>({displayedClients.length})</span>
-                      </span>
-                      <button
-                        onClick={() => setPeriodIdx(resolvedIdx < allPeriods.length - 1 ? resolvedIdx + 1 : resolvedIdx)}
-                        disabled={resolvedIdx >= allPeriods.length - 1}
-                        style={{ width: 28, height: 28, borderRadius: 8, border: "1px solid var(--border-mid)", background: "transparent", color: periodIdx >= allPeriods.length - 1 ? "var(--ink-5)" : "var(--ink-3)", cursor: periodIdx >= allPeriods.length - 1 ? "default" : "pointer", fontSize: 14, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                        →
-                      </button>
-                      <span style={{ fontSize: 11, color: "var(--ink-4)", fontFamily: "'DM Sans', sans-serif" }}>
-                        {resolvedIdx + 1} of {allPeriods.length} periods
-                      </span>
-                    </div>
-                  </td>
-                </tr>
-              )}
-              <thead>
+                                <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                  <thead>
                     <tr style={{ background: "var(--parchment-2)", position: "sticky", top: 0, zIndex: 2 }}>
                       {["Client", "Invoice", "Date", "Amount", "Match"].map(h => (
                         <th key={h} style={{ padding: "10px 22px", fontSize: 10, fontWeight: 600, color: "var(--ink-4)", textTransform: "uppercase", letterSpacing: "0.09em", textAlign: "left", borderBottom: "1px solid var(--border)" }}>{h}</th>
@@ -351,90 +322,6 @@ export default function AdminDashboard({
             </div>
           ))}
         </div>
-
-        {/* ── Edit panel now renders inline below the client row ── */}
-        {false && (
-          <div style={{ ...cardStyle, marginBottom: 20, cursor: "default" }}>
-            <div style={{ position: "absolute", top: 0, left: 22, right: 22, height: 1, background: "linear-gradient(90deg, transparent, var(--gold-border), transparent)" }} />
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
-              <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 20, fontWeight: 500, color: "var(--ink-1)" }}>
-                Editing — {editingClient.business_name}
-              </div>
-              <button onClick={() => { setEditingClient(null); setEditingClientId(null); }} style={{ fontSize: 11, color: "var(--ink-4)", background: "none", border: "none", cursor: "pointer" }}>Cancel</button>
-            </div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12 }}>
-              {EDIT_FIELDS.map(([field, label, type]) => (
-                <div key={field}>
-                  <label style={{ display: "block", fontSize: 10, color: "var(--ink-4)", marginBottom: 5, textTransform: "uppercase", letterSpacing: "0.07em", fontWeight: 600 }}>{label}</label>
-                  {type === "select" ? (
-                    <select
-                      style={{ width: "100%", borderRadius: 9, border: "1px solid var(--border-mid)", background: "var(--parchment-2)", padding: "9px 12px", fontSize: 13, color: "var(--ink-1)", outline: "none", fontFamily: "'DM Sans', sans-serif" }}
-                      value={editingClient[field] || ""}
-                      onChange={e => setEditingClient({ ...editingClient, [field]: e.target.value })}>
-                      <option value="Good Standing">Good Standing</option>
-                      <option value="Paused">Paused</option>
-                      <option value="Blocked">Blocked</option>
-                      <option value="Needs Attention">Needs Attention</option>
-                      <option value="Payment Issues">Payment Issues</option>
-                    </select>
-                  ) : (
-                    <input
-                      type={type}
-                      style={{ width: "100%", borderRadius: 9, border: "1px solid var(--border-mid)", background: "var(--parchment-2)", padding: "9px 12px", fontSize: 13, color: "var(--ink-1)", outline: "none", fontFamily: "'DM Sans', sans-serif" }}
-                      value={editingClient[field] || ""}
-                      onChange={e => setEditingClient({ ...editingClient, [field]: e.target.value })}
-                    />
-                  )}
-                </div>
-              ))}
-              <div>
-                <label style={{ display: "block", fontSize: 10, color: "var(--ink-4)", marginBottom: 5, textTransform: "uppercase", letterSpacing: "0.07em", fontWeight: 600 }}>Frequency</label>
-                <select
-                  style={{ width: "100%", borderRadius: 9, border: "1px solid var(--border-mid)", background: "var(--parchment-2)", padding: "9px 12px", fontSize: 13, color: "var(--ink-1)", outline: "none", fontFamily: "'DM Sans', sans-serif" }}
-                  value={editingClient.payment_frequency || "daily"}
-                  onChange={e => setEditingClient({ ...editingClient, payment_frequency: e.target.value })}>
-                  <option value="daily">Daily</option>
-                  <option value="weekly">Weekly</option>
-                </select>
-              </div>
-              {editingClient.payment_frequency === "weekly" && (
-                <div>
-                  <label style={{ display: "block", fontSize: 10, color: "var(--ink-4)", marginBottom: 5, textTransform: "uppercase", letterSpacing: "0.07em", fontWeight: 600 }}>Payment day</label>
-                  <select
-                    style={{ width: "100%", borderRadius: 9, border: "1px solid var(--border-mid)", background: "var(--parchment-2)", padding: "9px 12px", fontSize: 13, color: "var(--ink-1)", outline: "none", fontFamily: "'DM Sans', sans-serif" }}
-                    value={editingClient.payment_day || ""}
-                    onChange={e => setEditingClient({ ...editingClient, payment_day: e.target.value })}>
-                    <option value="">Select day</option>
-                    {DAYS.map(d => <option key={d} value={d}>{d.charAt(0).toUpperCase() + d.slice(1)}</option>)}
-                  </select>
-                </div>
-              )}
-            </div>
-            {/* Pause note */}
-            {(editingClient.status === "Paused" || editingClient.pause_start) && (
-              <div style={{ marginTop: 12, padding: "12px 14px", background: "rgba(196,140,40,0.08)", border: "1px solid rgba(196,140,40,0.2)", borderRadius: 10 }}>
-                <p style={{ fontSize: 11, color: "#a07010", fontWeight: 600, fontFamily: "'DM Sans', sans-serif", marginBottom: 4 }}>
-                  ⏸ Pause period set: {editingClient.pause_start || "—"} → {editingClient.pause_end || "—"}
-                </p>
-                <p style={{ fontSize: 11, color: "var(--ink-4)", fontFamily: "'DM Sans', sans-serif" }}>
-                  Client will see a paused status. ACH will not be collected during this period.
-                </p>
-              </div>
-            )}
-            <div style={{ marginTop: 16, display: "flex", gap: 10 }}>
-              <button
-                onClick={() => { updateClient(editingClient); setEditingClient(null); setEditingClientId(null); }}
-                style={{ background: "var(--ink-1)", color: "var(--gold-muted)", border: "1px solid rgba(196,154,90,0.2)", padding: "10px 20px", borderRadius: 9, fontSize: 13, fontWeight: 500, cursor: "pointer" }}>
-                Save changes
-              </button>
-              <button
-                onClick={() => setEditingClient(null)}
-                style={{ background: "transparent", color: "var(--ink-3)", border: "1px solid var(--border-mid)", padding: "10px 20px", borderRadius: 9, fontSize: 13, fontWeight: 500, cursor: "pointer" }}>
-                Cancel
-              </button>
-            </div>
-          </div>
-        )}
 
         {/* ── Attention panel ── */}
         {filterAttention && attentionClients.length > 0 && (
@@ -534,6 +421,30 @@ export default function AdminDashboard({
               </div>
             </div>
           </div>
+
+          {/* Period navigation - shown between header and table, hidden when searching */}
+          {!searchQuery.trim() && allPeriods.length > 1 && (
+            <div style={{ padding: "10px 26px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", gap: 12, background: "var(--parchment-2)" }}>
+              <button
+                onClick={() => setPeriodIdx(resolvedIdx > 0 ? resolvedIdx - 1 : 0)}
+                disabled={resolvedIdx === 0}
+                style={{ width: 28, height: 28, borderRadius: 8, border: "1px solid var(--border-mid)", background: "transparent", color: resolvedIdx === 0 ? "var(--ink-5)" : "var(--ink-3)", cursor: resolvedIdx === 0 ? "default" : "pointer", fontSize: 14, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                ←
+              </button>
+              <span style={{ fontSize: 12, fontWeight: 600, color: "var(--ink-2)", fontFamily: "'DM Sans', sans-serif", minWidth: 200, textAlign: "center" }}>
+                {currentPeriod} <span style={{ fontWeight: 400, color: "var(--ink-4)" }}>({displayedClients.length})</span>
+              </span>
+              <button
+                onClick={() => setPeriodIdx(resolvedIdx < allPeriods.length - 1 ? resolvedIdx + 1 : resolvedIdx)}
+                disabled={resolvedIdx >= allPeriods.length - 1}
+                style={{ width: 28, height: 28, borderRadius: 8, border: "1px solid var(--border-mid)", background: "transparent", color: resolvedIdx >= allPeriods.length - 1 ? "var(--ink-5)" : "var(--ink-3)", cursor: resolvedIdx >= allPeriods.length - 1 ? "default" : "pointer", fontSize: 14, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                →
+              </button>
+              <span style={{ fontSize: 11, color: "var(--ink-4)", fontFamily: "'DM Sans', sans-serif" }}>
+                {resolvedIdx + 1} of {allPeriods.length}
+              </span>
+            </div>
+          )}
 
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
