@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
-import { money } from "@/lib/holidays";
+import { money, addBusinessDays, toDateStr, isBusinessDay } from "@/lib/holidays";
 import { logActivity } from "@/components/ActivityLog";
 
 // Inline types
@@ -60,6 +60,67 @@ function subtractBusinessDays(dateStr: string, days: number): string {
     if (dow !== 0 && dow !== 6) subtracted++;
   }
   return date.toISOString().split("T")[0];
+}
+
+// ── Auto-generate pending payments ───────────────────────────────────────────
+// After importing settled payments, calculate what is still pending this week
+// Daily: every business day from last settled ACH date up to today
+// Weekly: every 5 business days from last settled ACH date up to today
+
+function generatePendingPayments(
+  lastSettledAchDate: string,
+  paymentFrequency: string,
+  paymentAmount: number,
+  lastRunningBalance: number,
+  existingAchDates: Set<string>
+): Array<{ ach_date: string; settlement_date: string; amount: number }> {
+  const pending: Array<{ ach_date: string; settlement_date: string; amount: number }> = [];
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const isWeekly = (paymentFrequency || "").toLowerCase().includes("week");
+
+  let cursor = new Date(lastSettledAchDate + "T00:00:00");
+
+  if (isWeekly) {
+    // Weekly: next pull = last ACH date + 5 business days
+    let added = 0;
+    const next = new Date(cursor);
+    while (added < 5) {
+      next.setDate(next.getDate() + 1);
+      if (isBusinessDay(next)) added++;
+    }
+    cursor = new Date(next);
+
+    while (cursor <= today) {
+      const achStr = toDateStr(cursor);
+      if (!existingAchDates.has(achStr)) {
+        const settlDate = addBusinessDays(new Date(cursor), 4);
+        pending.push({ ach_date: achStr, settlement_date: toDateStr(settlDate), amount: paymentAmount });
+      }
+      // Next weekly pull = +5 business days
+      let nextAdded = 0;
+      while (nextAdded < 5) {
+        cursor.setDate(cursor.getDate() + 1);
+        if (isBusinessDay(cursor)) nextAdded++;
+      }
+    }
+  } else {
+    // Daily: every business day from last ACH date + 1 up to today
+    cursor.setDate(cursor.getDate() + 1);
+    while (cursor <= today) {
+      if (isBusinessDay(cursor)) {
+        const achStr = toDateStr(cursor);
+        if (!existingAchDates.has(achStr)) {
+          const settlDate = addBusinessDays(new Date(cursor), 4);
+          pending.push({ ach_date: achStr, settlement_date: toDateStr(settlDate), amount: paymentAmount });
+        }
+      }
+      cursor.setDate(cursor.getDate() + 1);
+    }
+  }
+
+  return pending;
 }
 
 function parseStatement(text: string): {
@@ -315,6 +376,73 @@ export default function StatementImport({
           balance: parsed.currentBalance,
           total_returns: (parsed.client.total_returns || 0) + importedReturns,
         }).eq("id", parsed.client.id);
+      }
+    }
+
+    // ── Auto-generate pending payments ──────────────────────────────────────
+    // Find the latest ACH date from what we just imported
+    const paymentRowsSorted = [...paymentRows].sort((a, b) =>
+      subtractBusinessDays(b.date, 4).localeCompare(subtractBusinessDays(a.date, 4))
+    );
+
+    if (paymentRowsSorted.length > 0 && parsed.client) {
+      const lastSettledAchDate = subtractBusinessDays(paymentRowsSorted[0].date, 4);
+      const lastRunningBalance = paymentRowsSorted[0].runningBalance;
+      const paymentAmount = parsed.client.payment || paymentRowsSorted[0].debit;
+      const paymentFrequency = parsed.client.payment_frequency || "daily";
+
+      // Get ALL existing ACH dates for this client to avoid duplicates
+      // This includes pending, processing, returned — not just settled
+      const { data: existingPayments } = await supabase
+        .from("payments")
+        .select("ach_date, payment_status")
+        .eq("invoice", parsed.invoice);
+
+      const existingAchDates = new Set(
+        (existingPayments || []).map((p: any) => p.ach_date).filter(Boolean)
+      );
+
+      // Find the true last ACH date across ALL statuses (including pending already in system)
+      // So we don't re-generate pending rows that already exist
+      const allAchDates = (existingPayments || [])
+        .map((p: any) => p.ach_date)
+        .filter(Boolean)
+        .sort()
+        .reverse();
+
+      // Start generating from the last settled ACH date — gaps filled by existingAchDates check
+      const pendingToGenerate = generatePendingPayments(
+        lastSettledAchDate,
+        paymentFrequency,
+        paymentAmount,
+        lastRunningBalance,
+        existingAchDates
+      );
+
+      let generatedPending = 0;
+      for (const p of pendingToGenerate) {
+        const { error } = await supabase.from("payments").insert({
+          invoice: parsed.invoice,
+          payment_date: p.ach_date,
+          ach_date: p.ach_date,
+          settlement_date: p.settlement_date,
+          description: "Pending",
+          credit: 0,
+          debit: p.amount,
+          returns: 0,
+          running_balance: null, // No balance impact until settled
+          payment_status: "pending",
+        });
+        if (!error) generatedPending++;
+      }
+
+      if (generatedPending > 0) {
+        await logActivity(
+          parsed.invoice,
+          "funded",
+          `${generatedPending} pending payment${generatedPending !== 1 ? "s" : ""} auto-generated`,
+          `Based on ${paymentFrequency} schedule from last settled ACH date ${lastSettledAchDate}`
+        );
       }
     }
 
