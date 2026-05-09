@@ -72,7 +72,8 @@ function generatePendingPayments(
   paymentFrequency: string,
   paymentAmount: number,
   lastRunningBalance: number,
-  existingAchDates: Set<string>
+  existingAchDates: Set<string>,
+  returnedAchDates: Set<string> = new Set()
 ): Array<{ ach_date: string; settlement_date: string; amount: number }> {
   const pending: Array<{ ach_date: string; settlement_date: string; amount: number }> = [];
   const today = new Date();
@@ -94,7 +95,7 @@ function generatePendingPayments(
 
     while (cursor <= today) {
       const achStr = toDateStr(cursor);
-      if (!existingAchDates.has(achStr)) {
+      if (!existingAchDates.has(achStr) && !returnedAchDates.has(achStr)) {
         const settlDate = addBusinessDays(new Date(cursor), 4);
         pending.push({ ach_date: achStr, settlement_date: toDateStr(settlDate), amount: paymentAmount });
       }
@@ -111,7 +112,7 @@ function generatePendingPayments(
     while (cursor <= today) {
       if (isBusinessDay(cursor)) {
         const achStr = toDateStr(cursor);
-        if (!existingAchDates.has(achStr)) {
+        if (!existingAchDates.has(achStr) && !returnedAchDates.has(achStr)) {
           const settlDate = addBusinessDays(new Date(cursor), 4);
           pending.push({ ach_date: achStr, settlement_date: toDateStr(settlDate), amount: paymentAmount });
         }
@@ -315,7 +316,7 @@ export default function StatementImport({
         .from("returns")
         .select("id")
         .eq("invoice", parsed.invoice)
-        .eq("return_date", subtractBusinessDays(row.date, 4))
+        .eq("return_date", subtractBusinessDays(row.date, 2))
         .eq("return_amount", row.returns)
         .limit(1);
 
@@ -324,22 +325,27 @@ export default function StatementImport({
       await supabase.from("returns").insert({
         invoice: parsed.invoice,
         merchant_name: parsed.merchantName || parsed.client?.business_name || "",
-        return_date: subtractBusinessDays(row.date, 4),
+        return_date: subtractBusinessDays(row.date, 2),
         settle_date: row.date,
         return_code: row.returnCode || "R01",
         return_amount: row.returns,
       });
 
+      // ACH pull date = return/settle date minus 2 business days (not 4)
+      // Return shows up 2 business days after the pull, not 4
+      const returnAchDate = subtractBusinessDays(row.date, 2);
+
       await supabase.from("payments").insert({
         invoice: parsed.invoice,
-        payment_date: subtractBusinessDays(row.date, 4),
-        ach_date: subtractBusinessDays(row.date, 4),
+        payment_date: returnAchDate,
+        ach_date: returnAchDate,
         settlement_date: row.date,
         description: `Returned — ${row.returnCode || "R01"}`,
         credit: 0,
         debit: 0,
         returns: row.returns,
         running_balance: row.runningBalance,
+        payment_status: "returned",
       });
 
       await logActivity(
@@ -398,17 +404,18 @@ export default function StatementImport({
         .select("ach_date, payment_status")
         .eq("invoice", parsed.invoice);
 
+      // Build set of ALL existing ACH dates to avoid duplicates
+      // Also build set of RETURNED dates — never generate a pending for a returned date
       const existingAchDates = new Set(
         (existingPayments || []).map((p: any) => p.ach_date).filter(Boolean)
       );
 
-      // Find the true last ACH date across ALL statuses (including pending already in system)
-      // So we don't re-generate pending rows that already exist
-      const allAchDates = (existingPayments || [])
-        .map((p: any) => p.ach_date)
-        .filter(Boolean)
-        .sort()
-        .reverse();
+      const returnedAchDates = new Set(
+        (existingPayments || [])
+          .filter((p: any) => p.payment_status === "returned" || (p.returns && Number(p.returns) > 0))
+          .map((p: any) => p.ach_date)
+          .filter(Boolean)
+      );
 
       // Start generating from the last settled ACH date — gaps filled by existingAchDates check
       const pendingToGenerate = generatePendingPayments(
@@ -416,7 +423,8 @@ export default function StatementImport({
         paymentFrequency,
         paymentAmount,
         lastRunningBalance,
-        existingAchDates
+        existingAchDates,
+        returnedAchDates
       );
 
       let generatedPending = 0;
