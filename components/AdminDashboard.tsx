@@ -1,4 +1,5 @@
 "use client";
+import React from "react";
 
 import { useState } from "react";
 import MonthlyRiskPanel from "@/components/MonthlyRiskPanel";
@@ -669,6 +670,7 @@ export default function AdminDashboard({
                       </td>
                     </tr>
                   )}
+                  </React.Fragment>
                 );
               })}
               {displayedClients.length === 0 && (
