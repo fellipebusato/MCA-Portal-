@@ -161,8 +161,9 @@ export default function MonthlyRiskPanel({ clients }: { clients: Client[]; orgId
     if (expanded) loadSnapshots();
   }, [expanded]);
 
+  // Only show default risk and at risk — hide safe clients entirely
   const filtered = filter === "all"
-    ? snapshots
+    ? snapshots.filter(s => s.status !== "safe")
     : snapshots.filter(s => s.status === filter);
 
   const defaultCount = snapshots.filter(s => s.status === "default").length;
