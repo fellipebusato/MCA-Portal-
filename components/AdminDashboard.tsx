@@ -49,6 +49,7 @@ function StandingBadge({ status }: { status: string }) {
 const EDIT_FIELDS: [string, string, string][] = [
   ["business_name", "Business name", "text"],
   ["invoice", "Invoice #", "text"],
+  ["ach_works_name", "ACH Works name", "text"],
   ["owner_name", "Owner name", "text"],
   ["client_email", "Client email", "text"],
   ["funded_date", "Funded date", "date"],
@@ -60,6 +61,9 @@ const EDIT_FIELDS: [string, string, string][] = [
   ["status", "Standing", "select"],
   ["pause_start", "Pause start date", "date"],
   ["pause_end", "Pause end date", "date"],
+  ["state", "State", "text"],
+  ["sic_code", "SIC code", "text"],
+  ["business_type", "Business type", "text"],
 ];
 
 const DAYS = ["monday", "tuesday", "wednesday", "thursday", "friday"];
@@ -572,6 +576,22 @@ export default function AdminDashboard({
                                 )}
                               </div>
                             ))}
+                              <div>
+                                <label style={{ display: "block", fontSize: 10, color: "var(--ink-4)", marginBottom: 5, textTransform: "uppercase", letterSpacing: "0.07em", fontWeight: 600 }}>Frequency</label>
+                                <select style={{ width: "100%", borderRadius: 9, border: "1px solid var(--border-mid)", background: "var(--surface)", padding: "9px 12px", fontSize: 13, color: "var(--ink-1)", outline: "none", fontFamily: "'DM Sans', sans-serif" }}
+                                  value={editingClient.payment_frequency || "daily"} onChange={e => setEditingClient({ ...editingClient, payment_frequency: e.target.value })}>
+                                  <option value="daily">Daily</option>
+                                  <option value="weekly">Weekly</option>
+                                </select>
+                              </div>
+                              <div>
+                                <label style={{ display: "block", fontSize: 10, color: "var(--ink-4)", marginBottom: 5, textTransform: "uppercase", letterSpacing: "0.07em", fontWeight: 600 }}>Payment day</label>
+                                <select style={{ width: "100%", borderRadius: 9, border: "1px solid var(--border-mid)", background: "var(--surface)", padding: "9px 12px", fontSize: 13, color: "var(--ink-1)", outline: "none", fontFamily: "'DM Sans', sans-serif" }}
+                                  value={editingClient.payment_day || ""} onChange={e => setEditingClient({ ...editingClient, payment_day: e.target.value })}>
+                                  <option value="">Not applicable (daily)</option>
+                                  {DAYS.map(d => <option key={d} value={d}>{d.charAt(0).toUpperCase() + d.slice(1)}</option>)}
+                                </select>
+                              </div>
                           </div>
                           <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
                             <button
