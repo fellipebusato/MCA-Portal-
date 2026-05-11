@@ -9,7 +9,7 @@ import {
   toDateStr, isWeekend, isHoliday, isBusinessDay,
   addBusinessDays, formatDate, money,
 } from "@/lib/holidays";
-import { T, tr, type Lang } from "@/lib/i18n";
+import { T, tr, type Lang, type Translation } from "@/lib/i18n";
 import type { Client, Payment } from "@/lib/types";
 
 type ClientDashboardProps = {
@@ -158,7 +158,7 @@ function MiniCalendar({ year, month, termDays, paymentDays, missedDays, holidayM
   year: number; month: number; termDays: Set<string>; paymentDays: Set<string>;
   missedDays: Set<string>; holidayMovedDays: Set<string>; today: Date;
   onPrev: () => void; onNext: () => void; canPrev: boolean; canNext: boolean;
-  t: typeof T.en;
+  t: Translation;
 }) {
   const monthNames = ["January","February","March","April","May","June","July","August","September","October","November","December"];
   const firstDay = new Date(year, month, 1);
