@@ -46,8 +46,8 @@ export default function TriageDashboard({ clients, openClient, updateClient }: P
   const healthy = clients.filter(c => getCategory(c) === "healthy");
   const totalBalance = clients.reduce((s, c) => s + Number(c.balance || 0), 0);
 
-  const states = [...new Set(clients.map(c => c.state).filter(Boolean))].sort();
-  const sics = [...new Set(clients.map(c => c.sic_code).filter(Boolean))].sort();
+  const states = Array.from(new Set(clients.map(c => c.state).filter(Boolean))).sort();
+  const sics = Array.from(new Set(clients.map(c => c.sic_code).filter(Boolean))).sort();
 
   let filtered = clients.filter(c => {
     const cat = getCategory(c);
