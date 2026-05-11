@@ -9,8 +9,14 @@ import ConsentPage from "@/components/ConsentPage";
 import StatementImport from "@/components/StatementImport";
 import ReturnsImport from "@/components/ReturnsImport";
 import ACHWorksImport from "@/components/ACHWorksImport";
+import { T, type Lang } from "@/lib/i18n";
 
 const ADMIN_EMAIL = "fbusato@cfgms.com";
+const LANGS: { code: Lang; label: string }[] = [
+  { code: "en", label: "EN" },
+  { code: "es", label: "ES" },
+  { code: "pt", label: "PT" },
+];
 
 function addBusinessDays(date: Date, days: number): Date {
   const result = new Date(date);
@@ -98,6 +104,7 @@ export default function Home() {
   const [clientRecord, setClientRecord] = useState<any>(null);
   const [hasConsented, setHasConsented] = useState(false);
   const [checkingConsent, setCheckingConsent] = useState(false);
+  const [lang, setLang] = useState<Lang>("en");
 
   const [showForgot, setShowForgot] = useState(false);
   const [forgotEmail, setForgotEmail] = useState("");
@@ -119,6 +126,14 @@ export default function Home() {
   });
 
   const isAdmin = user?.email === ADMIN_EMAIL;
+  const t = T[lang];
+
+  // Persist language preference
+  useEffect(() => {
+    const saved = localStorage.getItem("portal_lang") as Lang | null;
+    if (saved && ["en", "es", "pt"].includes(saved)) setLang(saved);
+  }, []);
+  function changeLang(l: Lang) { setLang(l); localStorage.setItem("portal_lang", l); }
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { checkUser(); }, []);
@@ -411,9 +426,9 @@ export default function Home() {
       <div style={{ display: "flex", minHeight: "100vh", alignItems: "center", justifyContent: "center", background: "var(--parchment)" }}>
         <div style={{ textAlign: "center" }}>
           <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 28, fontWeight: 400, color: "var(--ink-1)", letterSpacing: "-0.02em", marginBottom: 12 }}>
-            FB Client Portal
+            {t.portalName}
           </div>
-          <div style={{ fontSize: 12, color: "var(--ink-5)", letterSpacing: "0.04em" }}>Loading your account…</div>
+          <div style={{ fontSize: 12, color: "var(--ink-5)", letterSpacing: "0.04em" }}>{t.loading}</div>
         </div>
       </div>
     );
@@ -424,14 +439,22 @@ export default function Home() {
     return (
       <main style={{ display: "flex", minHeight: "100vh", alignItems: "center", justifyContent: "center", background: "var(--parchment)", padding: 24 }}>
         <div style={{ width: "100%", maxWidth: 400 }}>
+          {/* Language switcher */}
+          <div style={{ display: "flex", justifyContent: "center", gap: 6, marginBottom: 24 }}>
+            {LANGS.map(l => (
+              <button key={l.code} onClick={() => changeLang(l.code)} style={{ padding: "4px 12px", borderRadius: 7, border: `1px solid ${lang === l.code ? "transparent" : "var(--border-mid)"}`, background: lang === l.code ? "var(--ink-1)" : "transparent", color: lang === l.code ? "var(--gold-muted)" : "var(--ink-4)", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "'DM Sans', sans-serif", transition: "all 0.15s" }}>
+                {l.label}
+              </button>
+            ))}
+          </div>
           <div style={{ textAlign: "center", marginBottom: 36 }}>
             <div style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 52, height: 52, borderRadius: 14, background: "var(--ink-1)", border: "1px solid rgba(196,154,90,0.25)", marginBottom: 16 }}>
               <span style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 18, fontWeight: 600, color: "var(--gold-bright)", letterSpacing: "0.05em" }}>FB</span>
             </div>
             <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 30, fontWeight: 600, color: "var(--ink-1)", letterSpacing: "-0.02em", lineHeight: 1.1 }}>
-              FB Client Portal
+              {t.portalName}
             </div>
-            <div style={{ fontSize: 12, color: "var(--ink-3)", marginTop: 6 }}>Sign in to your account</div>
+            <div style={{ fontSize: 12, color: "var(--ink-3)", marginTop: 6 }}>{t.signInHeading}</div>
           </div>
 
           <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 20, padding: 32, boxShadow: "0 4px 24px rgba(30,16,4,0.08)", position: "relative", overflow: "hidden" }}>
@@ -440,7 +463,7 @@ export default function Home() {
             {!showForgot ? (
               <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
                 <div>
-                  <label style={{ display: "block", fontSize: 10, fontWeight: 600, color: "var(--ink-4)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.08em" }}>Email address</label>
+                  <label style={{ display: "block", fontSize: 10, fontWeight: 600, color: "var(--ink-4)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.08em" }}>{t.emailAddress}</label>
                   <input
                     type="email" placeholder="you@example.com"
                     style={{ width: "100%", borderRadius: 10, border: "1px solid var(--border-mid)", background: "var(--parchment-2)", padding: "11px 14px", fontSize: 14, color: "var(--ink-1)", outline: "none", fontFamily: "'DM Sans', sans-serif" }}
@@ -449,7 +472,7 @@ export default function Home() {
                   />
                 </div>
                 <div>
-                  <label style={{ display: "block", fontSize: 10, fontWeight: 600, color: "var(--ink-4)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.08em" }}>Password</label>
+                  <label style={{ display: "block", fontSize: 10, fontWeight: 600, color: "var(--ink-4)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.08em" }}>{t.password}</label>
                   <input
                     type="password" placeholder="••••••••"
                     style={{ width: "100%", borderRadius: 10, border: "1px solid var(--border-mid)", background: "var(--parchment-2)", padding: "11px 14px", fontSize: 14, color: "var(--ink-1)", outline: "none", fontFamily: "'DM Sans', sans-serif" }}
@@ -460,20 +483,20 @@ export default function Home() {
                 <button
                   onClick={handleLogin}
                   style={{ width: "100%", borderRadius: 10, background: "var(--ink-1)", color: "var(--gold-muted)", border: "1px solid rgba(196,154,90,0.2)", padding: "13px", fontSize: 14, fontWeight: 500, cursor: "pointer", fontFamily: "'DM Sans', sans-serif", marginTop: 4 }}>
-                  Sign in
+                  {t.signInBtn}
                 </button>
                 <div style={{ textAlign: "center" }}>
                   <button
                     onClick={() => { setShowForgot(true); setForgotEmail(email); setForgotStatus("idle"); setForgotMessage(""); }}
                     style={{ fontSize: 12, color: "var(--ink-4)", background: "none", border: "none", cursor: "pointer", fontFamily: "'DM Sans', sans-serif" }}>
-                    Forgot your password?
+                    {t.forgotPassword}
                   </button>
                 </div>
               </div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
                 <div>
-                  <label style={{ display: "block", fontSize: 10, fontWeight: 600, color: "var(--ink-4)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.08em" }}>Your email address</label>
+                  <label style={{ display: "block", fontSize: 10, fontWeight: 600, color: "var(--ink-4)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.08em" }}>{t.emailAddress}</label>
                   <input
                     type="email" placeholder="you@example.com"
                     style={{ width: "100%", borderRadius: 10, border: "1px solid var(--border-mid)", background: "var(--parchment-2)", padding: "11px 14px", fontSize: 14, color: "var(--ink-1)", outline: "none", fontFamily: "'DM Sans', sans-serif" }}
@@ -490,14 +513,14 @@ export default function Home() {
                   <button
                     onClick={handleForgotPassword} disabled={forgotStatus === "loading"}
                     style={{ width: "100%", borderRadius: 10, background: "var(--ink-1)", color: "var(--gold-muted)", border: "1px solid rgba(196,154,90,0.2)", padding: "13px", fontSize: 14, fontWeight: 500, cursor: "pointer", fontFamily: "'DM Sans', sans-serif", opacity: forgotStatus === "loading" ? 0.6 : 1 }}>
-                    {forgotStatus === "loading" ? "Sending…" : "Send reset link"}
+                    {forgotStatus === "loading" ? t.sending : t.sendResetLink}
                   </button>
                 )}
                 <div style={{ textAlign: "center" }}>
                   <button
                     onClick={() => { setShowForgot(false); setForgotStatus("idle"); setForgotMessage(""); }}
                     style={{ fontSize: 12, color: "var(--ink-4)", background: "none", border: "none", cursor: "pointer", fontFamily: "'DM Sans', sans-serif" }}>
-                    ← Back to sign in
+                    {t.backToSignIn}
                   </button>
                 </div>
               </div>
@@ -523,10 +546,10 @@ export default function Home() {
       return (
         <main style={{ display: "flex", minHeight: "100vh", alignItems: "center", justifyContent: "center", background: "var(--parchment)" }}>
           <div style={{ textAlign: "center" }}>
-            <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 22, color: "var(--ink-2)", marginBottom: 8 }}>No account found</div>
-            <p style={{ fontSize: 13, color: "var(--ink-4)", marginBottom: 20 }}>No account found for {user.email}. Please contact Fellipe for access.</p>
+            <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 22, color: "var(--ink-2)", marginBottom: 8 }}>{t.noAccount}</div>
+            <p style={{ fontSize: 13, color: "var(--ink-4)", marginBottom: 20 }}>{t.noAccountDesc.replace("{email}", user.email)}</p>
             <button onClick={logout} style={{ borderRadius: 9, border: "1px solid var(--border-mid)", padding: "10px 20px", fontSize: 13, color: "var(--ink-3)", background: "transparent", cursor: "pointer", fontFamily: "'DM Sans', sans-serif" }}>
-              Sign out
+              {t.logout}
             </button>
           </div>
         </main>
@@ -534,24 +557,32 @@ export default function Home() {
     }
     return (
       <main style={{ minHeight: "100vh", background: "var(--parchment)" }}>
-        <nav style={{ background: "var(--ink-1)", padding: "0 28px", display: "flex", alignItems: "center", height: 60, position: "sticky", top: 0, zIndex: 10 }}>
+        <nav style={{ background: "var(--ink-1)", padding: "0 16px 0 20px", display: "flex", alignItems: "center", height: 60, position: "sticky", top: 0, zIndex: 10 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <div style={{ width: 30, height: 30, borderRadius: 8, border: "1px solid var(--gold-border)", background: "rgba(160,120,64,0.12)", display: "flex", alignItems: "center", justifyContent: "center" }}>
               <span style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 12, fontWeight: 600, color: "var(--gold-bright)" }}>FB</span>
             </div>
-            <span style={{ fontSize: 14, fontWeight: 500, color: "rgba(255,255,255,0.6)" }}>FB Client Portal</span>
+            <span style={{ fontSize: 14, fontWeight: 500, color: "rgba(255,255,255,0.6)" }}>{t.portalName}</span>
           </div>
-          <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 12 }}>
-            <span style={{ fontSize: 11, color: "rgba(255,255,255,0.2)" }}>{user.email}</span>
+          <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 10 }}>
+            {/* Language switcher */}
+            <div style={{ display: "flex", gap: 4 }}>
+              {LANGS.map(l => (
+                <button key={l.code} onClick={() => changeLang(l.code)} style={{ padding: "3px 9px", borderRadius: 6, border: `1px solid ${lang === l.code ? "rgba(196,154,90,0.4)" : "rgba(255,255,255,0.08)"}`, background: lang === l.code ? "rgba(196,154,90,0.15)" : "transparent", color: lang === l.code ? "var(--gold-bright)" : "rgba(255,255,255,0.3)", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "'DM Sans', sans-serif", transition: "all 0.15s" }}>
+                  {l.label}
+                </button>
+              ))}
+            </div>
             <button onClick={logout} style={{ padding: "5px 12px", borderRadius: 6, border: "1px solid rgba(255,255,255,0.07)", background: "transparent", color: "rgba(255,255,255,0.22)", fontSize: 11, cursor: "pointer", fontFamily: "'DM Sans', sans-serif" }}>
-              Logout
+              {t.logout}
             </button>
           </div>
         </nav>
-        <div style={{ maxWidth: 1100, margin: "0 auto", padding: "40px 28px" }}>
+        <div style={{ maxWidth: 1100, margin: "0 auto", padding: "24px 16px 40px" }}>
           <ClientDashboard
             selectedClient={clientRecord}
             payments={payments}
+            lang={lang}
             onPaymentAdded={async () => { await fetchPayments(clientRecord.invoice); }}
           />
         </div>
@@ -679,6 +710,7 @@ export default function Home() {
               selectedClient={selectedClient}
               payments={payments}
               isAdminView={true}
+              lang={lang}
               onPaymentAdded={async () => {
                 await fetchPayments(selectedClient.invoice);
                 const { data } = await supabase.from("clients").select("*").eq("id", selectedClient.id).single();
