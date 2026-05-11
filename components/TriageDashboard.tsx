@@ -96,7 +96,7 @@ export default function TriageDashboard({ clients, openClient, updateClient }: P
   }
 
   function sendReminderSelected() {
-    const emails = [...selected]
+    const emails = Array.from(selected)
       .map(id => clients.find(c => c.id === id)?.client_email)
       .filter(Boolean)
       .join(",");
