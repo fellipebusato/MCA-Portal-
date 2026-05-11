@@ -297,4 +297,6 @@ export const T = {
   },
 } as const;
 
-export type TranslationKeys = keyof typeof T.en;
+export type Translation = { [K in keyof typeof T.en]: string };
+
+export type TranslationKeys = keyof typeof T.en;  // ← this line already exists, add Translation above it
