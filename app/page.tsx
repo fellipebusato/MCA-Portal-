@@ -10,6 +10,8 @@ import StatementImport from "@/components/StatementImport";
 import ReturnsImport from "@/components/ReturnsImport";
 import ACHWorksImport from "@/components/ACHWorksImport";
 import { T, type Lang } from "@/lib/i18n";
+import TriageDashboard from "@/components/TriageDashboard";
+import AnalyticsDashboard from "@/components/AnalyticsDashboard";
 
 const ADMIN_EMAIL = "fbusato@cfgms.com";
 const LANGS: { code: Lang; label: string }[] = [
@@ -100,7 +102,7 @@ export default function Home() {
   const [payments, setPayments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedClient, setSelectedClient] = useState<any>(null);
-  const [view, setView] = useState<"admin" | "client" | "add">("admin");
+  const [view, setView] = useState<"admin" | "client" | "add" | "triage" | "analytics">("admin");
   const [clientRecord, setClientRecord] = useState<any>(null);
   const [hasConsented, setHasConsented] = useState(false);
   const [checkingConsent, setCheckingConsent] = useState(false);
@@ -631,6 +633,20 @@ export default function Home() {
           Dashboard
         </button>
 
+        {/* Triage */}
+        <button
+          onClick={() => setView("triage")}
+          style={navBtn(view === "triage", { bg: "rgba(154,90,58,0.15)", border: "rgba(154,90,58,0.35)", text: "#E8926A" })}>
+          Triage
+        </button>
+
+        {/* Analytics */}
+        <button
+          onClick={() => setView("analytics")}
+          style={navBtn(view === "analytics", { bg: "rgba(74,100,160,0.18)", border: "rgba(74,100,160,0.38)", text: "#8B9ED4" })}>
+          Analytics
+        </button>
+
         {/* Import Returns */}
         <button
           onClick={() => setView("returns" as any)}
@@ -730,6 +746,18 @@ export default function Home() {
             </div>
             <AddClientForm newClient={newClient} setNewClient={setNewClient} addClient={addClient} />
           </div>
+        )}
+
+        {view === "triage" && (
+          <TriageDashboard
+            clients={clients}
+            openClient={openClient}
+            updateClient={updateClient}
+          />
+        )}
+
+        {view === "analytics" && (
+          <AnalyticsDashboard clients={clients} />
         )}
 
         {(view as string) === "returns" && (
