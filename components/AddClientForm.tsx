@@ -128,6 +128,13 @@ export default function AddClientForm({ newClient, setNewClient, addClient }: Ad
           </div>
 
           <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1.5">Owner phone</label>
+            <input type="tel" placeholder="+1 (917) 555-0100"
+              className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm text-gray-900 placeholder:text-gray-300 focus:outline-none focus:border-gray-400 transition-colors"
+              value={newClient.ownerPhone} onChange={(e) => handleChange("ownerPhone", e.target.value)} />
+          </div>
+
+          <div>
             <label className="block text-xs font-medium text-gray-500 mb-1.5">Funded date</label>
             <input type="date"
               className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm text-gray-900 focus:outline-none focus:border-gray-400 transition-colors"
