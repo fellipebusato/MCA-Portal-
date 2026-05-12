@@ -739,7 +739,7 @@ export default function Home() {
 
         {(view as string) === "triage" && (
           <div style={{ padding: "32px" }}>
-            <TriageDashboard clients={clients} openClient={openClient} />
+            <TriageDashboard clients={clients} openClient={openClient} updateClient={updateClient} />
           </div>
         )}
 
