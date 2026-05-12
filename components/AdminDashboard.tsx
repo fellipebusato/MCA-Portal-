@@ -1,5 +1,5 @@
 "use client";
-import React from "react";
+import React, { useMemo } from "react";
 
 import { useState } from "react";
 import MonthlyRiskPanel from "@/components/MonthlyRiskPanel";
@@ -51,6 +51,7 @@ const EDIT_FIELDS: [string, string, string][] = [
   ["invoice", "Invoice #", "text"],
   ["ach_works_name", "ACH Works name", "text"],
   ["owner_name", "Owner name", "text"],
+  ["owner_phone", "Owner phone", "text"],
   ["client_email", "Client email", "text"],
   ["funded_date", "Funded date", "date"],
   ["funded", "Funded amount ($)", "text"],
@@ -104,23 +105,22 @@ export default function AdminDashboard({
   const [periodIdx, setPeriodIdx] = useState<number | null>(null);
   const [settlementOpen, setSettlementOpen] = useState(false);
 
-  // Sort by funded_date oldest → newest
-  const sortedClients = [...clients].sort((a, b) => {
+  // Sort by funded_date oldest → newest — memoized for 500+ clients
+  const sortedClients = useMemo(() => [...clients].sort((a, b) => {
     if (!a.funded_date) return 1;
     if (!b.funded_date) return -1;
     const dateDiff = new Date(a.funded_date).getTime() - new Date(b.funded_date).getTime();
     if (dateDiff !== 0) return dateDiff;
-    // Same date — sort by invoice number ascending (INV105007 → INV107083)
     const aNum = parseInt((a.invoice || "").replace(/\D/g, "")) || 0;
     const bNum = parseInt((b.invoice || "").replace(/\D/g, "")) || 0;
     return aNum - bNum;
-  });
+  }), [clients]);
 
-  const totalBalance = clients.reduce((sum, c) => sum + Number(c.balance || 0), 0);
-  const attentionClients = clients.filter(c => c.status !== "Good Standing");
-  const goodClients = clients.filter(c => c.status === "Good Standing");
-  const dailyClients = clients.filter(c => c.payment_frequency === "daily").length;
-  const weeklyClients = clients.filter(c => c.payment_frequency === "weekly").length;
+  const totalBalance = useMemo(() => clients.reduce((sum, c) => sum + Number(c.balance || 0), 0), [clients]);
+  const attentionClients = useMemo(() => clients.filter(c => c.status !== "Good Standing"), [clients]);
+  const goodClients = useMemo(() => clients.filter(c => c.status === "Good Standing"), [clients]);
+  const dailyClients = useMemo(() => clients.filter(c => c.payment_frequency === "daily").length, [clients]);
+  const weeklyClients = useMemo(() => clients.filter(c => c.payment_frequency === "weekly").length, [clients]);
 
   // Build date-range periods from actual funded dates
   function getPeriodLabel(d: string): string {
@@ -133,27 +133,60 @@ export default function AdminDashboard({
   }
 
   // Get unique ordered periods from sorted clients
-  const allPeriods = Array.from(
-    new Set(sortedClients.map(c => getPeriodLabel(c.funded_date)))
+  const allPeriods = useMemo(() =>
+    Array.from(new Set(sortedClients.map(c => getPeriodLabel(c.funded_date)))),
+    [sortedClients]
   );
   const resolvedIdx = periodIdx === null ? allPeriods.length - 1 : Math.min(Math.max(0, periodIdx), allPeriods.length - 1);
 
-  const baseClients = filterAttention ? attentionClients : sortedClients;
+  const baseClients = useMemo(() =>
+    filterAttention ? attentionClients : sortedClients,
+    [filterAttention, attentionClients, sortedClients]
+  );
 
-  const displayedClients = searchQuery.trim()
-    ? baseClients.filter(c => {
-        const q = searchQuery.toLowerCase();
-        return (
-          c.business_name?.toLowerCase().includes(q) ||
-          c.invoice?.toLowerCase().includes(q) ||
-          c.owner_name?.toLowerCase().includes(q)
-        );
-      })
-    : allPeriods.length > 0
-    ? baseClients.filter(c => getPeriodLabel(c.funded_date) === allPeriods[resolvedIdx])
-    : baseClients;
+  const displayedClients = useMemo(() => {
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      return baseClients.filter(c =>
+        c.business_name?.toLowerCase().includes(q) ||
+        c.invoice?.toLowerCase().includes(q) ||
+        c.owner_name?.toLowerCase().includes(q) ||
+        (c as any).owner_phone?.toLowerCase().includes(q)
+      );
+    }
+    if (allPeriods.length > 0) {
+      return baseClients.filter(c => getPeriodLabel(c.funded_date) === allPeriods[resolvedIdx]);
+    }
+    return baseClients;
+  }, [searchQuery, baseClients, allPeriods, resolvedIdx]);
 
   const currentPeriod = allPeriods[resolvedIdx] || "";
+
+  function exportCSV() {
+    const headers = [
+      "Business Name", "Invoice", "Owner", "Phone", "Email",
+      "Funded Date", "Funded ($)", "Payback ($)", "Balance ($)",
+      "Payment ($)", "Frequency", "Status", "State", "SIC Code",
+    ];
+    const rows = clients.map(c => [
+      c.business_name, c.invoice, c.owner_name,
+      (c as any).owner_phone || "",
+      c.client_email, c.funded_date,
+      c.funded, c.payback, c.balance,
+      c.payment, c.payment_frequency, c.status,
+      c.state || "", c.sic_code || "",
+    ]);
+    const csv = [headers, ...rows]
+      .map(r => r.map(v => `"${String(v ?? "").replace(/"/g, '""')}"`).join(","))
+      .join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `clients-${new Date().toISOString().split("T")[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
 
   // Pre-upload preview handler
   async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
@@ -231,14 +264,27 @@ export default function AdminDashboard({
             </div>
           </div>
 
-          {/* Upload trigger */}
-          <label style={{ display: "flex", alignItems: "center", gap: 8, background: "var(--ink-1)", color: "var(--gold-bright)", border: "1px solid rgba(196,154,90,0.35)", padding: "12px 22px", borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: "pointer", boxShadow: "0 2px 12px rgba(30,16,4,0.12)", transition: "all 0.2s" }}>
-            <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
-              <path d="M6.5 1v8M3 4L6.5 1 10 4M1.5 10.5h10" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-            Upload daily payments
-            <input type="file" accept=".csv,.xls,.xlsx" onChange={handleFileSelect} style={{ display: "none" }} />
-          </label>
+          <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+            {/* Export CSV */}
+            <button
+              onClick={exportCSV}
+              style={{ display: "flex", alignItems: "center", gap: 7, background: "transparent", color: "var(--ink-3)", border: "1px solid var(--border-mid)", padding: "11px 18px", borderRadius: 10, fontSize: 13, fontWeight: 500, cursor: "pointer", transition: "all 0.2s" }}
+              title="Export all clients to CSV"
+            >
+              <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+                <path d="M6.5 12V4M3 9l3.5 3L10 9M1.5 2.5h10" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+              Export CSV
+            </button>
+            {/* Upload trigger */}
+            <label style={{ display: "flex", alignItems: "center", gap: 8, background: "var(--ink-1)", color: "var(--gold-bright)", border: "1px solid rgba(196,154,90,0.35)", padding: "12px 22px", borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: "pointer", boxShadow: "0 2px 12px rgba(30,16,4,0.12)", transition: "all 0.2s" }}>
+              <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+                <path d="M6.5 1v8M3 4L6.5 1 10 4M1.5 10.5h10" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+              Upload daily payments
+              <input type="file" accept=".csv,.xls,.xlsx" onChange={handleFileSelect} style={{ display: "none" }} />
+            </label>
+          </div>
         </div>
 
         {/* ── Pre-upload preview modal ── */}
