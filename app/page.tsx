@@ -1,8 +1,7 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { ADMIN_EMAIL } from "@/lib/config";
 import AdminDashboard from "@/components/AdminDashboard";
 import ClientDashboard from "@/components/ClientDashboard";
 import AddClientForm from "@/components/AddClientForm";
@@ -10,28 +9,8 @@ import ConsentPage from "@/components/ConsentPage";
 import StatementImport from "@/components/StatementImport";
 import ReturnsImport from "@/components/ReturnsImport";
 import ACHWorksImport from "@/components/ACHWorksImport";
-import ConfirmModal from "@/components/ConfirmModal";
-import { ToastProvider, toast } from "@/components/Toast";
-import { T, type Lang } from "@/lib/i18n";
-import TriageDashboard from "@/components/TriageDashboard";
-import AnalyticsDashboard from "@/components/AnalyticsDashboard";
-import type { Client, Payment, NewClientForm } from "@/lib/types";
 
-type ViewType =
-  | "admin"
-  | "client"
-  | "add"
-  | "triage"
-  | "analytics"
-  | "returns"
-  | "statement"
-  | "achworks";
-
-const LANGS: { code: Lang; label: string }[] = [
-  { code: "en", label: "EN" },
-  { code: "es", label: "ES" },
-  { code: "pt", label: "PT" },
-];
+const ADMIN_EMAIL = "fbusato@cfgms.com";
 
 function addBusinessDays(date: Date, days: number): Date {
   const result = new Date(date);
@@ -40,6 +19,18 @@ function addBusinessDays(date: Date, days: number): Date {
     result.setDate(result.getDate() + 1);
     const dow = result.getDay();
     if (dow !== 0 && dow !== 6) added++;
+  }
+  return result;
+}
+
+// Excel files contain settlement dates — subtract 4 business days to get the ACH pull date
+function subtractBusinessDays(date: Date, days: number): Date {
+  const result = new Date(date);
+  let subtracted = 0;
+  while (subtracted < days) {
+    result.setDate(result.getDate() - 1);
+    const dow = result.getDay();
+    if (dow !== 0 && dow !== 6) subtracted++;
   }
   return result;
 }
@@ -107,94 +98,57 @@ function parseCSVRows(text: string): { invoice: string; date: string; amount: nu
   return results;
 }
 
-// Nav button style helper — defined outside component to avoid re-creation on render
-function navBtn(active: boolean, color: { bg: string; border: string; text: string }): React.CSSProperties {
-  return {
-    padding: "7px 16px",
-    borderRadius: 7,
-    border: `1px solid ${color.border}`,
-    background: active ? color.bg : "rgba(255,255,255,0.04)",
-    color: active ? color.text : "rgba(255,255,255,0.6)",
-    fontSize: 13,
-    fontWeight: 500,
-    cursor: "pointer",
-    fontFamily: "'DM Sans', sans-serif",
-    transition: "all 0.15s",
-    whiteSpace: "nowrap" as const,
-  };
-}
-
-const EMPTY_CLIENT: NewClientForm = {
-  businessName: "", invoice: "", achWorksName: "", ownerName: "", clientEmail: "",
-  ownerPhone: "", fundedDate: "", funded: "", payback: "", payment: "", totalTerm: "",
-  paymentFrequency: "daily", paymentDay: "",
-  state: "", sicCode: "", businessType: "", ficoScore: "",
-  avgMonthlyRevenue: "", timeInBusinessMonths: "", position: "",
-};
-
 export default function Home() {
-  const [user, setUser] = useState<{ email: string } | null>(null);
+  const [user, setUser] = useState<any>(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [clients, setClients] = useState<Client[]>([]);
-  const [payments, setPayments] = useState<Payment[]>([]);
+  const [clients, setClients] = useState<any[]>([]);
+  const [payments, setPayments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedClient, setSelectedClient] = useState<Client | null>(null);
-  const [view, setView] = useState<ViewType>("admin");
-  const [clientRecord, setClientRecord] = useState<Client | null>(null);
+  const [selectedClient, setSelectedClient] = useState<any>(null);
+  const [view, setView] = useState<"admin" | "client" | "add">("admin");
+  const [clientRecord, setClientRecord] = useState<any>(null);
   const [hasConsented, setHasConsented] = useState(false);
   const [checkingConsent, setCheckingConsent] = useState(false);
-  const [lang, setLang] = useState<Lang>("en");
 
   const [showForgot, setShowForgot] = useState(false);
   const [forgotEmail, setForgotEmail] = useState("");
   const [forgotStatus, setForgotStatus] = useState<"idle" | "loading" | "sent" | "error">("idle");
   const [forgotMessage, setForgotMessage] = useState("");
 
-  // Confirm modal state
-  const [confirmModal, setConfirmModal] = useState<{
-    open: boolean;
-    title: string;
-    message: string;
-    confirmLabel?: string;
-    danger?: boolean;
-    onConfirm: () => void;
-  }>({ open: false, title: "", message: "", onConfirm: () => {} });
-
-  const [newClient, setNewClient] = useState<NewClientForm>(EMPTY_CLIENT);
+  const [newClient, setNewClient] = useState<{
+    businessName: string; invoice: string; achWorksName: string; ownerName: string; clientEmail: string;
+    fundedDate: string; funded: string; payback: string; payment: string; totalTerm: string;
+    paymentFrequency: "daily" | "weekly"; paymentDay: string;
+    state: string; sicCode: string; businessType: string; ficoScore: string;
+    avgMonthlyRevenue: string; timeInBusinessMonths: string; position: string;
+  }>({
+    businessName: "", invoice: "", achWorksName: "", ownerName: "", clientEmail: "",
+    fundedDate: "", funded: "", payback: "", payment: "", totalTerm: "",
+    paymentFrequency: "daily" as const, paymentDay: "",
+    state: "", sicCode: "", businessType: "", ficoScore: "",
+    avgMonthlyRevenue: "", timeInBusinessMonths: "", position: "",
+  });
 
   const isAdmin = user?.email === ADMIN_EMAIL;
-  const t = T[lang];
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { checkUser(); }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
-    const saved = localStorage.getItem("portal_lang") as Lang | null;
-    if (saved && ["en", "es", "pt"].includes(saved)) setLang(saved);
-  }, []);
+    if (user) {
+      if (isAdmin) fetchClients();
+      else checkConsent(user.email);
+    }
+  }, [user]);
 
-  function changeLang(l: Lang) { setLang(l); localStorage.setItem("portal_lang", l); }
-
-  const fetchClients = useCallback(async () => {
-    setLoading(true);
-    const { data, error } = await supabase
-      .from("clients")
-      .select("*")
-      .order("funded_date", { ascending: true });
-    if (error) { toast.error("Failed to load clients", error.message); setLoading(false); return; }
-    setClients(data || []);
-    setSelectedClient(data?.[0] || null);
-    if (data?.[0]) await fetchPayments(data[0].invoice);
-    setView("admin");
+  async function checkUser() {
+    const { data } = await supabase.auth.getUser();
+    setUser(data.user);
     setLoading(false);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }
 
-  const fetchPayments = useCallback(async (invoice: string) => {
-    const { data, error } = await supabase
-      .from("payments").select("*").eq("invoice", invoice).order("payment_date", { ascending: true });
-    if (error) { toast.error("Failed to load payments", error.message); return; }
-    setPayments(data || []);
-  }, []);
-
-  const checkConsent = useCallback(async (userEmail: string) => {
+  async function checkConsent(userEmail: string) {
     setCheckingConsent(true);
     const { data } = await supabase.from("consent_log").select("id").eq("email", userEmail).limit(1);
     if (data && data.length > 0) {
@@ -205,31 +159,6 @@ export default function Home() {
       setCheckingConsent(false);
       setLoading(false);
     }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  useEffect(() => { checkUser(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  useEffect(() => {
-    if (!user) return;
-    if (isAdmin) fetchClients();
-    else checkConsent(user.email);
-  }, [user, isAdmin, fetchClients, checkConsent]);
-
-  async function checkUser() {
-    const { data } = await supabase.auth.getUser();
-    setUser(data.user as { email: string } | null);
-    setLoading(false);
-  }
-
-  async function fetchClientByEmail(userEmail: string) {
-    setLoading(true);
-    const { data, error } = await supabase.from("clients").select("*").eq("client_email", userEmail).single();
-    if (error || !data) { setClientRecord(null); setLoading(false); setCheckingConsent(false); return; }
-    setClientRecord(data);
-    await fetchPayments(data.invoice);
-    setView("client");
-    setLoading(false);
-    setCheckingConsent(false);
   }
 
   async function handleConsent() {
@@ -247,9 +176,9 @@ export default function Home() {
 
   async function handleLogin() {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) { toast.error("Sign in failed", error.message); return; }
+    if (error) { alert(error.message); return; }
     const { data } = await supabase.auth.getUser();
-    setUser(data.user as { email: string } | null);
+    setUser(data.user);
   }
 
   async function handleForgotPassword() {
@@ -269,7 +198,39 @@ export default function Home() {
     setSelectedClient(null); setClientRecord(null); setHasConsented(false);
   }
 
-  async function openClient(client: Client) {
+  async function fetchClientByEmail(userEmail: string) {
+    setLoading(true);
+    const { data, error } = await supabase.from("clients").select("*").eq("client_email", userEmail).single();
+    if (error || !data) { setClientRecord(null); setLoading(false); setCheckingConsent(false); return; }
+    setClientRecord(data);
+    await fetchPayments(data.invoice);
+    setView("client");
+    setLoading(false);
+    setCheckingConsent(false);
+  }
+
+  async function fetchClients() {
+    setLoading(true);
+    const { data, error } = await supabase
+      .from("clients")
+      .select("*")
+      .order("funded_date", { ascending: true });
+    if (error) { alert(error.message); setLoading(false); return; }
+    setClients(data || []);
+    setSelectedClient(data?.[0] || null);
+    if (data?.[0]) await fetchPayments(data[0].invoice);
+    setView("admin");
+    setLoading(false);
+  }
+
+  async function fetchPayments(invoice: string) {
+    const { data, error } = await supabase
+      .from("payments").select("*").eq("invoice", invoice).order("payment_date", { ascending: true });
+    if (error) { alert(error.message); return; }
+    setPayments(data || []);
+  }
+
+  async function openClient(client: any) {
     setSelectedClient(client);
     await fetchPayments(client.invoice);
     setView("client");
@@ -281,7 +242,6 @@ export default function Home() {
       invoice: newClient.invoice,
       ach_works_name: newClient.achWorksName || null,
       owner_name: newClient.ownerName,
-      owner_phone: newClient.ownerPhone || null,
       client_email: newClient.clientEmail,
       funded_date: newClient.fundedDate,
       funded: Number(newClient.funded),
@@ -299,37 +259,31 @@ export default function Home() {
       status: "Good Standing",
     };
     const { error } = await supabase.from("clients").insert([client]);
-    if (error) { toast.error("Failed to create client", error.message); return; }
-    toast.success("Client created", newClient.businessName + " has been added.");
-    setNewClient(EMPTY_CLIENT);
+    if (error) { alert(error.message); return; }
+    setNewClient({
+      businessName: "", invoice: "", achWorksName: "", ownerName: "", clientEmail: "",
+      fundedDate: "", funded: "", payback: "", payment: "", totalTerm: "",
+      paymentFrequency: "daily" as const, paymentDay: "",
+      state: "", sicCode: "", businessType: "", ficoScore: "",
+      avgMonthlyRevenue: "", timeInBusinessMonths: "", position: "",
+    });
     await fetchClients();
     setView("admin");
   }
 
-  function confirmDeleteClient(client: Client) {
-    setConfirmModal({
-      open: true,
-      title: "Delete client",
-      message: `Delete ${client.business_name} and all payment history? This cannot be undone.`,
-      confirmLabel: "Delete permanently",
-      danger: true,
-      onConfirm: async () => {
-        setConfirmModal(m => ({ ...m, open: false }));
-        await supabase.from("payments").delete().eq("invoice", client.invoice);
-        const { error } = await supabase.from("clients").delete().eq("id", client.id);
-        if (error) { toast.error("Delete failed", error.message); return; }
-        toast.success("Client deleted", client.business_name + " has been removed.");
-        await fetchClients();
-      },
-    });
+  async function deleteClient(client: any) {
+    if (!confirm(`Delete ${client.business_name} and all payment history? This cannot be undone.`)) return;
+    await supabase.from("payments").delete().eq("invoice", client.invoice);
+    const { error } = await supabase.from("clients").delete().eq("id", client.id);
+    if (error) { alert(error.message); return; }
+    await fetchClients();
   }
 
-  async function updateClient(client: Client) {
+  async function updateClient(client: any) {
     const { error } = await supabase.from("clients").update({
       business_name: client.business_name,
       invoice: client.invoice,
       owner_name: client.owner_name,
-      owner_phone: (client as any).owner_phone || null,
       client_email: client.client_email,
       funded_date: client.funded_date,
       funded: Number(client.funded),
@@ -341,12 +295,11 @@ export default function Home() {
       payment_day: client.payment_day || null,
       status: client.status,
     }).eq("id", client.id);
-    if (error) { toast.error("Save failed", error.message); return; }
-    toast.success("Client updated");
+    if (error) { alert(error.message); return; }
     await fetchClients();
   }
 
-  async function evaluateStanding(client: Client, reportHadPayment: boolean, hadReturn: boolean): Promise<string> {
+  async function evaluateStanding(client: any, reportHadPayment: boolean, hadReturn: boolean): Promise<string> {
     if (hadReturn) return "Needs Attention";
     if (!reportHadPayment) {
       const { data: recentPayments } = await supabase
@@ -355,7 +308,7 @@ export default function Home() {
         .order("settlement_date", { ascending: false }).limit(10);
       if (recentPayments) {
         const today = new Date(); today.setHours(0, 0, 0, 0);
-        const lastSettled = recentPayments.find((p) => {
+        const lastSettled = recentPayments.find((p: any) => {
           const desc = (p.description || "").toLowerCase();
           return !desc.includes("return") && !desc.includes("missed") && !desc.includes("initial") && p.settlement_date;
         });
@@ -374,8 +327,8 @@ export default function Home() {
     return "Good Standing";
   }
 
-  async function handlePaymentUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
+  async function handlePaymentUpload(e: any) {
+    const file = e.target.files[0];
     if (!file) return;
 
     const text = await file.text();
@@ -385,7 +338,7 @@ export default function Home() {
     const { data: clientsData } = await supabase.from("clients").select("*");
     if (!clientsData) return;
 
-    const localClients = clientsData.map((c: Client) => ({ ...c }));
+    const localClients = clientsData.map((c: any) => ({ ...c }));
     const reportInvoices: string[] = [];
     const returnedInvoices: string[] = [];
 
@@ -393,23 +346,26 @@ export default function Home() {
     const parsedRows = isXML ? parseXLSRows(text) : parseCSVRows(text);
 
     if (parsedRows.length === 0) {
-      toast.error("No payments found", "No valid payment rows found. Check the file format and try again.");
+      alert("No valid payment rows found. Check the file format and try again.");
       return;
     }
 
     let matched = 0, skippedDuplicates = 0;
 
     for (const { invoice, date, amount } of parsedRows) {
-      const client = localClients.find((c: Client) =>
+      const client = localClients.find((c: any) =>
         c.invoice.trim().toLowerCase() === invoice.trim().toLowerCase()
       );
       if (!client) continue;
 
       reportInvoices.push(invoice);
 
-      const achDate = new Date(date || todayStr);
-      const settlementDate = addBusinessDays(achDate, 4);
-      const settlementStr = toDateString(settlementDate);
+      // The Excel file contains SETTLEMENT dates (when the payment cleared the bank).
+      // Back-calculate the actual ACH pull date by subtracting 4 business days.
+      const settlementDate = new Date((date || todayStr) + "T00:00:00");
+      const achDate = subtractBusinessDays(settlementDate, 4);
+      const settlementStr = date || todayStr;
+      const achDateStr = toDateString(achDate);
       const alreadySettled = settlementDate <= today;
       const newBalance = alreadySettled
         ? Math.max(Number(client.balance || 0) - amount, 0)
@@ -417,8 +373,8 @@ export default function Home() {
 
       const { error: insertError } = await supabase.from("payments").insert({
         invoice,
-        payment_date: date || todayStr,
-        ach_date: date || todayStr,
+        payment_date: achDateStr,
+        ach_date: achDateStr,
         settlement_date: settlementStr,
         description: "Posted",
         credit: 0, debit: amount, returns: 0,
@@ -458,354 +414,334 @@ export default function Home() {
       await supabase.from("clients").update({ status: newStatus }).eq("id", client.id);
     }
 
-    toast.success(
-      "Upload complete",
-      `${matched} new payment${matched !== 1 ? "s" : ""} recorded${skippedDuplicates > 0 ? ` · ${skippedDuplicates} duplicate${skippedDuplicates > 1 ? "s" : ""} skipped` : ""}.`
-    );
+    let msg = `Upload complete.\n\n${matched} new payment${matched !== 1 ? "s" : ""} recorded.`;
+    if (skippedDuplicates > 0) msg += `\n${skippedDuplicates} duplicate${skippedDuplicates > 1 ? "s" : ""} skipped.`;
+    alert(msg);
     await fetchClients();
   }
 
   // ── Loading ──────────────────────────────────────────────────────────────
   if (loading || checkingConsent) {
     return (
-      <>
-        <ToastProvider />
-        <div style={{ display: "flex", minHeight: "100vh", alignItems: "center", justifyContent: "center", background: "var(--parchment)" }}>
-          <div style={{ textAlign: "center" }}>
-            <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 28, fontWeight: 400, color: "var(--ink-1)", letterSpacing: "-0.02em", marginBottom: 12 }}>
-              {t.portalName}
-            </div>
-            <div style={{ fontSize: 12, color: "var(--ink-5)", letterSpacing: "0.04em" }}>{t.loading}</div>
+      <div style={{ display: "flex", minHeight: "100vh", alignItems: "center", justifyContent: "center", background: "var(--parchment)" }}>
+        <div style={{ textAlign: "center" }}>
+          <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 28, fontWeight: 400, color: "var(--ink-1)", letterSpacing: "-0.02em", marginBottom: 12 }}>
+            FB Client Portal
           </div>
+          <div style={{ fontSize: 12, color: "var(--ink-5)", letterSpacing: "0.04em" }}>Loading your account…</div>
         </div>
-      </>
+      </div>
     );
   }
 
   // ── Login ────────────────────────────────────────────────────────────────
   if (!user) {
     return (
-      <>
-        <ToastProvider />
-        <main style={{ display: "flex", minHeight: "100vh", alignItems: "center", justifyContent: "center", background: "var(--parchment)", padding: 24 }}>
-          <div style={{ width: "100%", maxWidth: 400 }}>
-            {/* Language switcher */}
-            <div style={{ display: "flex", justifyContent: "center", gap: 6, marginBottom: 24 }}>
-              {LANGS.map(l => (
-                <button key={l.code} onClick={() => changeLang(l.code)} style={{ padding: "4px 12px", borderRadius: 7, border: `1px solid ${lang === l.code ? "transparent" : "var(--border-mid)"}`, background: lang === l.code ? "var(--ink-1)" : "transparent", color: lang === l.code ? "var(--gold-muted)" : "var(--ink-4)", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "'DM Sans', sans-serif", transition: "all 0.15s" }}>
-                  {l.label}
-                </button>
-              ))}
+      <main style={{ display: "flex", minHeight: "100vh", alignItems: "center", justifyContent: "center", background: "var(--parchment)", padding: 24 }}>
+        <div style={{ width: "100%", maxWidth: 400 }}>
+          <div style={{ textAlign: "center", marginBottom: 36 }}>
+            <div style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 52, height: 52, borderRadius: 14, background: "var(--ink-1)", border: "1px solid rgba(196,154,90,0.25)", marginBottom: 16 }}>
+              <span style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 18, fontWeight: 600, color: "var(--gold-bright)", letterSpacing: "0.05em" }}>FB</span>
             </div>
-            <div style={{ textAlign: "center", marginBottom: 36 }}>
-              <div style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 52, height: 52, borderRadius: 14, background: "var(--ink-1)", border: "1px solid rgba(196,154,90,0.25)", marginBottom: 16 }}>
-                <span style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 18, fontWeight: 600, color: "var(--gold-bright)", letterSpacing: "0.05em" }}>FB</span>
-              </div>
-              <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 30, fontWeight: 600, color: "var(--ink-1)", letterSpacing: "-0.02em", lineHeight: 1.1 }}>
-                {t.portalName}
-              </div>
-              <div style={{ fontSize: 12, color: "var(--ink-3)", marginTop: 6 }}>{t.signInHeading}</div>
+            <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 30, fontWeight: 600, color: "var(--ink-1)", letterSpacing: "-0.02em", lineHeight: 1.1 }}>
+              FB Client Portal
             </div>
-
-            <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 20, padding: 32, boxShadow: "0 4px 24px rgba(30,16,4,0.08)", position: "relative", overflow: "hidden" }}>
-              <div style={{ position: "absolute", top: 0, left: 22, right: 22, height: 1, background: "linear-gradient(90deg, transparent, var(--gold-border), transparent)" }} />
-
-              {!showForgot ? (
-                <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-                  <div>
-                    <label style={{ display: "block", fontSize: 10, fontWeight: 600, color: "var(--ink-4)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.08em" }}>{t.emailAddress}</label>
-                    <input
-                      type="email" placeholder="you@example.com"
-                      style={{ width: "100%", borderRadius: 10, border: "1px solid var(--border-mid)", background: "var(--parchment-2)", padding: "11px 14px", fontSize: 14, color: "var(--ink-1)", outline: "none", fontFamily: "'DM Sans', sans-serif" }}
-                      value={email} onChange={e => setEmail(e.target.value)}
-                      onKeyDown={e => e.key === "Enter" && handleLogin()}
-                    />
-                  </div>
-                  <div>
-                    <label style={{ display: "block", fontSize: 10, fontWeight: 600, color: "var(--ink-4)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.08em" }}>{t.password}</label>
-                    <input
-                      type="password" placeholder="••••••••"
-                      style={{ width: "100%", borderRadius: 10, border: "1px solid var(--border-mid)", background: "var(--parchment-2)", padding: "11px 14px", fontSize: 14, color: "var(--ink-1)", outline: "none", fontFamily: "'DM Sans', sans-serif" }}
-                      value={password} onChange={e => setPassword(e.target.value)}
-                      onKeyDown={e => e.key === "Enter" && handleLogin()}
-                    />
-                  </div>
-                  <button
-                    onClick={handleLogin}
-                    style={{ width: "100%", borderRadius: 10, background: "var(--ink-1)", color: "var(--gold-muted)", border: "1px solid rgba(196,154,90,0.2)", padding: "13px", fontSize: 14, fontWeight: 500, cursor: "pointer", fontFamily: "'DM Sans', sans-serif", marginTop: 4 }}>
-                    {t.signInBtn}
-                  </button>
-                  <div style={{ textAlign: "center" }}>
-                    <button
-                      onClick={() => { setShowForgot(true); setForgotEmail(email); setForgotStatus("idle"); setForgotMessage(""); }}
-                      style={{ fontSize: 12, color: "var(--ink-4)", background: "none", border: "none", cursor: "pointer", fontFamily: "'DM Sans', sans-serif" }}>
-                      {t.forgotPassword}
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-                  <div>
-                    <label style={{ display: "block", fontSize: 10, fontWeight: 600, color: "var(--ink-4)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.08em" }}>{t.emailAddress}</label>
-                    <input
-                      type="email" placeholder="you@example.com"
-                      style={{ width: "100%", borderRadius: 10, border: "1px solid var(--border-mid)", background: "var(--parchment-2)", padding: "11px 14px", fontSize: 14, color: "var(--ink-1)", outline: "none", fontFamily: "'DM Sans', sans-serif" }}
-                      value={forgotEmail} onChange={e => setForgotEmail(e.target.value)}
-                      onKeyDown={e => e.key === "Enter" && handleForgotPassword()}
-                    />
-                  </div>
-                  {forgotMessage && (
-                    <div style={{ borderRadius: 10, padding: "11px 14px", fontSize: 13, background: forgotStatus === "sent" ? "var(--sage-surface)" : "var(--sienna-surface)", border: `1px solid ${forgotStatus === "sent" ? "var(--sage-border)" : "var(--sienna-border)"}`, color: forgotStatus === "sent" ? "var(--sage)" : "var(--sienna)" }}>
-                      {forgotMessage}
-                    </div>
-                  )}
-                  {forgotStatus !== "sent" && (
-                    <button
-                      onClick={handleForgotPassword} disabled={forgotStatus === "loading"}
-                      style={{ width: "100%", borderRadius: 10, background: "var(--ink-1)", color: "var(--gold-muted)", border: "1px solid rgba(196,154,90,0.2)", padding: "13px", fontSize: 14, fontWeight: 500, cursor: "pointer", fontFamily: "'DM Sans', sans-serif", opacity: forgotStatus === "loading" ? 0.6 : 1 }}>
-                      {forgotStatus === "loading" ? t.sending : t.sendResetLink}
-                    </button>
-                  )}
-                  <div style={{ textAlign: "center" }}>
-                    <button
-                      onClick={() => { setShowForgot(false); setForgotStatus("idle"); setForgotMessage(""); }}
-                      style={{ fontSize: 12, color: "var(--ink-4)", background: "none", border: "none", cursor: "pointer", fontFamily: "'DM Sans', sans-serif" }}>
-                      {t.backToSignIn}
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <div style={{ textAlign: "center", marginTop: 20, fontSize: 11, color: "var(--ink-4)", lineHeight: 1.6, padding: "0 8px" }}>
-              This portal is operated independently by Fellipe Busato and is not affiliated with, endorsed by, or operated on behalf of CFG Merchant Solutions or any other entity. Information displayed is for organizational purposes only and does not constitute an official financial record.
-            </div>
+            <div style={{ fontSize: 12, color: "var(--ink-3)", marginTop: 6 }}>Sign in to your account</div>
           </div>
-        </main>
-      </>
+
+          <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 20, padding: 32, boxShadow: "0 4px 24px rgba(30,16,4,0.08)", position: "relative", overflow: "hidden" }}>
+            <div style={{ position: "absolute", top: 0, left: 22, right: 22, height: 1, background: "linear-gradient(90deg, transparent, var(--gold-border), transparent)" }} />
+
+            {!showForgot ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                <div>
+                  <label style={{ display: "block", fontSize: 10, fontWeight: 600, color: "var(--ink-4)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.08em" }}>Email address</label>
+                  <input
+                    type="email" placeholder="you@example.com"
+                    style={{ width: "100%", borderRadius: 10, border: "1px solid var(--border-mid)", background: "var(--parchment-2)", padding: "11px 14px", fontSize: 14, color: "var(--ink-1)", outline: "none", fontFamily: "'DM Sans', sans-serif" }}
+                    value={email} onChange={e => setEmail(e.target.value)}
+                    onKeyDown={e => e.key === "Enter" && handleLogin()}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: "block", fontSize: 10, fontWeight: 600, color: "var(--ink-4)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.08em" }}>Password</label>
+                  <input
+                    type="password" placeholder="••••••••"
+                    style={{ width: "100%", borderRadius: 10, border: "1px solid var(--border-mid)", background: "var(--parchment-2)", padding: "11px 14px", fontSize: 14, color: "var(--ink-1)", outline: "none", fontFamily: "'DM Sans', sans-serif" }}
+                    value={password} onChange={e => setPassword(e.target.value)}
+                    onKeyDown={e => e.key === "Enter" && handleLogin()}
+                  />
+                </div>
+                <button
+                  onClick={handleLogin}
+                  style={{ width: "100%", borderRadius: 10, background: "var(--ink-1)", color: "var(--gold-muted)", border: "1px solid rgba(196,154,90,0.2)", padding: "13px", fontSize: 14, fontWeight: 500, cursor: "pointer", fontFamily: "'DM Sans', sans-serif", marginTop: 4 }}>
+                  Sign in
+                </button>
+                <div style={{ textAlign: "center" }}>
+                  <button
+                    onClick={() => { setShowForgot(true); setForgotEmail(email); setForgotStatus("idle"); setForgotMessage(""); }}
+                    style={{ fontSize: 12, color: "var(--ink-4)", background: "none", border: "none", cursor: "pointer", fontFamily: "'DM Sans', sans-serif" }}>
+                    Forgot your password?
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                <div>
+                  <label style={{ display: "block", fontSize: 10, fontWeight: 600, color: "var(--ink-4)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.08em" }}>Your email address</label>
+                  <input
+                    type="email" placeholder="you@example.com"
+                    style={{ width: "100%", borderRadius: 10, border: "1px solid var(--border-mid)", background: "var(--parchment-2)", padding: "11px 14px", fontSize: 14, color: "var(--ink-1)", outline: "none", fontFamily: "'DM Sans', sans-serif" }}
+                    value={forgotEmail} onChange={e => setForgotEmail(e.target.value)}
+                    onKeyDown={e => e.key === "Enter" && handleForgotPassword()}
+                  />
+                </div>
+                {forgotMessage && (
+                  <div style={{ borderRadius: 10, padding: "11px 14px", fontSize: 13, background: forgotStatus === "sent" ? "var(--sage-surface)" : "var(--sienna-surface)", border: `1px solid ${forgotStatus === "sent" ? "var(--sage-border)" : "var(--sienna-border)"}`, color: forgotStatus === "sent" ? "var(--sage)" : "var(--sienna)" }}>
+                    {forgotMessage}
+                  </div>
+                )}
+                {forgotStatus !== "sent" && (
+                  <button
+                    onClick={handleForgotPassword} disabled={forgotStatus === "loading"}
+                    style={{ width: "100%", borderRadius: 10, background: "var(--ink-1)", color: "var(--gold-muted)", border: "1px solid rgba(196,154,90,0.2)", padding: "13px", fontSize: 14, fontWeight: 500, cursor: "pointer", fontFamily: "'DM Sans', sans-serif", opacity: forgotStatus === "loading" ? 0.6 : 1 }}>
+                    {forgotStatus === "loading" ? "Sending…" : "Send reset link"}
+                  </button>
+                )}
+                <div style={{ textAlign: "center" }}>
+                  <button
+                    onClick={() => { setShowForgot(false); setForgotStatus("idle"); setForgotMessage(""); }}
+                    style={{ fontSize: 12, color: "var(--ink-4)", background: "none", border: "none", cursor: "pointer", fontFamily: "'DM Sans', sans-serif" }}>
+                    ← Back to sign in
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div style={{ textAlign: "center", marginTop: 20, fontSize: 11, color: "var(--ink-4)", lineHeight: 1.6, padding: "0 8px" }}>
+            This portal is operated independently by Fellipe Busato and is not affiliated with, endorsed by, or operated on behalf of CFG Merchant Solutions or any other entity. Information displayed is for organizational purposes only and does not constitute an official financial record.
+          </div>
+        </div>
+      </main>
     );
   }
 
   // ── Consent ──────────────────────────────────────────────────────────────
   if (!isAdmin && !hasConsented) {
-    return (
-      <>
-        <ToastProvider />
-        <ConsentPage userEmail={user.email} onAgree={handleConsent} onDecline={handleDecline} />
-      </>
-    );
+    return <ConsentPage userEmail={user.email} onAgree={handleConsent} onDecline={handleDecline} />;
   }
 
   // ── Client view (non-admin) ───────────────────────────────────────────────
   if (!isAdmin) {
     if (!clientRecord) {
       return (
-        <>
-          <ToastProvider />
-          <main style={{ display: "flex", minHeight: "100vh", alignItems: "center", justifyContent: "center", background: "var(--parchment)" }}>
-            <div style={{ textAlign: "center" }}>
-              <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 22, color: "var(--ink-2)", marginBottom: 8 }}>{t.noAccount}</div>
-              <p style={{ fontSize: 13, color: "var(--ink-4)", marginBottom: 20 }}>{t.noAccountDesc.replace("{email}", user.email)}</p>
-              <button onClick={logout} style={{ borderRadius: 9, border: "1px solid var(--border-mid)", padding: "10px 20px", fontSize: 13, color: "var(--ink-3)", background: "transparent", cursor: "pointer", fontFamily: "'DM Sans', sans-serif" }}>
-                {t.logout}
-              </button>
-            </div>
-          </main>
-        </>
+        <main style={{ display: "flex", minHeight: "100vh", alignItems: "center", justifyContent: "center", background: "var(--parchment)" }}>
+          <div style={{ textAlign: "center" }}>
+            <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 22, color: "var(--ink-2)", marginBottom: 8 }}>No account found</div>
+            <p style={{ fontSize: 13, color: "var(--ink-4)", marginBottom: 20 }}>No account found for {user.email}. Please contact Fellipe for access.</p>
+            <button onClick={logout} style={{ borderRadius: 9, border: "1px solid var(--border-mid)", padding: "10px 20px", fontSize: 13, color: "var(--ink-3)", background: "transparent", cursor: "pointer", fontFamily: "'DM Sans', sans-serif" }}>
+              Sign out
+            </button>
+          </div>
+        </main>
       );
     }
     return (
-      <>
-        <ToastProvider />
-        <main style={{ minHeight: "100vh", background: "var(--parchment)" }}>
-          <nav style={{ background: "var(--ink-1)", padding: "0 16px 0 20px", display: "flex", alignItems: "center", height: 60, position: "sticky", top: 0, zIndex: 10 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <div style={{ width: 30, height: 30, borderRadius: 8, border: "1px solid var(--gold-border)", background: "rgba(160,120,64,0.12)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <span style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 12, fontWeight: 600, color: "var(--gold-bright)" }}>FB</span>
-              </div>
-              <span style={{ fontSize: 14, fontWeight: 500, color: "rgba(255,255,255,0.6)" }}>{t.portalName}</span>
-            </div>
-            <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 10 }}>
-              <div style={{ display: "flex", gap: 4 }}>
-                {LANGS.map(l => (
-                  <button key={l.code} onClick={() => changeLang(l.code)} style={{ padding: "3px 9px", borderRadius: 6, border: `1px solid ${lang === l.code ? "rgba(196,154,90,0.4)" : "rgba(255,255,255,0.08)"}`, background: lang === l.code ? "rgba(196,154,90,0.15)" : "transparent", color: lang === l.code ? "var(--gold-bright)" : "rgba(255,255,255,0.3)", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "'DM Sans', sans-serif", transition: "all 0.15s" }}>
-                    {l.label}
-                  </button>
-                ))}
-              </div>
-              <button onClick={logout} style={{ padding: "5px 12px", borderRadius: 6, border: "1px solid rgba(255,255,255,0.07)", background: "transparent", color: "rgba(255,255,255,0.22)", fontSize: 11, cursor: "pointer", fontFamily: "'DM Sans', sans-serif" }}>
-                {t.logout}
-              </button>
-            </div>
-          </nav>
-          <div style={{ maxWidth: 1100, margin: "0 auto", padding: "24px 16px 40px" }}>
-            <ClientDashboard
-              selectedClient={clientRecord}
-              payments={payments}
-              lang={lang}
-              onPaymentAdded={async () => { await fetchPayments(clientRecord.invoice); }}
-            />
-          </div>
-        </main>
-      </>
-    );
-  }
-
-  // ── Admin view ───────────────────────────────────────────────────────────
-  return (
-    <>
-      <ToastProvider />
-      <ConfirmModal
-        open={confirmModal.open}
-        title={confirmModal.title}
-        message={confirmModal.message}
-        confirmLabel={confirmModal.confirmLabel}
-        danger={confirmModal.danger}
-        onConfirm={confirmModal.onConfirm}
-        onCancel={() => setConfirmModal(m => ({ ...m, open: false }))}
-      />
-
       <main style={{ minHeight: "100vh", background: "var(--parchment)" }}>
-        {/* ── Single Admin Nav ── */}
-        <nav style={{ background: "var(--ink-1)", padding: "0 20px", display: "flex", alignItems: "center", height: 62, position: "sticky", top: 0, zIndex: 10, gap: 5, overflowX: "auto" }}>
-
-          {/* Logo */}
-          <div style={{ display: "flex", alignItems: "center", gap: 10, marginRight: 16, flexShrink: 0 }}>
-            <button onClick={() => setView("admin")} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 10 }}>
-              <div style={{ width: 30, height: 30, borderRadius: 8, border: "1px solid var(--gold-border)", background: "rgba(160,120,64,0.12)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <span style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 12, fontWeight: 600, color: "var(--gold-bright)" }}>FB</span>
-              </div>
-              <span style={{ fontSize: 14, fontWeight: 700, color: "rgba(255,255,255,0.92)", letterSpacing: "-0.01em" }}>FB Portal</span>
-            </button>
-            <span style={{ fontSize: 9, fontWeight: 600, color: "rgba(255,255,255,0.35)", background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.12)", padding: "2px 7px", borderRadius: 4, textTransform: "uppercase", letterSpacing: "0.08em" }}>Admin</span>
+        <nav style={{ background: "var(--ink-1)", padding: "0 28px", display: "flex", alignItems: "center", height: 60, position: "sticky", top: 0, zIndex: 10 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{ width: 30, height: 30, borderRadius: 8, border: "1px solid var(--gold-border)", background: "rgba(160,120,64,0.12)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <span style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 12, fontWeight: 600, color: "var(--gold-bright)" }}>FB</span>
+            </div>
+            <span style={{ fontSize: 14, fontWeight: 500, color: "rgba(255,255,255,0.6)" }}>FB Client Portal</span>
           </div>
-
-          <button onClick={() => setView("admin")} style={navBtn(view === "admin", { bg: "rgba(160,120,64,0.2)", border: "rgba(160,120,64,0.4)", text: "var(--gold-bright)" })}>
-            Dashboard
-          </button>
-          <button onClick={() => setView("triage")} style={navBtn(view === "triage", { bg: "rgba(154,90,58,0.15)", border: "rgba(154,90,58,0.35)", text: "#E8926A" })}>
-            Triage
-          </button>
-          <button onClick={() => setView("analytics")} style={navBtn(view === "analytics", { bg: "rgba(74,100,160,0.18)", border: "rgba(74,100,160,0.38)", text: "#8B9ED4" })}>
-            Analytics
-          </button>
-          <button onClick={() => setView("returns")} style={navBtn(view === "returns", { bg: "rgba(154,90,58,0.2)", border: "rgba(154,90,58,0.4)", text: "#E8926A" })}>
-            Import returns
-          </button>
-          <button onClick={() => setView("statement")} style={navBtn(view === "statement", { bg: "rgba(74,126,160,0.2)", border: "rgba(74,126,160,0.4)", text: "#8BAED4" })}>
-            Import statement
-          </button>
-          <button onClick={() => setView("achworks")} style={navBtn(view === "achworks", { bg: "rgba(74,100,160,0.2)", border: "rgba(74,100,160,0.4)", text: "#8B9ED4" })}>
-            ACH Works
-          </button>
-          <button onClick={() => setView("add")} style={navBtn(view === "add", { bg: "rgba(90,138,106,0.2)", border: "rgba(90,138,106,0.4)", text: "#7ab89a" })}>
-            + Add client
-          </button>
-
-          {selectedClient && (
-            <button onClick={() => openClient(selectedClient)} style={navBtn(view === "client", { bg: "rgba(255,255,255,0.1)", border: "rgba(255,255,255,0.2)", text: "rgba(255,255,255,0.9)" })}>
-              Client view
-            </button>
-          )}
-
-          <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}>
-            <span style={{ fontSize: 11, color: "rgba(255,255,255,0.4)" }}>{user.email}</span>
-            <button onClick={logout} style={{ padding: "5px 12px", borderRadius: 6, border: "1px solid rgba(255,255,255,0.12)", background: "transparent", color: "rgba(255,255,255,0.45)", fontSize: 11, cursor: "pointer", fontFamily: "'DM Sans', sans-serif" }}>
+          <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 12 }}>
+            <span style={{ fontSize: 11, color: "rgba(255,255,255,0.2)" }}>{user.email}</span>
+            <button onClick={logout} style={{ padding: "5px 12px", borderRadius: 6, border: "1px solid rgba(255,255,255,0.07)", background: "transparent", color: "rgba(255,255,255,0.22)", fontSize: 11, cursor: "pointer", fontFamily: "'DM Sans', sans-serif" }}>
               Logout
             </button>
           </div>
         </nav>
-
-        {/* ── Admin body ── */}
-        <div style={{ maxWidth: 1200, margin: "0 auto" }}>
-
-          {view === "client" && selectedClient && (
-            <div style={{ padding: "20px 32px 0" }}>
-              <button
-                onClick={() => setView("admin")}
-                style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--ink-4)", background: "none", border: "none", cursor: "pointer", fontFamily: "'DM Sans', sans-serif", marginBottom: 4 }}>
-                ← Dashboard
-              </button>
-              <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 26, fontWeight: 500, color: "var(--ink-1)", letterSpacing: "-0.02em", marginBottom: 20 }}>
-                Welcome, {selectedClient.owner_name}
-              </div>
-            </div>
-          )}
-
-          {view === "admin" && (
-            <AdminDashboard
-              clients={clients}
-              openClient={openClient}
-              handlePaymentUpload={handlePaymentUpload}
-              deleteClient={confirmDeleteClient}
-              updateClient={updateClient}
-            />
-          )}
-
-          {view === "client" && selectedClient && (
-            <div style={{ padding: "0 32px 40px" }}>
-              <ClientDashboard
-                selectedClient={selectedClient}
-                payments={payments}
-                isAdminView={true}
-                lang={lang}
-                onPaymentAdded={async () => {
-                  await fetchPayments(selectedClient.invoice);
-                  const { data } = await supabase.from("clients").select("*").eq("id", selectedClient.id).single();
-                  if (data) {
-                    setSelectedClient(data);
-                    setClients(prev => prev.map((c) => c.id === data.id ? data : c));
-                  }
-                }}
-              />
-            </div>
-          )}
-
-          {view === "add" && (
-            <div style={{ padding: "32px" }}>
-              <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 26, fontWeight: 500, color: "var(--ink-1)", letterSpacing: "-0.02em", marginBottom: 24 }}>
-                Add client
-              </div>
-              <AddClientForm newClient={newClient} setNewClient={setNewClient} addClient={addClient} />
-            </div>
-          )}
-
-          {view === "triage" && (
-            <TriageDashboard clients={clients} openClient={openClient} updateClient={updateClient} />
-          )}
-
-          {view === "analytics" && (
-            <AnalyticsDashboard clients={clients} />
-          )}
-
-          {view === "returns" && (
-            <div style={{ padding: "32px" }}>
-              <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 26, fontWeight: 500, color: "var(--ink-1)", letterSpacing: "-0.02em", marginBottom: 24 }}>
-                Import returns
-              </div>
-              <ReturnsImport clients={clients} onImportComplete={async () => { await fetchClients(); setView("admin"); }} />
-            </div>
-          )}
-
-          {view === "statement" && (
-            <div style={{ padding: "32px" }}>
-              <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 26, fontWeight: 500, color: "var(--ink-1)", letterSpacing: "-0.02em", marginBottom: 24 }}>
-                Import CFG statement
-              </div>
-              <StatementImport clients={clients} onImportComplete={async () => { await fetchClients(); setView("admin"); }} />
-            </div>
-          )}
-
-          {view === "achworks" && (
-            <div style={{ padding: "32px" }}>
-              <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 26, fontWeight: 500, color: "var(--ink-1)", letterSpacing: "-0.02em", marginBottom: 24 }}>
-                Import ACH Works history
-              </div>
-              <ACHWorksImport clients={clients} onImportComplete={async () => { await fetchClients(); setView("admin"); }} />
-            </div>
-          )}
+        <div style={{ maxWidth: 1100, margin: "0 auto", padding: "40px 28px" }}>
+          <ClientDashboard
+            selectedClient={clientRecord}
+            payments={payments}
+            onPaymentAdded={async () => { await fetchPayments(clientRecord.invoice); }}
+          />
         </div>
       </main>
-    </>
+    );
+  }
+
+  // ── Admin view ───────────────────────────────────────────────────────────
+  // Shared nav button style helper
+  function navBtn(active: boolean, color: { bg: string; border: string; text: string }) {
+    return {
+      padding: "7px 16px",
+      borderRadius: 7,
+      border: `1px solid ${color.border}`,
+      background: active ? color.bg : "rgba(255,255,255,0.04)",
+      color: active ? color.text : "rgba(255,255,255,0.6)",
+      fontSize: 13,
+      fontWeight: 500,
+      cursor: "pointer",
+      fontFamily: "'DM Sans', sans-serif",
+      transition: "all 0.15s",
+    } as React.CSSProperties;
+  }
+
+  return (
+    <main style={{ minHeight: "100vh", background: "var(--parchment)" }}>
+
+      {/* ── Single Admin Nav ── */}
+      <nav style={{ background: "var(--ink-1)", padding: "0 28px", display: "flex", alignItems: "center", height: 62, position: "sticky", top: 0, zIndex: 10, gap: 6 }}>
+
+        {/* Logo */}
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginRight: 20 }}>
+          <button onClick={() => setView("admin")} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{ width: 30, height: 30, borderRadius: 8, border: "1px solid var(--gold-border)", background: "rgba(160,120,64,0.12)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <span style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 12, fontWeight: 600, color: "var(--gold-bright)" }}>FB</span>
+            </div>
+            <span style={{ fontSize: 14, fontWeight: 700, color: "rgba(255,255,255,0.92)", letterSpacing: "-0.01em" }}>FB Client Portal</span>
+          </button>
+          <span style={{ fontSize: 9, fontWeight: 600, color: "rgba(255,255,255,0.35)", background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.12)", padding: "2px 7px", borderRadius: 4, textTransform: "uppercase", letterSpacing: "0.08em" }}>Admin</span>
+        </div>
+
+        {/* Dashboard */}
+        <button
+          onClick={() => setView("admin")}
+          style={navBtn(view === "admin", { bg: "rgba(160,120,64,0.2)", border: "rgba(160,120,64,0.4)", text: "var(--gold-bright)" })}>
+          Dashboard
+        </button>
+
+        {/* Import Returns */}
+        <button
+          onClick={() => setView("returns" as any)}
+          style={navBtn((view as string) === "returns", { bg: "rgba(154,90,58,0.2)", border: "rgba(154,90,58,0.4)", text: "#E8926A" })}>
+          Import returns
+        </button>
+
+        {/* Import Statement */}
+        <button
+          onClick={() => setView("statement" as any)}
+          style={navBtn((view as string) === "statement", { bg: "rgba(74,126,160,0.2)", border: "rgba(74,126,160,0.4)", text: "#8BAED4" })}>
+          Import statement
+        </button>
+
+        {/* Import ACH Works */}
+        <button
+          onClick={() => setView("achworks" as any)}
+          style={navBtn((view as string) === "achworks", { bg: "rgba(74,100,160,0.2)", border: "rgba(74,100,160,0.4)", text: "#8B9ED4" })}>
+          Import ACH Works
+        </button>
+
+        {/* Add Client */}
+        <button
+          onClick={() => setView("add")}
+          style={navBtn(view === "add", { bg: "rgba(90,138,106,0.2)", border: "rgba(90,138,106,0.4)", text: "#7ab89a" })}>
+          + Add client
+        </button>
+
+        {/* Client View — only when a client is selected */}
+        {selectedClient && (
+          <button
+            onClick={() => openClient(selectedClient)}
+            style={navBtn(view === "client", { bg: "rgba(255,255,255,0.1)", border: "rgba(255,255,255,0.2)", text: "rgba(255,255,255,0.9)" })}>
+            Client view
+          </button>
+        )}
+
+        {/* Right side */}
+        <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 12 }}>
+          <span style={{ fontSize: 11, color: "rgba(255,255,255,0.4)" }}>{user.email}</span>
+          <button onClick={logout} style={{ padding: "5px 12px", borderRadius: 6, border: "1px solid rgba(255,255,255,0.12)", background: "transparent", color: "rgba(255,255,255,0.45)", fontSize: 11, cursor: "pointer", fontFamily: "'DM Sans', sans-serif" }}>
+            Logout
+          </button>
+        </div>
+      </nav>
+
+      {/* ── Admin body ── */}
+      <div style={{ maxWidth: 1200, margin: "0 auto" }}>
+
+        {/* Back to dashboard button when in client view */}
+        {view === "client" && selectedClient && (
+          <div style={{ padding: "20px 32px 0" }}>
+            <button
+              onClick={() => setView("admin")}
+              style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--ink-4)", background: "none", border: "none", cursor: "pointer", fontFamily: "'DM Sans', sans-serif", marginBottom: 4 }}>
+              ← Dashboard
+            </button>
+            <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 26, fontWeight: 500, color: "var(--ink-1)", letterSpacing: "-0.02em", marginBottom: 20 }}>
+              Welcome, {selectedClient.owner_name}
+            </div>
+          </div>
+        )}
+
+        {view === "admin" && (
+          <AdminDashboard
+            clients={clients}
+            openClient={openClient}
+            handlePaymentUpload={handlePaymentUpload}
+            deleteClient={deleteClient}
+            updateClient={updateClient}
+          />
+        )}
+
+        {view === "client" && selectedClient && (
+          <div style={{ padding: "0 32px 40px" }}>
+            <ClientDashboard
+              selectedClient={selectedClient}
+              payments={payments}
+              isAdminView={true}
+              onPaymentAdded={async () => {
+                await fetchPayments(selectedClient.invoice);
+                const { data } = await supabase.from("clients").select("*").eq("id", selectedClient.id).single();
+                if (data) {
+                  setSelectedClient(data);
+                  setClients(prev => prev.map((c: any) => c.id === data.id ? data : c));
+                }
+              }}
+            />
+          </div>
+        )}
+
+        {view === "add" && (
+          <div style={{ padding: "32px" }}>
+            <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 26, fontWeight: 500, color: "var(--ink-1)", letterSpacing: "-0.02em", marginBottom: 24 }}>
+              Add client
+            </div>
+            <AddClientForm newClient={newClient} setNewClient={setNewClient} addClient={addClient} />
+          </div>
+        )}
+
+        {(view as string) === "returns" && (
+          <div style={{ padding: "32px" }}>
+            <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 26, fontWeight: 500, color: "var(--ink-1)", letterSpacing: "-0.02em", marginBottom: 24 }}>
+              Import returns
+            </div>
+            <ReturnsImport clients={clients} onImportComplete={async () => { await fetchClients(); setView("admin"); }} />
+          </div>
+        )}
+
+        {(view as string) === "statement" && (
+          <div style={{ padding: "32px" }}>
+            <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 26, fontWeight: 500, color: "var(--ink-1)", letterSpacing: "-0.02em", marginBottom: 24 }}>
+              Import CFG statement
+            </div>
+            <StatementImport clients={clients} onImportComplete={async () => { await fetchClients(); setView("admin"); }} />
+          </div>
+        )}
+
+        {(view as string) === "achworks" && (
+          <div style={{ padding: "32px" }}>
+            <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 26, fontWeight: 500, color: "var(--ink-1)", letterSpacing: "-0.02em", marginBottom: 24 }}>
+              Import ACH Works history
+            </div>
+            <ACHWorksImport clients={clients} onImportComplete={async () => { await fetchClients(); setView("admin"); }} />
+          </div>
+        )}
+      </div>
+    </main>
   );
 }
