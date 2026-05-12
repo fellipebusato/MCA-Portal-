@@ -12,7 +12,6 @@ type PaymentHistoryProps = {
   onPaymentAdded?: () => void;
 };
 
-// ── Status badge helpers ─────────────────────────────────────────────────────
 function badge(label: string, bg: string, border: string, color: string) {
   return (
     <span style={{ display: "inline-block", borderRadius: 99, background: bg, border: `1px solid ${border}`, padding: "2px 10px", fontSize: 11, fontWeight: 500, color, fontFamily: "'DM Sans', sans-serif" }}>
@@ -21,46 +20,27 @@ function badge(label: string, bg: string, border: string, color: string) {
   );
 }
 
-// 4-state payment status badge — matches ACH Works pipeline exactly
-// pending   = Day 0–1, pull submitted, no verdict
-// processing = Day +2 survived return window, settling soon
-// returned  = appeared in 3PM return report
-// settled   = confirmed in 5PM settlement file
 function TypeBadge({ description, payment_status, settlementDate }: {
   description: string;
   payment_status?: string;
   settlementDate?: Date | null;
 }) {
   const desc = (description || "").toLowerCase();
-
-  // Initial funding credit
   if (desc.includes("initial")) return badge("Initial credit", "rgba(40,110,190,0.08)", "rgba(40,110,190,0.2)", "#1a5fa8");
-
-  // Returned — from return report
   if (payment_status === "returned" || desc.includes("returned") || desc.includes("return"))
     return badge("Returned", "rgba(190,60,40,0.1)", "rgba(190,60,40,0.25)", "#b83220");
-
-  // Missed payment
   if (desc.includes("missed"))
     return badge("Missed", "rgba(196,140,40,0.1)", "rgba(196,140,40,0.25)", "#a07010");
-
-  // Processing — survived return window, waiting on settlement file
   if (payment_status === "processing")
     return badge("Processing", "rgba(90,160,90,0.1)", "rgba(90,160,90,0.25)", "#1a7a1a");
-
-  // Pending — in-flight, return window not yet passed
   if (payment_status === "pending")
     return badge("Pending", "rgba(40,110,190,0.1)", "rgba(40,110,190,0.25)", "#1a5fa8");
-
-  // Legacy pending check (for payments without payment_status column yet)
   const today = new Date(); today.setHours(0, 0, 0, 0);
   if (settlementDate && settlementDate > today)
     return badge("Pending", "rgba(40,110,190,0.1)", "rgba(40,110,190,0.25)", "#1a5fa8");
-
   return badge("Settled", "rgba(34,139,34,0.1)", "rgba(34,139,34,0.25)", "#1a7a1a");
 }
 
-// ── Add Payment Form ─────────────────────────────────────────────────────────
 function AddPaymentForm({ client, onSuccess, onCancel }: {
   client: Client; onSuccess: () => void; onCancel: () => void;
 }) {
@@ -68,7 +48,6 @@ function AddPaymentForm({ client, onSuccess, onCancel }: {
   const [amount, setAmount] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-
   const today = new Date();
   const parsedDate = achDate ? new Date(achDate + "T00:00:00") : null;
   const settlementDate = parsedDate ? addBusinessDays(parsedDate, 4) : null;
@@ -127,8 +106,8 @@ function AddPaymentForm({ client, onSuccess, onCancel }: {
       {amount && Number(amount) > 0 && (
         <div style={{ borderRadius: 8, background: "var(--surface)", border: "1px solid var(--sage-border)", padding: "8px 12px", marginBottom: 10, fontSize: 12, color: "var(--ink-3)", fontFamily: "'DM Sans', sans-serif" }}>
           {alreadySettled
-            ? <>Payment of <strong>{money(Number(amount))}</strong> — balance updates from <strong>{money(Number(client.balance || 0))}</strong> to <strong style={{ color: "var(--sage)" }}>{money(Math.max(Number(client.balance || 0) - Number(amount), 0))}</strong></>
-            : <>Payment of <strong>{money(Number(amount))}</strong> — will show as <strong style={{ color: "#1a5fa8" }}>Processing</strong> until {formatDate(settlementStr)}. Balance updates on settlement.</>}
+            ? <span>Payment of <strong>{money(Number(amount))}</strong> — balance updates from <strong>{money(Number(client.balance || 0))}</strong> to <strong style={{ color: "var(--sage)" }}>{money(Math.max(Number(client.balance || 0) - Number(amount), 0))}</strong></span>
+            : <span>Payment of <strong>{money(Number(amount))}</strong> — will show as <strong style={{ color: "#1a5fa8" }}>Processing</strong> until {formatDate(settlementStr)}. Balance updates on settlement.</span>}
         </div>
       )}
       {error && <p style={{ fontSize: 12, color: "var(--sienna)", marginBottom: 8, fontFamily: "'DM Sans', sans-serif" }}>{error}</p>}
@@ -140,7 +119,6 @@ function AddPaymentForm({ client, onSuccess, onCancel }: {
   );
 }
 
-// ── Edit Payment Row ─────────────────────────────────────────────────────────
 function EditPaymentRow({ payment, client, onSuccess, onCancel }: {
   payment: Payment; client: Client; onSuccess: () => void; onCancel: () => void;
 }) {
@@ -148,7 +126,6 @@ function EditPaymentRow({ payment, client, onSuccess, onCancel }: {
   const [amount, setAmount] = useState(String(payment.debit || ""));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-
   const today = new Date();
   const parsedDate = achDate ? new Date(achDate + "T00:00:00") : null;
   const settlementDate = parsedDate ? addBusinessDays(parsedDate, 4) : null;
@@ -179,7 +156,7 @@ function EditPaymentRow({ payment, client, onSuccess, onCancel }: {
 
   return (
     <tr style={{ background: "rgba(40,110,190,0.04)", borderBottom: "1px solid rgba(40,110,190,0.1)" }}>
-      <td colSpan={7} style={{ padding: "10px 20px" }}>
+      <td colSpan={9} style={{ padding: "10px 20px" }}>
         <div style={{ display: "flex", flexWrap: "wrap", alignItems: "flex-end", gap: 10 }}>
           <div>
             <label style={{ display: "block", fontSize: 10, fontWeight: 600, color: "#1a5fa8", marginBottom: 4, fontFamily: "'DM Sans', sans-serif" }}>ACH Date</label>
@@ -211,13 +188,109 @@ function EditPaymentRow({ payment, client, onSuccess, onCancel }: {
   );
 }
 
-// ── Main Component ────────────────────────────────────────────────────────────
+function BulkEditPanel({ selectedIds, payments, client, onSuccess, onCancel }: {
+  selectedIds: Set<number>;
+  payments: Payment[];
+  client: Client;
+  onSuccess: () => void;
+  onCancel: () => void;
+}) {
+  const selected = payments.filter(p => selectedIds.has(p.id));
+  const [achDate, setAchDate] = useState("");
+  const [amount, setAmount] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const today = new Date();
+  const parsedDate = achDate ? new Date(achDate + "T00:00:00") : null;
+  const settlementDate = parsedDate ? addBusinessDays(parsedDate, 4) : null;
+  const settlementStr = settlementDate ? toDateStr(settlementDate) : "";
+  const alreadySettled = settlementDate ? settlementDate <= today : false;
+
+  async function handleSave() {
+    if (!achDate && !amount) { setError("Enter a date, amount, or both to apply to selected payments."); return; }
+    if (amount && (isNaN(Number(amount)) || Number(amount) <= 0)) { setError("Please enter a valid amount."); return; }
+    setSaving(true); setError("");
+    let balanceAdjustment = 0;
+    for (const p of selected) {
+      const updateFields: Record<string, any> = {};
+      const newDebit = amount ? Number(amount) : Number(p.debit || 0);
+      const newSettl = achDate ? settlementStr : (p.settlement_date || "");
+      const newSettlDate = newSettl ? new Date(newSettl + "T00:00:00") : null;
+      const isNowSettled = newSettlDate ? newSettlDate <= today : false;
+      if (achDate) { updateFields.ach_date = achDate; updateFields.payment_date = achDate; updateFields.settlement_date = newSettl; }
+      if (amount) { updateFields.debit = newDebit; }
+      if (p.running_balance != null) {
+        balanceAdjustment += Number(p.debit || 0);
+        if (isNowSettled) balanceAdjustment -= newDebit;
+        updateFields.running_balance = isNowSettled ? 0 : null;
+      }
+      await supabase.from("payments").update(updateFields).eq("id", p.id);
+    }
+    const settledSelected = selected.filter(p => p.running_balance != null);
+    if (settledSelected.length > 0 && client) {
+      const newBalance = Math.max(Number(client.balance || 0) + balanceAdjustment, 0);
+      await supabase.from("clients").update({ balance: newBalance }).eq("id", client.id);
+    }
+    setSaving(false); onSuccess();
+  }
+
+  return (
+    <div style={{ padding: "14px 20px", borderBottom: "1px solid var(--border)", background: "rgba(40,110,190,0.03)" }}>
+      <div style={{ display: "flex", alignItems: "flex-end", gap: 12, flexWrap: "wrap" }}>
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: "#1a5fa8", marginBottom: 4, fontFamily: "'DM Sans', sans-serif", textTransform: "uppercase", letterSpacing: "0.07em" }}>
+            Bulk editing {selected.length} payment{selected.length !== 1 ? "s" : ""}
+          </div>
+          <div style={{ fontSize: 11, color: "var(--ink-4)", fontFamily: "'DM Sans', sans-serif" }}>
+            Leave a field blank to keep each row&apos;s existing value
+          </div>
+        </div>
+        <div>
+          <label style={{ display: "block", fontSize: 10, fontWeight: 600, color: "#1a5fa8", marginBottom: 4, fontFamily: "'DM Sans', sans-serif" }}>New ACH date (optional)</label>
+          <input type="date"
+            style={{ borderRadius: 7, border: "1px solid rgba(40,110,190,0.3)", background: "var(--surface)", padding: "7px 10px", fontSize: 12, color: "var(--ink-1)", outline: "none", fontFamily: "'DM Sans', sans-serif" }}
+            value={achDate} onChange={e => setAchDate(e.target.value)} />
+        </div>
+        <div>
+          <label style={{ display: "block", fontSize: 10, fontWeight: 600, color: "#1a5fa8", marginBottom: 4, fontFamily: "'DM Sans', sans-serif" }}>New amount $ (optional)</label>
+          <input type="number" placeholder="Keep existing"
+            style={{ borderRadius: 7, border: "1px solid rgba(40,110,190,0.3)", background: "var(--surface)", padding: "7px 10px", fontSize: 12, color: "var(--ink-1)", outline: "none", width: 110, fontFamily: "'DM Sans', sans-serif" }}
+            value={amount} onChange={e => setAmount(e.target.value)} />
+        </div>
+        {achDate && settlementStr && (
+          <div style={{ fontSize: 12, color: "var(--ink-4)", paddingBottom: 8, fontFamily: "'DM Sans', sans-serif" }}>
+            Settles {formatDate(settlementStr)} ({alreadySettled ? "settled" : "pending"})
+          </div>
+        )}
+        {error && <div style={{ fontSize: 11, color: "var(--sienna)", fontFamily: "'DM Sans', sans-serif", alignSelf: "center" }}>{error}</div>}
+        <div style={{ display: "flex", gap: 8, alignSelf: "flex-end" }}>
+          <button onClick={handleSave} disabled={saving}
+            style={{ background: "#1a5fa8", color: "white", border: "none", padding: "8px 16px", borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "'DM Sans', sans-serif", opacity: saving ? 0.6 : 1 }}>
+            {saving ? "Saving..." : `Apply to ${selected.length} row${selected.length !== 1 ? "s" : ""}`}
+          </button>
+          <button onClick={onCancel}
+            style={{ background: "transparent", color: "var(--ink-3)", border: "1px solid var(--border-mid)", padding: "8px 16px", borderRadius: 8, fontSize: 12, cursor: "pointer", fontFamily: "'DM Sans', sans-serif" }}>
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function PaymentHistory({ payments, client, isAdminView, onPaymentAdded }: PaymentHistoryProps) {
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [showBulkEdit, setShowBulkEdit] = useState(false);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
 
   const today = new Date(); today.setHours(0, 0, 0, 0);
+  const sortedPayments = [...payments].reverse();
+  const allIds = sortedPayments.map(p => p.id);
+  const allSelected = allIds.length > 0 && allIds.every(id => selectedIds.has(id));
+  const someSelected = selectedIds.size > 0;
 
   const hasPending = payments.some(p => {
     if (!p.settlement_date) return false;
@@ -226,24 +299,57 @@ export default function PaymentHistory({ payments, client, isAdminView, onPaymen
     return s > today && !desc.includes("missed") && !desc.includes("return");
   });
 
-  function handleSuccess() { setShowAddForm(false); setEditingId(null); onPaymentAdded?.(); }
+  function toggleSelect(id: number) {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }
+
+  function toggleSelectAll() {
+    if (allSelected) { setSelectedIds(new Set()); } else { setSelectedIds(new Set(allIds)); }
+  }
+
+  function clearSelection() { setSelectedIds(new Set()); setShowBulkEdit(false); }
+  function handleSuccess() { setShowAddForm(false); setEditingId(null); clearSelection(); onPaymentAdded?.(); }
 
   async function handleDelete(payment: Payment) {
     const confirmed = confirm(
-      `Are you sure you want to delete this payment?\n\nDate: ${formatDate(payment.ach_date || payment.payment_date)}\nAmount: ${money(Number(payment.debit || payment.returns || payment.credit || 0))}\n\nThis will also reverse the balance adjustment if the payment had settled.`
+      "Delete this payment?\n\nDate: " + formatDate(payment.ach_date || payment.payment_date) +
+      "\nAmount: " + money(Number(payment.debit || payment.returns || payment.credit || 0)) +
+      "\n\nThis will reverse the balance adjustment if the payment had settled."
     );
     if (!confirmed) return;
     setDeletingId(payment.id);
     if (payment.running_balance != null && payment.debit > 0 && client) {
-      const restoredBalance = Number(client.balance || 0) + Number(payment.debit);
-      await supabase.from("clients").update({ balance: restoredBalance }).eq("id", client.id);
+      await supabase.from("clients").update({ balance: Number(client.balance || 0) + Number(payment.debit) }).eq("id", client.id);
     }
     await supabase.from("payments").delete().eq("id", payment.id);
     setDeletingId(null);
     onPaymentAdded?.();
   }
 
-  const sortedPayments = [...payments].reverse();
+  async function handleBulkDelete() {
+    const selected = sortedPayments.filter(p => selectedIds.has(p.id));
+    const confirmed = confirm(
+      "Delete " + selected.length + " payment" + (selected.length !== 1 ? "s" : "") + "?\n\n" +
+      "This permanently removes all selected rows and reverses any settled balance adjustments.\n\nThis cannot be undone."
+    );
+    if (!confirmed) return;
+    setBulkDeleting(true);
+    let balanceRestore = 0;
+    for (const p of selected) {
+      if (p.running_balance != null && p.debit > 0) { balanceRestore += Number(p.debit); }
+    }
+    if (balanceRestore > 0 && client) {
+      await supabase.from("clients").update({ balance: Number(client.balance || 0) + balanceRestore }).eq("id", client.id);
+    }
+    await supabase.from("payments").delete().in("id", selected.map(p => p.id));
+    setBulkDeleting(false);
+    clearSelection();
+    onPaymentAdded?.();
+  }
 
   const thStyle: React.CSSProperties = {
     padding: "10px 20px", fontSize: 10, fontWeight: 600, color: "var(--ink-4)",
@@ -255,53 +361,74 @@ export default function PaymentHistory({ payments, client, isAdminView, onPaymen
   return (
     <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 16, overflow: "hidden", boxShadow: "0 1px 4px rgba(30,16,4,0.06)" }}>
 
-      {/* Header */}
-      <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+      <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
         <div>
           <h3 style={{ fontSize: 15, fontWeight: 600, color: "var(--ink-1)", fontFamily: "'DM Sans', sans-serif" }}>Payment History</h3>
           <p style={{ fontSize: 11, color: "var(--ink-4)", marginTop: 2, fontFamily: "'DM Sans', sans-serif" }}>{payments.length} transaction{payments.length !== 1 ? "s" : ""}</p>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
           {hasPending && (
             <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#1a5fa8", fontWeight: 500, fontFamily: "'DM Sans', sans-serif" }}>
               <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#1a5fa8", display: "inline-block" }} />
               Pending payments
             </span>
           )}
+          {isAdminView && someSelected && (
+            <>
+              <span style={{ fontSize: 12, color: "var(--ink-3)", fontFamily: "'DM Sans', sans-serif" }}>{selectedIds.size} selected</span>
+              <button onClick={() => { setShowBulkEdit(v => !v); setShowAddForm(false); setEditingId(null); }}
+                style={{ padding: "6px 12px", borderRadius: 8, fontSize: 12, fontWeight: 500, cursor: "pointer", fontFamily: "'DM Sans', sans-serif", background: showBulkEdit ? "rgba(40,110,190,0.15)" : "rgba(40,110,190,0.08)", color: "#1a5fa8", border: "1px solid rgba(40,110,190,0.25)" }}>
+                Edit selected
+              </button>
+              <button onClick={handleBulkDelete} disabled={bulkDeleting}
+                style={{ padding: "6px 12px", borderRadius: 8, fontSize: 12, fontWeight: 500, cursor: "pointer", fontFamily: "'DM Sans', sans-serif", background: "var(--sienna-surface)", color: "var(--sienna)", border: "1px solid var(--sienna-border)", opacity: bulkDeleting ? 0.5 : 1 }}>
+                {bulkDeleting ? "Deleting..." : "Delete " + selectedIds.size + " selected"}
+              </button>
+              <button onClick={clearSelection}
+                style={{ padding: "6px 10px", borderRadius: 8, fontSize: 12, cursor: "pointer", fontFamily: "'DM Sans', sans-serif", background: "transparent", color: "var(--ink-4)", border: "1px solid var(--border-mid)" }}>
+                Clear
+              </button>
+            </>
+          )}
           {isAdminView && client && (
-            <button
-              onClick={() => { setShowAddForm(v => !v); setEditingId(null); }}
-              style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 8, fontSize: 12, fontWeight: 500, cursor: "pointer", fontFamily: "'DM Sans', sans-serif", background: showAddForm ? "var(--parchment-2)" : "var(--sage-surface)", color: showAddForm ? "var(--ink-3)" : "var(--sage)", border: `1px solid ${showAddForm ? "var(--border-mid)" : "var(--sage-border)"}` }}>
-              <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
-                <path d="M5.5 1v9M1 5.5h9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-              </svg>
+            <button onClick={() => { setShowAddForm(v => !v); setEditingId(null); clearSelection(); }}
+              style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 8, fontSize: 12, fontWeight: 500, cursor: "pointer", fontFamily: "'DM Sans', sans-serif", background: showAddForm ? "var(--parchment-2)" : "var(--sage-surface)", color: showAddForm ? "var(--ink-3)" : "var(--sage)", border: "1px solid " + (showAddForm ? "var(--border-mid)" : "var(--sage-border)") }}>
+              <svg width="11" height="11" viewBox="0 0 11 11" fill="none"><path d="M5.5 1v9M1 5.5h9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
               {showAddForm ? "Cancel" : "+ Add payment"}
             </button>
           )}
         </div>
       </div>
 
-      {/* Add form */}
       {showAddForm && isAdminView && client && (
         <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--border)" }}>
           <AddPaymentForm client={client} onSuccess={handleSuccess} onCancel={() => setShowAddForm(false)} />
         </div>
       )}
 
-      {/* Pending notice */}
+      {showBulkEdit && isAdminView && client && someSelected && (
+        <BulkEditPanel selectedIds={selectedIds} payments={sortedPayments} client={client} onSuccess={handleSuccess} onCancel={() => setShowBulkEdit(false)} />
+      )}
+
       {hasPending && (
         <div style={{ padding: "10px 20px", borderBottom: "1px solid var(--border)", background: "rgba(40,110,190,0.04)" }}>
           <p style={{ fontSize: 12, color: "#1a5fa8", fontFamily: "'DM Sans', sans-serif" }}>
-            Payments done via ACH takes <strong>4 business days</strong> to settle and apply to your balance. Pending payments are shown but do not yet affect your balance.
+            Payments done via ACH takes <strong>4 business days</strong> to settle and apply to your balance.
           </p>
         </div>
       )}
 
-      {/* Table */}
       <div style={{ overflowX: "auto", maxHeight: 500, overflowY: "auto" }}>
         <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 600 }}>
           <thead>
             <tr>
+              {isAdminView && (
+                <th style={{ ...thStyle, width: 40, textAlign: "center", padding: "10px 12px 10px 16px" }}>
+                  <input type="checkbox" checked={allSelected} onChange={toggleSelectAll}
+                    title={allSelected ? "Deselect all" : "Select all"}
+                    style={{ cursor: "pointer", width: 14, height: 14, accentColor: "var(--sage)" }} />
+                </th>
+              )}
               <th style={thStyle}>ACH Date</th>
               <th style={thStyle}>Settles</th>
               <th style={thStyle}>Type</th>
@@ -316,31 +443,25 @@ export default function PaymentHistory({ payments, client, isAdminView, onPaymen
             {sortedPayments.map((p, idx) => {
               const settlDate = p.settlement_date ? new Date(p.settlement_date + "T00:00:00") : null;
               const desc = (p.description || "").toLowerCase();
-
-              // 4-state status: use payment_status column if available, fall back to description/date
               const paymentStatus: string = (p as any).payment_status || (
                 desc.includes("return") ? "returned"
                 : desc.includes("missed") ? "settled"
                 : (settlDate && settlDate > today) ? "pending"
                 : "settled"
               );
-
               const isPending = paymentStatus === "pending" || paymentStatus === "processing";
               const isReturn = paymentStatus === "returned" || desc.includes("return");
               const isMissed = desc.includes("missed");
               const isEditing = editingId === p.id;
               const isDeleting = deletingId === p.id;
+              const isSelected = selectedIds.has(p.id);
 
-              const rowBg = isReturn
-                ? "rgba(190,60,40,0.04)"
-                : isMissed
-                ? "rgba(196,140,40,0.04)"
-                : paymentStatus === "processing"
-                ? "rgba(34,139,34,0.03)"
-                : isPending
-                ? "rgba(40,110,190,0.03)"
-                : isEditing
-                ? "rgba(40,110,190,0.06)"
+              const rowBg = isSelected ? "rgba(90,138,106,0.06)"
+                : isReturn ? "rgba(190,60,40,0.04)"
+                : isMissed ? "rgba(196,140,40,0.04)"
+                : paymentStatus === "processing" ? "rgba(34,139,34,0.03)"
+                : isPending ? "rgba(40,110,190,0.03)"
+                : isEditing ? "rgba(40,110,190,0.06)"
                 : "transparent";
 
               const tdStyle: React.CSSProperties = {
@@ -351,6 +472,12 @@ export default function PaymentHistory({ payments, client, isAdminView, onPaymen
               return (
                 <React.Fragment key={p.id || idx}>
                   <tr style={{ background: rowBg }}>
+                    {isAdminView && (
+                      <td style={{ ...tdStyle, textAlign: "center", padding: "11px 12px 11px 16px" }}>
+                        <input type="checkbox" checked={isSelected} onChange={() => toggleSelect(p.id)}
+                          style={{ cursor: "pointer", width: 14, height: 14, accentColor: "var(--sage)" }} />
+                      </td>
+                    )}
                     <td style={tdStyle}>{formatDate(p.ach_date || p.payment_date)}</td>
                     <td style={tdStyle}>
                       {isPending
@@ -364,38 +491,27 @@ export default function PaymentHistory({ payments, client, isAdminView, onPaymen
                       <TypeBadge description={p.description} payment_status={paymentStatus} settlementDate={settlDate} />
                     </td>
                     <td style={{ ...tdStyle, textAlign: "right" }}>
-                      {p.credit > 0
-                        ? <span style={{ fontWeight: 500, fontFamily: "'DM Mono', monospace" }}>{money(Number(p.credit))}</span>
-                        : <span style={{ color: "var(--ink-5)" }}>—</span>}
+                      {p.credit > 0 ? <span style={{ fontWeight: 500, fontFamily: "'DM Mono', monospace" }}>{money(Number(p.credit))}</span> : <span style={{ color: "var(--ink-5)" }}>—</span>}
                     </td>
                     <td style={{ ...tdStyle, textAlign: "right" }}>
-                      {p.debit > 0
-                        ? <span style={{ fontWeight: 500, color: isPending ? "#1a5fa8" : "var(--ink-1)", fontFamily: "'DM Mono', monospace" }}>{money(Number(p.debit))}</span>
-                        : <span style={{ color: "var(--ink-5)" }}>—</span>}
+                      {p.debit > 0 ? <span style={{ fontWeight: 500, color: isPending ? "#1a5fa8" : "var(--ink-1)", fontFamily: "'DM Mono', monospace" }}>{money(Number(p.debit))}</span> : <span style={{ color: "var(--ink-5)" }}>—</span>}
                     </td>
                     <td style={{ ...tdStyle, textAlign: "right" }}>
-                      {p.returns > 0
-                        ? <span style={{ fontWeight: 600, color: "#b83220", fontFamily: "'DM Mono', monospace" }}>{money(Number(p.returns))}</span>
-                        : <span style={{ color: "var(--ink-5)" }}>—</span>}
+                      {p.returns > 0 ? <span style={{ fontWeight: 600, color: "#b83220", fontFamily: "'DM Mono', monospace" }}>{money(Number(p.returns))}</span> : <span style={{ color: "var(--ink-5)" }}>—</span>}
                     </td>
                     <td style={{ ...tdStyle, textAlign: "right" }}>
-                      {isPending
-                        ? <span style={{ color: "var(--ink-4)", fontSize: 11, fontStyle: "italic" }}>pending</span>
-                        : p.running_balance != null
-                        ? <span style={{ fontWeight: 500, fontFamily: "'DM Mono', monospace" }}>{money(Number(p.running_balance))}</span>
+                      {isPending ? <span style={{ color: "var(--ink-4)", fontSize: 11, fontStyle: "italic" }}>pending</span>
+                        : p.running_balance != null ? <span style={{ fontWeight: 500, fontFamily: "'DM Mono', monospace" }}>{money(Number(p.running_balance))}</span>
                         : <span style={{ color: "var(--ink-5)" }}>—</span>}
                     </td>
                     {isAdminView && (
                       <td style={{ ...tdStyle, textAlign: "right" }}>
                         <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 6 }}>
-                          <button
-                            onClick={() => { setEditingId(isEditing ? null : p.id); setShowAddForm(false); }}
+                          <button onClick={() => { setEditingId(isEditing ? null : p.id); setShowAddForm(false); setShowBulkEdit(false); }}
                             style={{ padding: "3px 8px", borderRadius: 5, fontSize: 11, fontWeight: 500, cursor: "pointer", fontFamily: "'DM Sans', sans-serif", background: isEditing ? "rgba(40,110,190,0.1)" : "transparent", color: isEditing ? "#1a5fa8" : "var(--ink-4)", border: isEditing ? "1px solid rgba(40,110,190,0.2)" : "1px solid var(--border-mid)" }}>
                             {isEditing ? "Cancel" : "Edit"}
                           </button>
-                          <button
-                            onClick={() => handleDelete(p)}
-                            disabled={isDeleting}
+                          <button onClick={() => handleDelete(p)} disabled={isDeleting}
                             style={{ padding: "3px 8px", borderRadius: 5, fontSize: 11, fontWeight: 500, cursor: "pointer", fontFamily: "'DM Sans', sans-serif", background: "transparent", color: "var(--sienna)", border: "1px solid var(--sienna-border)", opacity: isDeleting ? 0.4 : 1 }}>
                             {isDeleting ? "..." : "Delete"}
                           </button>
@@ -404,19 +520,14 @@ export default function PaymentHistory({ payments, client, isAdminView, onPaymen
                     )}
                   </tr>
                   {isEditing && client && (
-                    <EditPaymentRow
-                      payment={p}
-                      client={client}
-                      onSuccess={handleSuccess}
-                      onCancel={() => setEditingId(null)}
-                    />
+                    <EditPaymentRow payment={p} client={client} onSuccess={handleSuccess} onCancel={() => setEditingId(null)} />
                   )}
                 </React.Fragment>
               );
             })}
             {payments.length === 0 && (
               <tr>
-                <td colSpan={isAdminView ? 8 : 7} style={{ padding: "40px", textAlign: "center", fontSize: 13, color: "var(--ink-4)", fontFamily: "'Cormorant Garamond', serif", fontStyle: "italic" }}>
+                <td colSpan={isAdminView ? 9 : 7} style={{ padding: "40px", textAlign: "center", fontSize: 13, color: "var(--ink-4)", fontFamily: "'Cormorant Garamond', serif", fontStyle: "italic" }}>
                   No payment history yet.
                 </td>
               </tr>
