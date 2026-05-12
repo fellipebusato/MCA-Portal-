@@ -209,6 +209,10 @@ export default function ACHWorksImport({
       const key = `${row.hitDate}_${row.status}`;
       if (existingMap.has(key)) { skipped++; continue; }
 
+      // Skip payments on or before the client's funded date —
+      // anything on/before funded date belongs to a prior deal (refinancing protection)
+      if (client.funded_date && row.hitDate <= client.funded_date) { skipped++; continue; }
+
       if (row.status === "returned") {
         // ── Insert returned payment ────────────────────────────────────────
         const codeInfo = getReturnCodeInfo(row.returnCode);
