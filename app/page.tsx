@@ -117,13 +117,13 @@ export default function Home() {
   const [forgotMessage, setForgotMessage] = useState("");
 
   const [newClient, setNewClient] = useState<{
-    businessName: string; invoice: string; achWorksName: string; ownerName: string; clientEmail: string;
+    businessName: string; invoice: string; achWorksName: string; ownerName: string; ownerPhone: string; clientEmail: string;
     fundedDate: string; funded: string; payback: string; payment: string; totalTerm: string;
     paymentFrequency: "daily" | "weekly"; paymentDay: string;
     state: string; sicCode: string; businessType: string; ficoScore: string;
     avgMonthlyRevenue: string; timeInBusinessMonths: string; position: string;
   }>({
-    businessName: "", invoice: "", achWorksName: "", ownerName: "", clientEmail: "",
+    businessName: "", invoice: "", achWorksName: "", ownerName: "", ownerPhone: "", clientEmail: "",
     fundedDate: "", funded: "", payback: "", payment: "", totalTerm: "",
     paymentFrequency: "daily" as const, paymentDay: "",
     state: "", sicCode: "", businessType: "", ficoScore: "",
@@ -261,7 +261,7 @@ export default function Home() {
     const { error } = await supabase.from("clients").insert([client]);
     if (error) { alert(error.message); return; }
     setNewClient({
-      businessName: "", invoice: "", achWorksName: "", ownerName: "", clientEmail: "",
+      businessName: "", invoice: "", achWorksName: "", ownerName: "", ownerPhone: "", clientEmail: "",
       fundedDate: "", funded: "", payback: "", payment: "", totalTerm: "",
       paymentFrequency: "daily" as const, paymentDay: "",
       state: "", sicCode: "", businessType: "", ficoScore: "",
