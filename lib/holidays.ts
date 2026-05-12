@@ -43,6 +43,18 @@ export const BANK_HOLIDAYS = new Set([
     }
     return result;
   }
+
+  // Go backwards — used when the Excel file contains settlement dates
+  // and we need to derive the original ACH pull date
+  export function subtractBusinessDays(date: Date, days: number): Date {
+    const result = new Date(date);
+    let subtracted = 0;
+    while (subtracted < days) {
+      result.setDate(result.getDate() - 1);
+      if (isBusinessDay(result)) subtracted++;
+    }
+    return result;
+  }
   
   export function formatDate(dateStr: string): string {
     if (!dateStr) return "—";
