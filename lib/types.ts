@@ -47,7 +47,6 @@ export interface Client {
   last_return_code: string | null;
   x_code_blocked: boolean | null;
   ach_works_name: string | null;
-  owner_phone: string | null;
 }
 
 export interface Payment {
@@ -77,6 +76,7 @@ export interface NewClientForm {
   invoice: string;
   achWorksName: string;
   ownerName: string;
+  ownerPhone: string;
   clientEmail: string;
   fundedDate: string;
   funded: string;
@@ -93,7 +93,6 @@ export interface NewClientForm {
   avgMonthlyRevenue: string;
   timeInBusinessMonths: string;
   position: string;
-  ownerPhone: string;
 }
 
 export interface ParsedPaymentRow {
