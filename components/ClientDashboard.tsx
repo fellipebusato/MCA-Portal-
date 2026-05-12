@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import PaymentHistory from "./PaymentHistory";
 import ActivityLog from "./ActivityLog";
 import FundingsPanel from "./FundingsPanel";
+import ClientNotes from "./ClientNotes";
 import { CONTACT, PAYMENT_LINK } from "@/lib/config";
 import {
   toDateStr, isWeekend, isHoliday, isBusinessDay,
@@ -185,6 +186,7 @@ function MiniCalendar({ year, month, termDays, paymentDays, missedDays, holidayM
           if (!date) return <div key={`pad-${idx}`} style={{ aspectRatio: "1" }} />;
           const dateStr = toDateStr(date);
           const isToday = dateStr === toDateStr(today);
+          const isFuture = date > today;
           const isWknd = isWeekend(date);
           const isHol = isHoliday(date);
           const inTerm = termDays.has(dateStr);
@@ -197,6 +199,7 @@ function MiniCalendar({ year, month, termDays, paymentDays, missedDays, holidayM
           else if (paid) { bg = "rgba(34,139,34,0.18)"; color = "#1a7a1a"; }
           else if (missed) { bg = "rgba(190,60,40,0.18)"; color = "#b83220"; }
           else if (isMoved) { bg = "rgba(180,130,60,0.20)"; color = "#9a6e10"; }
+          else if (inTerm && isFuture) { bg = "rgba(90,72,200,0.13)"; color = "#5046b8"; }
           else if (inTerm) { bg = "rgba(40,110,190,0.15)"; color = "#1a5fa8"; }
           return (
             <div key={dateStr} style={{ aspectRatio: "1", display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 4, background: bg, color, fontSize: 12, fontWeight: isToday ? 800 : 500, fontFamily: "'DM Sans', sans-serif", outline: isToday ? "2px solid var(--ink-2)" : "none", outlineOffset: -1 }}>
@@ -208,6 +211,7 @@ function MiniCalendar({ year, month, termDays, paymentDays, missedDays, holidayM
       <div style={{ marginTop: 8, display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px 8px" }}>
         {[
           { bg: "rgba(40,110,190,0.15)", border: "1px solid rgba(40,110,190,0.3)", label: t.calLegendExpected },
+          { bg: "rgba(90,72,200,0.13)", border: "1px solid rgba(90,72,200,0.28)", label: "Future payment" },
           { bg: "rgba(34,139,34,0.18)", border: "1px solid rgba(34,139,34,0.35)", label: t.calLegendReceived },
           { bg: "rgba(190,60,40,0.18)", border: "1px solid rgba(190,60,40,0.35)", label: t.calLegendMissed },
           { bg: "rgba(196,154,90,0.25)", border: "1px solid rgba(196,154,90,0.4)", label: t.calLegendHoliday },
@@ -636,6 +640,9 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             {CalendarCard}
             <ActivityLog invoice={selectedClient.invoice} isAdminView={isAdminView} refreshTrigger={activityRefresh} clientEmail={selectedClient.client_email} />
+            {isAdminView && (
+              <ClientNotes invoice={selectedClient.invoice} clientName={selectedClient.business_name} />
+            )}
           </div>
         )}
 
@@ -673,6 +680,10 @@ export default function ClientDashboard({ selectedClient, payments, isAdminView,
       <FundingsPanel client={selectedClient} isAdminView={isAdminView} onBalanceChange={(cb, cp) => { setCombinedBalance(cb); setCombinedPayback(cp); }} />
       <PaymentHistory payments={payments} client={selectedClient} isAdminView={isAdminView} onPaymentAdded={handlePaymentAdded} />
       <ActivityLog invoice={selectedClient.invoice} isAdminView={isAdminView} refreshTrigger={activityRefresh} clientEmail={selectedClient.client_email} />
+
+      {isAdminView && (
+        <ClientNotes invoice={selectedClient.invoice} clientName={selectedClient.business_name} />
+      )}
 
       {!isAdminView && (
         <div style={{ textAlign: "center", padding: "20px 12px", fontSize: 11, color: "var(--ink-5)", lineHeight: 1.7, fontFamily: "'DM Sans', sans-serif" }}>
