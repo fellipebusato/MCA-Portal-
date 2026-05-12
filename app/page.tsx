@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import AdminDashboard from "@/components/AdminDashboard";
+import AnalyticsDashboard from "@/components/AnalyticsDashboard";
+import TriageDashboard from "@/components/TriageDashboard";
 import ClientDashboard from "@/components/ClientDashboard";
 import AddClientForm from "@/components/AddClientForm";
 import ConsentPage from "@/components/ConsentPage";
@@ -652,6 +654,20 @@ export default function Home() {
           </button>
         )}
 
+        {/* Analytics */}
+        <button
+          onClick={() => setView("analytics" as any)}
+          style={navBtn((view as string) === "analytics", { bg: "rgba(120,80,160,0.2)", border: "rgba(120,80,160,0.4)", text: "#C4A0E8" })}>
+          Analytics
+        </button>
+
+        {/* Triage */}
+        <button
+          onClick={() => setView("triage" as any)}
+          style={navBtn((view as string) === "triage", { bg: "rgba(154,90,58,0.2)", border: "rgba(154,90,58,0.4)", text: "#E8926A" })}>
+          Triage
+        </button>
+
         {/* Right side */}
         <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 12 }}>
           <span style={{ fontSize: 11, color: "rgba(255,255,255,0.4)" }}>{user.email}</span>
@@ -712,6 +728,18 @@ export default function Home() {
               Add client
             </div>
             <AddClientForm newClient={newClient} setNewClient={setNewClient} addClient={addClient} />
+          </div>
+        )}
+
+        {(view as string) === "analytics" && (
+          <div style={{ padding: "32px" }}>
+            <AnalyticsDashboard clients={clients} />
+          </div>
+        )}
+
+        {(view as string) === "triage" && (
+          <div style={{ padding: "32px" }}>
+            <TriageDashboard clients={clients} openClient={openClient} />
           </div>
         )}
 
