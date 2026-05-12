@@ -502,6 +502,7 @@ export default function PaymentHistory({ payments, client, isAdminView, onPaymen
                     <td style={{ ...tdStyle, textAlign: "right" }}>
                       {isPending ? <span style={{ color: "var(--ink-4)", fontSize: 11, fontStyle: "italic" }}>pending</span>
                         : p.running_balance != null ? <span style={{ fontWeight: 500, fontFamily: "'DM Mono', monospace" }}>{money(Number(p.running_balance))}</span>
+                        : isReturn ? <span style={{ color: "var(--ink-4)", fontSize: 11, fontStyle: "italic" }}>no change</span>
                         : <span style={{ color: "var(--ink-5)" }}>—</span>}
                     </td>
                     {isAdminView && (
