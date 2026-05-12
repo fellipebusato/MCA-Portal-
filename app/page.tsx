@@ -355,7 +355,7 @@ export default function Home() {
         .order("settlement_date", { ascending: false }).limit(10);
       if (recentPayments) {
         const today = new Date(); today.setHours(0, 0, 0, 0);
-        const lastSettled = recentPayments.find((p: Payment) => {
+        const lastSettled = recentPayments.find((p) => {
           const desc = (p.description || "").toLowerCase();
           return !desc.includes("return") && !desc.includes("missed") && !desc.includes("initial") && p.settlement_date;
         });
