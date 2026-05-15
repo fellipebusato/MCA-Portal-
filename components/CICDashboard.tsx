@@ -105,7 +105,7 @@ export default function CICDashboard() {
 
     const { data: auditData } = await supabase
       .from("cic_audits")
-      .select("id, client_id, readiness_score, readiness_grade, audit_date");
+      .select("*");
 
     const { data: retainerData } = await supabase
       .from("cic_retainers")
