@@ -507,10 +507,10 @@ export default function CICDashboard() {
           <>
             {/* Metrics */}
             <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 20 }}>
-              <div style={S.metricCard}><div style={S.metricLabel}>Monthly Revenue</div><div style={S.metricVal}>{fmt(audit.avg_monthly_deposits)}</div><div style={S.metricSub}>3-month average</div></div>
-              <div style={S.metricCard}><div style={S.metricLabel}>Avg Daily Balance</div><div style={{ ...S.metricVal, color: audit.avg_daily_balance >= 10000 ? "#10B981" : audit.avg_daily_balance >= 3000 ? "#F59E0B" : "#EF4444" }}>{fmt(audit.avg_daily_balance)}</div><div style={S.metricSub}>3-month average</div></div>
-              <div style={S.metricCard}><div style={S.metricLabel}>Monthly Debt</div><div style={{ ...S.metricVal, color: audit.debt_service_ratio < 0.15 ? "#10B981" : audit.debt_service_ratio < 0.30 ? "#F59E0B" : "#EF4444" }}>{fmt(audit.total_daily_obligation * 21)}</div><div style={S.metricSub}>{pct(audit.debt_service_ratio)} of revenue</div></div>
-              <div style={S.metricCard}><div style={S.metricLabel}>Readiness Score</div><div style={S.metricVal}>{audit.readiness_score}/40</div><div style={S.metricSub}>{audit.readiness_grade}</div></div>
+              <div style={S.metricCard}><div style={S.metricLabel}>Monthly Revenue</div><div style={S.metricVal}>{audit.avg_monthly_deposits ? fmt(audit.avg_monthly_deposits) : '—'}</div><div style={S.metricSub}>3-month average</div></div>
+              <div style={S.metricCard}><div style={S.metricLabel}>Avg Daily Balance</div><div style={{ ...S.metricVal, color: (audit.avg_daily_balance || 0) >= 10000 ? "#10B981" : (audit.avg_daily_balance || 0) >= 3000 ? "#F59E0B" : "#EF4444" }}>{audit.avg_daily_balance ? fmt(audit.avg_daily_balance) : '—'}</div><div style={S.metricSub}>3-month average</div></div>
+              <div style={S.metricCard}><div style={S.metricLabel}>Monthly Debt</div><div style={{ ...S.metricVal, color: (audit.debt_service_ratio || 0) < 0.15 ? "#10B981" : (audit.debt_service_ratio || 0) < 0.30 ? "#F59E0B" : "#EF4444" }}>{audit.total_daily_obligation ? fmt(audit.total_daily_obligation * 21) : '—'}</div><div style={S.metricSub}>{audit.debt_service_ratio ? pct(audit.debt_service_ratio) : '0%'} of revenue</div></div>
+              <div style={S.metricCard}><div style={S.metricLabel}>Readiness Score</div><div style={S.metricVal}>{audit.readiness_score || 0}/40</div><div style={S.metricSub}>{audit.readiness_grade || '—'}</div></div>
             </div>
 
             {/* Findings */}
