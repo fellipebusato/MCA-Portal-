@@ -206,25 +206,33 @@ export default function CICDashboard() {
       score >= 15 ? "Building Readiness" :
       "Foundations First";
 
-    const { error } = await supabase.from("cic_audits").insert(
-      {
-        client_id: selectedClient.id,
-        avg_monthly_deposits: deposits,
-        avg_daily_balance: adb,
-        nsf_count_6mo: nsf,
-        negative_days_3mo: negDays,
-        revenue_trend: auditForm.revenue_trend,
-        total_active_positions: positions.length,
-        total_remaining_balance: totalRemaining,
-        total_daily_obligation: totalDaily,
-        debt_service_ratio: debtRatio,
-        readiness_score: score,
-        readiness_grade: grade,
-        findings,
-        advisor_notes: auditForm.advisor_notes,
-        audit_date: new Date().toISOString().split("T")[0],
-      },
-    );
+    const { data: existing } = await supabase
+      .from("cic_audits")
+      .select("id")
+      .eq("client_id", selectedClient.id)
+      .single();
+
+    const auditPayload = {
+      client_id: selectedClient.id,
+      avg_monthly_deposits: deposits,
+      avg_daily_balance: adb,
+      nsf_count_6mo: nsf,
+      negative_days_3mo: negDays,
+      revenue_trend: auditForm.revenue_trend,
+      total_active_positions: positions.length,
+      total_remaining_balance: totalRemaining,
+      total_daily_obligation: totalDaily,
+      debt_service_ratio: debtRatio,
+      readiness_score: score,
+      readiness_grade: grade,
+      findings,
+      advisor_notes: auditForm.advisor_notes,
+      audit_date: new Date().toISOString().split("T")[0],
+    };
+
+    const { error } = existing
+      ? await supabase.from("cic_audits").update(auditPayload).eq("client_id", selectedClient.id)
+      : await supabase.from("cic_audits").insert(auditPayload);
 
     if (error) { alert(error.message); setSaving(false); return; }
 
