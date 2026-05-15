@@ -669,6 +669,13 @@ export default function Home() {
           Triage
         </button>
 
+        {/* CIC Advisory */}
+        <button
+          onClick={() => setView("cic" as any)}
+          style={navBtn((view as string) === "cic", { bg: "rgba(200,146,42,0.2)", border: "rgba(200,146,42,0.4)", text: "#C8922A" })}>
+          CIC Advisory
+        </button>
+
         {/* Right side */}
         <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 12 }}>
           <span style={{ fontSize: 11, color: "rgba(255,255,255,0.4)" }}>{user.email}</span>
@@ -769,6 +776,10 @@ export default function Home() {
             </div>
             <ACHWorksImport clients={clients} onImportComplete={async () => { await fetchClients(); setView("admin"); }} />
           </div>
+        )}
+
+        {(view as string) === "cic" && (
+          <CICDashboard />
         )}
       </div>
     </main>
