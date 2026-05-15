@@ -98,7 +98,11 @@ export default function CICDashboard() {
     setLoading(true);
     const { data, error } = await supabase
       .from("cic_clients")
-      .select(`*, cic_audits(*), cic_retainers(*)`)
+      .select(`
+        *,
+        cic_audits ( id, readiness_score, readiness_grade, audit_date ),
+        cic_retainers ( id, status, monthly_fee, next_checkin_date )
+      `)
       .order("created_at", { ascending: false });
     if (!error) setClients(data || []);
     setLoading(false);
