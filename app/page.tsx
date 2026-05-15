@@ -1,5 +1,6 @@
 "use client";
 
+import CICDashboard from "@/components/CICDashboard";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import AdminDashboard from "@/components/AdminDashboard";
