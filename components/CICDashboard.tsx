@@ -96,15 +96,28 @@ export default function CICDashboard() {
 
   async function fetchClients() {
     setLoading(true);
-    const { data, error } = await supabase
+    const { data: clientData, error } = await supabase
       .from("cic_clients")
-      .select(`
-        *,
-        cic_audits ( id, readiness_score, readiness_grade, audit_date ),
-        cic_retainers ( id, status, monthly_fee, next_checkin_date )
-      `)
+      .select("*")
       .order("created_at", { ascending: false });
-    if (!error) setClients(data || []);
+
+    if (error || !clientData) { setLoading(false); return; }
+
+    const { data: auditData } = await supabase
+      .from("cic_audits")
+      .select("id, client_id, readiness_score, readiness_grade, audit_date");
+
+    const { data: retainerData } = await supabase
+      .from("cic_retainers")
+      .select("id, client_id, status, monthly_fee, next_checkin_date");
+
+    const merged = clientData.map(c => ({
+      ...c,
+      cic_audits: auditData?.filter(a => a.client_id === c.id) || [],
+      cic_retainers: retainerData?.filter(r => r.client_id === c.id) || [],
+    }));
+
+    setClients(merged);
     setLoading(false);
   }
 
