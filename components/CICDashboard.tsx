@@ -189,7 +189,7 @@ export default function CICDashboard() {
       score >= 15 ? "Building Readiness" :
       "Foundations First";
 
-    const { error } = await supabase.from("cic_audits").upsert(
+    const { error } = await supabase.from("cic_audits").insert(
       {
         client_id: selectedClient.id,
         avg_monthly_deposits: deposits,
@@ -207,7 +207,6 @@ export default function CICDashboard() {
         advisor_notes: auditForm.advisor_notes,
         audit_date: new Date().toISOString().split("T")[0],
       },
-      { onConflict: "client_id" }
     );
 
     if (error) { alert(error.message); setSaving(false); return; }
