@@ -194,7 +194,14 @@ export default function CICDashboard() {
   const [rm, setRm] = useState<{ phases: RoadmapItem[][]; recommended_product: string; recommended_amount_range: string; capital_timing: string; current_phase: number; next_milestone: string; advisor_strategy_notes: string }>({ phases: DEFAULT_PHASES.map(p => p.map(i => ({ ...i }))), recommended_product: "", recommended_amount_range: "", capital_timing: "not-yet", current_phase: 1, next_milestone: "", advisor_strategy_notes: "" });
   const [docs, setDocs] = useState<DocItem[]>(REQUIRED_DOCS.map(d => ({ ...d })));
   const [tps, setTps] = useState<Touchpoint[]>(TOUCHPOINT_SCHEDULE.map(t => ({ date: "", type: t.type, notes: "", completed: false })));
-  const [rptForm, setRptForm] = useState({ report_month: new Date().toISOString().slice(0, 7), monthly_revenue: "", avg_daily_balance: "", nsf_count: "0", debt_payments: "", personal_credit_score: "", business_credit_score: "", trade_lines_count: "0", health_score: "", score_change: "0", advisor_summary: "", highlights: [{ type: "good" as const, text: "" }], next_steps: [{ action: "", priority: "high" as const }] });
+  const [rptForm, setRptForm] = useState<{
+  report_month: string; monthly_revenue: string; avg_daily_balance: string;
+  nsf_count: string; debt_payments: string; personal_credit_score: string;
+  business_credit_score: string; trade_lines_count: string; health_score: string;
+  score_change: string; advisor_summary: string;
+  highlights: { type: "good" | "warn" | "alert"; text: string }[];
+  next_steps: { action: string; priority: "high" | "medium" | "low" }[];
+}>({ report_month: new Date().toISOString().slice(0, 7), monthly_revenue: "", avg_daily_balance: "", nsf_count: "0", debt_payments: "", personal_credit_score: "", business_credit_score: "", trade_lines_count: "0", health_score: "", score_change: "0", advisor_summary: "", highlights: [{ type: "good", text: "" }], next_steps: [{ action: "", priority: "high" }] });
 
   useEffect(() => { load(); }, []);
 
