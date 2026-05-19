@@ -670,6 +670,13 @@ export default function Home() {
           Triage
         </button>
 
+        {/* Import Deals */}
+        <button
+          onClick={() => setView("excel-import" as any)}
+          style={navBtn((view as string) === "excel-import", { bg: "rgba(46,125,50,0.2)", border: "rgba(46,125,50,0.4)", text: "#7ab89a" })}>
+          ⬆ Import Deals
+        </button>
+
         {/* CIC Advisory */}
         <button
           onClick={() => setView("cic" as any)}
@@ -781,6 +788,12 @@ export default function Home() {
 
         {(view as string) === "cic" && (
           <CICDashboard />
+        )}
+
+        {(view as string) === "excel-import" && (
+          <div style={{ padding: "32px" }}>
+            <ExcelImport onComplete={async () => { await fetchClients(); setView("admin"); }} />
+          </div>
         )}
       </div>
     </main>
