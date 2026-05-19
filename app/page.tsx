@@ -12,6 +12,7 @@ import ConsentPage from "@/components/ConsentPage";
 import StatementImport from "@/components/StatementImport";
 import ReturnsImport from "@/components/ReturnsImport";
 import ACHWorksImport from "@/components/ACHWorksImport";
+import ExcelImport from "@/components/ExcelImport";
 
 const ADMIN_EMAIL = "fbusato@cfgms.com";
 
