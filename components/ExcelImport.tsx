@@ -200,15 +200,29 @@ export default function ExcelImport({ onComplete }: { onComplete: () => void }) 
 
         if (!d) return;
 
-        const utcD = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
-        const settlementStr = dateToStr(utcD);
+        // Extract year/month/day safely regardless of timezone
+        let year: number, month: number, dayNum: number;
+        if (typeof header === "number") {
+          // From Excel serial — already converted via excelSerialToDate which uses UTC
+          year = d.getUTCFullYear();
+          month = d.getUTCMonth() + 1;
+          dayNum = d.getUTCDate();
+        } else {
+          // From string — use local date parts to avoid TZ shift
+          year = d.getFullYear();
+          month = d.getMonth() + 1;
+          dayNum = d.getDate();
+        }
 
-        if (utcD >= CUTOFF) {
-          // Jan 2026+ → individual payment record
+        if (year < 2010 || year > 2030) return; // sanity check
+
+        const settlementStr = `${year}-${String(month).padStart(2,"0")}-${String(dayNum).padStart(2,"0")}`;
+
+        // Jan 2026+ → individual records. Before Jan 2026 → monthly summaries.
+        if (year > 2025 || (year === 2026)) {
           indivCols.push({ idx, settlementStr });
         } else {
-          // Before Jan 2026 → monthly summary
-          summaryCols.push({ idx, year: utcD.getUTCFullYear(), month: utcD.getUTCMonth() + 1 });
+          summaryCols.push({ idx, year, month });
         }
       });
 
