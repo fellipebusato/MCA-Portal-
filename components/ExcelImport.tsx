@@ -202,7 +202,7 @@ export default function ExcelImport({ onComplete }: { onComplete: () => void }) 
 
         // Extract year/month/day safely regardless of timezone
         let year: number, month: number, dayNum: number;
-        if (typeof header === "number") {
+        if (typeof h === "number") {
           // From Excel serial — already converted via excelSerialToDate which uses UTC
           year = d.getUTCFullYear();
           month = d.getUTCMonth() + 1;
