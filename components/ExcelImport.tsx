@@ -79,12 +79,16 @@ function subtractBizDays(dateStr: string, days: number): string {
 
 function parseHeaderDate(header: any): Date | null {
   if (header == null) return null;
-  // Excel serial number
+  if (header instanceof Date) {
+    if (!isNaN(header.getTime()) && header.getFullYear() > 2000 && header.getFullYear() < 2035) {
+      return header;
+    }
+    return null;
+  }
   if (typeof header === "number" && header > 40000 && header < 52000) {
     return excelSerialToDate(header);
   }
-  // String date
-  if (typeof header === "string" || header instanceof Date) {
+  if (typeof header === "string" && header !== "") {
     const d = new Date(header);
     if (!isNaN(d.getTime()) && d.getFullYear() > 2000 && d.getFullYear() < 2035) {
       return d;
@@ -137,11 +141,11 @@ export default function ExcelImport({ onComplete }: { onComplete: () => void }) 
 
     try {
       const buf = await file.arrayBuffer();
-      const wb = XLSX.read(buf, { type: "array", cellDates: false, raw: true });
+      const wb = XLSX.read(buf, { type: "array", cellDates: true, raw: false });
       const ws = wb.Sheets[wb.SheetNames[0]];
 
       // Read as array of arrays to have full control
-      const aoa: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: null });
+      const aoa: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: null });
       if (!aoa.length) { setError("No data found in file."); return; }
 
       // Find header row containing "INVOICE"
@@ -186,12 +190,12 @@ export default function ExcelImport({ onComplete }: { onComplete: () => void }) 
 
         let d: Date | null = null;
 
-        // Try as Excel serial
-        if (typeof h === "number" && h > EXCEL_MIN && h < EXCEL_MAX) {
+        // With cellDates: true, XLSX gives Date objects directly for date cells
+        if (h instanceof Date) {
+          d = h;
+        } else if (typeof h === "number" && h > EXCEL_MIN && h < EXCEL_MAX) {
           d = excelSerialToDate(h);
-        }
-        // Try as string date
-        else if (h != null && h !== "") {
+        } else if (h != null && h !== "") {
           const parsed = new Date(String(h));
           if (!isNaN(parsed.getTime()) && parsed.getFullYear() > 2015 && parsed.getFullYear() < 2030) {
             d = parsed;
@@ -200,19 +204,10 @@ export default function ExcelImport({ onComplete }: { onComplete: () => void }) 
 
         if (!d) return;
 
-        // Extract year/month/day safely regardless of timezone
-        let year: number, month: number, dayNum: number;
-        if (typeof h === "number") {
-          // From Excel serial — already converted via excelSerialToDate which uses UTC
-          year = d.getUTCFullYear();
-          month = d.getUTCMonth() + 1;
-          dayNum = d.getUTCDate();
-        } else {
-          // From string — use local date parts to avoid TZ shift
-          year = d.getFullYear();
-          month = d.getMonth() + 1;
-          dayNum = d.getDate();
-        }
+        // Always use UTC to avoid timezone shift regardless of source
+        const year = d.getUTCFullYear();
+        const month = d.getUTCMonth() + 1;
+        const dayNum = d.getUTCDate();
 
         if (year < 2010 || year > 2030) return; // sanity check
 
@@ -261,7 +256,9 @@ export default function ExcelImport({ onComplete }: { onComplete: () => void }) 
         let fundedDateStr = "";
         if (iFundedDate >= 0 && row[iFundedDate] != null) {
           const fd = row[iFundedDate];
-          if (typeof fd === "number" && fd > EXCEL_MIN) {
+          if (fd instanceof Date) {
+            fundedDateStr = dateToStr(fd);
+          } else if (typeof fd === "number" && fd > EXCEL_MIN) {
             fundedDateStr = dateToStr(excelSerialToDate(fd));
           } else {
             const pd = new Date(String(fd));

@@ -13,6 +13,7 @@ import StatementImport from "@/components/StatementImport";
 import ReturnsImport from "@/components/ReturnsImport";
 import ACHWorksImport from "@/components/ACHWorksImport";
 import ExcelImport from "@/components/ExcelImport";
+import PortfolioAnalysis from "@/components/PortfolioAnalysis";
 
 const ADMIN_EMAIL = "fbusato@cfgms.com";
 
@@ -27,7 +28,6 @@ function addBusinessDays(date: Date, days: number): Date {
   return result;
 }
 
-// Excel files contain settlement dates — subtract 4 business days to get the ACH pull date
 function subtractBusinessDays(date: Date, days: number): Date {
   const result = new Date(date);
   let subtracted = 0;
@@ -102,6 +102,9 @@ function parseCSVRows(text: string): { invoice: string; date: string; amount: nu
   return results;
 }
 
+type AdminSubView = "dashboard" | "portfolio" | "analytics" | "triage" | "add" | "excel-import";
+type ImportType = "returns" | "statement" | "achworks";
+
 export default function Home() {
   const [user, setUser] = useState<any>(null);
   const [email, setEmail] = useState("");
@@ -110,10 +113,14 @@ export default function Home() {
   const [payments, setPayments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedClient, setSelectedClient] = useState<any>(null);
-  const [view, setView] = useState<"admin" | "client" | "add">("admin");
+  const [view, setView] = useState<"admin" | "client" | "cic">("admin");
+  const [adminSubView, setAdminSubView] = useState<AdminSubView>("dashboard");
   const [clientRecord, setClientRecord] = useState<any>(null);
   const [hasConsented, setHasConsented] = useState(false);
   const [checkingConsent, setCheckingConsent] = useState(false);
+
+  const [importModalOpen, setImportModalOpen] = useState(false);
+  const [importSelected, setImportSelected] = useState<ImportType | null>(null);
 
   const [showForgot, setShowForgot] = useState(false);
   const [forgotEmail, setForgotEmail] = useState("");
@@ -272,7 +279,7 @@ export default function Home() {
       avgMonthlyRevenue: "", timeInBusinessMonths: "", position: "",
     });
     await fetchClients();
-    setView("admin");
+    setAdminSubView("dashboard");
   }
 
   async function deleteClient(client: any) {
@@ -364,8 +371,6 @@ export default function Home() {
 
       reportInvoices.push(invoice);
 
-      // The Excel file contains SETTLEMENT dates (when the payment cleared the bank).
-      // Back-calculate the actual ACH pull date by subtracting 4 business days.
       const settlementDate = new Date((date || todayStr) + "T00:00:00");
       const achDate = subtractBusinessDays(settlementDate, 4);
       const settlementStr = date || todayStr;
@@ -524,7 +529,7 @@ export default function Home() {
           </div>
 
           <div style={{ textAlign: "center", marginTop: 20, fontSize: 11, color: "var(--ink-4)", lineHeight: 1.6, padding: "0 8px" }}>
-            This portal is operated independently by Fellipe Busato and is not affiliated with, endorsed by, or operated on behalf of CFG Merchant Solutions or any other entity. Information displayed is for organizational purposes only and does not constitute an official financial record.
+            This portal is operated independently by Fellipe Busato and is not affiliated with, endorsed by, or operated on behalf of CFG Merchant Solutions or any other entity.
           </div>
         </div>
       </main>
@@ -579,16 +584,31 @@ export default function Home() {
   }
 
   // ── Admin view ───────────────────────────────────────────────────────────
-  // Shared nav button style helper
   function navBtn(active: boolean, color: { bg: string; border: string; text: string }) {
     return {
       padding: "7px 16px",
       borderRadius: 7,
-      border: `1px solid ${color.border}`,
-      background: active ? color.bg : "rgba(255,255,255,0.04)",
-      color: active ? color.text : "rgba(255,255,255,0.6)",
+      border: `1px solid ${active ? color.border : "transparent"}`,
+      background: active ? color.bg : "transparent",
+      color: active ? color.text : "rgba(255,255,255,0.55)",
       fontSize: 13,
       fontWeight: 500,
+      cursor: "pointer",
+      fontFamily: "'DM Sans', sans-serif",
+      transition: "all 0.15s",
+    } as React.CSSProperties;
+  }
+
+  function subTabBtn(active: boolean) {
+    return {
+      padding: "0 16px",
+      height: "100%",
+      border: "none",
+      borderBottom: active ? "2px solid var(--gold)" : "2px solid transparent",
+      background: "transparent",
+      color: active ? "var(--ink-1)" : "var(--ink-4)",
+      fontSize: 13,
+      fontWeight: active ? 600 : 400,
       cursor: "pointer",
       fontFamily: "'DM Sans', sans-serif",
       transition: "all 0.15s",
@@ -598,12 +618,12 @@ export default function Home() {
   return (
     <main style={{ minHeight: "100vh", background: "var(--parchment)" }}>
 
-      {/* ── Single Admin Nav ── */}
-      <nav style={{ background: "var(--ink-1)", padding: "0 28px", display: "flex", alignItems: "center", height: 62, position: "sticky", top: 0, zIndex: 10, gap: 6 }}>
+      {/* ── Primary Nav ── */}
+      <nav style={{ background: "var(--ink-1)", padding: "0 28px", display: "flex", alignItems: "center", height: 62, position: "sticky", top: 0, zIndex: 20, gap: 4 }}>
 
         {/* Logo */}
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginRight: 20 }}>
-          <button onClick={() => setView("admin")} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 10 }}>
+          <button onClick={() => { setView("admin"); setAdminSubView("dashboard"); }} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 10 }}>
             <div style={{ width: 30, height: 30, borderRadius: 8, border: "1px solid var(--gold-border)", background: "rgba(160,120,64,0.12)", display: "flex", alignItems: "center", justifyContent: "center" }}>
               <span style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 12, fontWeight: 600, color: "var(--gold-bright)" }}>FB</span>
             </div>
@@ -612,76 +632,26 @@ export default function Home() {
           <span style={{ fontSize: 9, fontWeight: 600, color: "rgba(255,255,255,0.35)", background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.12)", padding: "2px 7px", borderRadius: 4, textTransform: "uppercase", letterSpacing: "0.08em" }}>Admin</span>
         </div>
 
-        {/* Dashboard */}
+        {/* Client Dashboard */}
         <button
-          onClick={() => setView("admin")}
-          style={navBtn(view === "admin", { bg: "rgba(160,120,64,0.2)", border: "rgba(160,120,64,0.4)", text: "var(--gold-bright)" })}>
-          Dashboard
-        </button>
-
-        {/* Import Returns */}
-        <button
-          onClick={() => setView("returns" as any)}
-          style={navBtn((view as string) === "returns", { bg: "rgba(154,90,58,0.2)", border: "rgba(154,90,58,0.4)", text: "#E8926A" })}>
-          Import returns
-        </button>
-
-        {/* Import Statement */}
-        <button
-          onClick={() => setView("statement" as any)}
-          style={navBtn((view as string) === "statement", { bg: "rgba(74,126,160,0.2)", border: "rgba(74,126,160,0.4)", text: "#8BAED4" })}>
-          Import statement
-        </button>
-
-        {/* Import ACH Works */}
-        <button
-          onClick={() => setView("achworks" as any)}
-          style={navBtn((view as string) === "achworks", { bg: "rgba(74,100,160,0.2)", border: "rgba(74,100,160,0.4)", text: "#8B9ED4" })}>
-          Import ACH Works
-        </button>
-
-        {/* Add Client */}
-        <button
-          onClick={() => setView("add")}
-          style={navBtn(view === "add", { bg: "rgba(90,138,106,0.2)", border: "rgba(90,138,106,0.4)", text: "#7ab89a" })}>
-          + Add client
-        </button>
-
-        {/* Client View — only when a client is selected */}
-        {selectedClient && (
-          <button
-            onClick={() => openClient(selectedClient)}
-            style={navBtn(view === "client", { bg: "rgba(255,255,255,0.1)", border: "rgba(255,255,255,0.2)", text: "rgba(255,255,255,0.9)" })}>
-            Client view
-          </button>
-        )}
-
-        {/* Analytics */}
-        <button
-          onClick={() => setView("analytics" as any)}
-          style={navBtn((view as string) === "analytics", { bg: "rgba(120,80,160,0.2)", border: "rgba(120,80,160,0.4)", text: "#C4A0E8" })}>
-          Analytics
-        </button>
-
-        {/* Triage */}
-        <button
-          onClick={() => setView("triage" as any)}
-          style={navBtn((view as string) === "triage", { bg: "rgba(154,90,58,0.2)", border: "rgba(154,90,58,0.4)", text: "#E8926A" })}>
-          Triage
-        </button>
-
-        {/* Import Deals */}
-        <button
-          onClick={() => setView("excel-import" as any)}
-          style={navBtn((view as string) === "excel-import", { bg: "rgba(46,125,50,0.2)", border: "rgba(46,125,50,0.4)", text: "#7ab89a" })}>
-          ⬆ Import Deals
+          onClick={() => { setView("admin"); setAdminSubView("dashboard"); }}
+          style={navBtn(view === "admin" || view === "client", { bg: "rgba(160,120,64,0.2)", border: "rgba(160,120,64,0.4)", text: "var(--gold-bright)" })}>
+          Client Dashboard
         </button>
 
         {/* CIC Advisory */}
         <button
-          onClick={() => setView("cic" as any)}
-          style={navBtn((view as string) === "cic", { bg: "rgba(200,146,42,0.2)", border: "rgba(200,146,42,0.4)", text: "#C8922A" })}>
+          onClick={() => setView("cic")}
+          style={navBtn(view === "cic", { bg: "rgba(200,146,42,0.2)", border: "rgba(200,146,42,0.4)", text: "#C8922A" })}>
           CIC Advisory
+        </button>
+
+        {/* Import button */}
+        <button
+          onClick={() => { setImportModalOpen(true); setImportSelected(null); }}
+          style={{ display: "flex", alignItems: "center", gap: 7, padding: "7px 16px", borderRadius: 7, border: "1px solid rgba(255,255,255,0.15)", background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.7)", fontSize: 13, fontWeight: 500, cursor: "pointer", fontFamily: "'DM Sans', sans-serif", marginLeft: 6 }}>
+          <svg width="11" height="11" viewBox="0 0 13 13" fill="none"><path d="M6.5 1v8M3 4L6.5 1 10 4M1.5 10.5h10" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/></svg>
+          Import
         </button>
 
         {/* Right side */}
@@ -693,10 +663,111 @@ export default function Home() {
         </div>
       </nav>
 
-      {/* ── Admin body ── */}
-      <div style={{ maxWidth: 1200, margin: "0 auto" }}>
+      {/* ── Import Modal ── */}
+      {importModalOpen && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(28,20,12,0.7)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+          <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 20, width: "100%", maxWidth: 680, maxHeight: "85vh", overflow: "hidden", display: "flex", flexDirection: "column", boxShadow: "0 24px 64px rgba(28,20,12,0.3)", position: "relative" }}>
+            <div style={{ position: "absolute", top: 0, left: 22, right: 22, height: 1, background: "linear-gradient(90deg, transparent, var(--gold-border), transparent)" }} />
 
-        {/* Back to dashboard button when in client view */}
+            <div style={{ padding: "22px 28px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <div>
+                <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 22, fontWeight: 500, color: "var(--ink-1)" }}>
+                  {importSelected === null ? "Import Data" : importSelected === "returns" ? "Returns" : importSelected === "statement" ? "CFG Statement" : "ACH Works"}
+                </div>
+                {importSelected === null && (
+                  <div style={{ fontSize: 12, color: "var(--ink-4)", marginTop: 3 }}>Choose the type of data to import</div>
+                )}
+              </div>
+              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                {importSelected !== null && (
+                  <button
+                    onClick={() => setImportSelected(null)}
+                    style={{ fontSize: 12, color: "var(--ink-3)", background: "none", border: "1px solid var(--border-mid)", borderRadius: 7, padding: "6px 12px", cursor: "pointer", fontFamily: "'DM Sans', sans-serif" }}>
+                    ← Back
+                  </button>
+                )}
+                <button
+                  onClick={() => { setImportModalOpen(false); setImportSelected(null); }}
+                  style={{ width: 30, height: 30, borderRadius: 8, border: "1px solid var(--border-mid)", background: "transparent", color: "var(--ink-4)", cursor: "pointer", fontSize: 16, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  ✕
+                </button>
+              </div>
+            </div>
+
+            <div style={{ overflowY: "auto", flex: 1, padding: importSelected === null ? "24px 28px" : "0" }}>
+              {importSelected === null ? (
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  {([
+                    { key: "statement" as ImportType, label: "CFG Statement", desc: "Import the daily CFG settlement file — records debits, credits, and updates balances for all matched clients", icon: "📄" },
+                    { key: "achworks" as ImportType, label: "ACH Works", desc: "Import ACH Works payment history — syncs payment records and identifies mismatches between ACH Works and CFG data", icon: "🏦" },
+                    { key: "returns" as ImportType, label: "Returns", desc: "Record payment returns — marks missed or returned payments, updates client standing, and flags accounts for review", icon: "↩" },
+                  ]).map(opt => (
+                    <button
+                      key={opt.key}
+                      onClick={() => setImportSelected(opt.key)}
+                      style={{ display: "flex", alignItems: "center", gap: 16, padding: "16px 20px", background: "var(--parchment-2)", border: "1px solid var(--border)", borderRadius: 12, cursor: "pointer", textAlign: "left", transition: "all 0.15s", fontFamily: "'DM Sans', sans-serif" }}
+                      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "var(--surface-2)"; (e.currentTarget as HTMLElement).style.borderColor = "var(--border-mid)"; }}
+                      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "var(--parchment-2)"; (e.currentTarget as HTMLElement).style.borderColor = "var(--border)"; }}>
+                      <div style={{ width: 40, height: 40, borderRadius: 10, background: "var(--ink-1)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, flexShrink: 0 }}>
+                        {opt.icon}
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 14, fontWeight: 500, color: "var(--ink-1)", marginBottom: 3 }}>{opt.label}</div>
+                        <div style={{ fontSize: 12, color: "var(--ink-4)" }}>{opt.desc}</div>
+                      </div>
+                      <span style={{ fontSize: 16, color: "var(--ink-4)" }}>→</span>
+                    </button>
+                  ))}
+                </div>
+              ) : importSelected === "returns" ? (
+                <ReturnsImport clients={clients} onImportComplete={async () => { await fetchClients(); setImportModalOpen(false); setImportSelected(null); }} />
+              ) : importSelected === "statement" ? (
+                <StatementImport clients={clients} onImportComplete={async () => { await fetchClients(); setImportModalOpen(false); setImportSelected(null); }} />
+              ) : (
+                <ACHWorksImport clients={clients} onImportComplete={async () => { await fetchClients(); setImportModalOpen(false); setImportSelected(null); }} />
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Admin sub-header (only when in admin view) ── */}
+      {view === "admin" && (
+        <div style={{ background: "var(--surface)", borderBottom: "1px solid var(--border)", padding: "0 32px", display: "flex", alignItems: "stretch", justifyContent: "space-between", height: 46, position: "sticky", top: 62, zIndex: 15, boxShadow: "0 1px 0 var(--border)" }}>
+          {/* Sub-tabs */}
+          <div style={{ display: "flex", alignItems: "stretch", gap: 0 }}>
+            {([
+              { key: "dashboard", label: "Overview" },
+              { key: "portfolio", label: "Portfolio Analysis" },
+              { key: "analytics", label: "Analytics" },
+              { key: "triage", label: "Triage" },
+            ] as { key: AdminSubView; label: string }[]).map(({ key, label }) => (
+              <button key={key} onClick={() => setAdminSubView(key)} style={subTabBtn(adminSubView === key)}>
+                {label}
+              </button>
+            ))}
+          </div>
+          {/* Action buttons */}
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <button
+              onClick={() => setAdminSubView("add")}
+              style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 14px", borderRadius: 7, border: "1px solid rgba(90,138,106,0.4)", background: adminSubView === "add" ? "rgba(90,138,106,0.15)" : "transparent", color: "#7ab89a", fontSize: 12, fontWeight: 500, cursor: "pointer", fontFamily: "'DM Sans', sans-serif" }}>
+              + Add Client
+            </button>
+            <button
+              onClick={() => setAdminSubView("excel-import")}
+              style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 14px", borderRadius: 7, border: "1px solid rgba(46,125,50,0.4)", background: adminSubView === "excel-import" ? "rgba(46,125,50,0.15)" : "transparent", color: "#7ab89a", fontSize: 12, fontWeight: 500, cursor: "pointer", fontFamily: "'DM Sans', sans-serif" }}>
+              <svg width="10" height="10" viewBox="0 0 13 13" fill="none"><path d="M6.5 1v8M3 4L6.5 1 10 4M1.5 10.5h10" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/></svg>
+              Import Deals
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Main content ── */}
+      <div style={{ maxWidth: view === "cic" ? "none" : 1200, margin: "0 auto" }}>
+
+        {/* Back button when admin drills into a client */}
         {view === "client" && selectedClient && (
           <div style={{ padding: "20px 32px 0" }}>
             <button
@@ -710,7 +781,8 @@ export default function Home() {
           </div>
         )}
 
-        {view === "admin" && (
+        {/* Admin sub-views */}
+        {view === "admin" && adminSubView === "dashboard" && (
           <AdminDashboard
             clients={clients}
             openClient={openClient}
@@ -720,6 +792,43 @@ export default function Home() {
           />
         )}
 
+        {view === "admin" && adminSubView === "portfolio" && (
+          <PortfolioAnalysis clients={clients} openClient={openClient} />
+        )}
+
+        {view === "admin" && adminSubView === "analytics" && (
+          <div style={{ padding: "32px" }}>
+            <AnalyticsDashboard clients={clients} />
+          </div>
+        )}
+
+        {view === "admin" && adminSubView === "triage" && (
+          <div style={{ padding: "32px" }}>
+            <TriageDashboard clients={clients} openClient={openClient} updateClient={updateClient} />
+          </div>
+        )}
+
+        {view === "admin" && adminSubView === "add" && (
+          <div style={{ padding: "32px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 24 }}>
+              <button onClick={() => setAdminSubView("dashboard")} style={{ fontSize: 12, color: "var(--ink-4)", background: "none", border: "none", cursor: "pointer", fontFamily: "'DM Sans', sans-serif" }}>← Back</button>
+              <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 26, fontWeight: 500, color: "var(--ink-1)", letterSpacing: "-0.02em" }}>Add Client</div>
+            </div>
+            <AddClientForm newClient={newClient} setNewClient={setNewClient} addClient={addClient} />
+          </div>
+        )}
+
+        {view === "admin" && adminSubView === "excel-import" && (
+          <div style={{ padding: "32px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 24 }}>
+              <button onClick={() => setAdminSubView("dashboard")} style={{ fontSize: 12, color: "var(--ink-4)", background: "none", border: "none", cursor: "pointer", fontFamily: "'DM Sans', sans-serif" }}>← Back</button>
+              <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 26, fontWeight: 500, color: "var(--ink-1)", letterSpacing: "-0.02em" }}>Import Deals</div>
+            </div>
+            <ExcelImport onComplete={async () => { await fetchClients(); setAdminSubView("dashboard"); }} />
+          </div>
+        )}
+
+        {/* Admin → Client drill-in */}
         {view === "client" && selectedClient && (
           <div style={{ padding: "0 32px 40px" }}>
             <ClientDashboard
@@ -738,63 +847,7 @@ export default function Home() {
           </div>
         )}
 
-        {view === "add" && (
-          <div style={{ padding: "32px" }}>
-            <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 26, fontWeight: 500, color: "var(--ink-1)", letterSpacing: "-0.02em", marginBottom: 24 }}>
-              Add client
-            </div>
-            <AddClientForm newClient={newClient} setNewClient={setNewClient} addClient={addClient} />
-          </div>
-        )}
-
-        {(view as string) === "analytics" && (
-          <div style={{ padding: "32px" }}>
-            <AnalyticsDashboard clients={clients} />
-          </div>
-        )}
-
-        {(view as string) === "triage" && (
-          <div style={{ padding: "32px" }}>
-            <TriageDashboard clients={clients} openClient={openClient} updateClient={updateClient} />
-          </div>
-        )}
-
-        {(view as string) === "returns" && (
-          <div style={{ padding: "32px" }}>
-            <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 26, fontWeight: 500, color: "var(--ink-1)", letterSpacing: "-0.02em", marginBottom: 24 }}>
-              Import returns
-            </div>
-            <ReturnsImport clients={clients} onImportComplete={async () => { await fetchClients(); setView("admin"); }} />
-          </div>
-        )}
-
-        {(view as string) === "statement" && (
-          <div style={{ padding: "32px" }}>
-            <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 26, fontWeight: 500, color: "var(--ink-1)", letterSpacing: "-0.02em", marginBottom: 24 }}>
-              Import CFG statement
-            </div>
-            <StatementImport clients={clients} onImportComplete={async () => { await fetchClients(); setView("admin"); }} />
-          </div>
-        )}
-
-        {(view as string) === "achworks" && (
-          <div style={{ padding: "32px" }}>
-            <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 26, fontWeight: 500, color: "var(--ink-1)", letterSpacing: "-0.02em", marginBottom: 24 }}>
-              Import ACH Works history
-            </div>
-            <ACHWorksImport clients={clients} onImportComplete={async () => { await fetchClients(); setView("admin"); }} />
-          </div>
-        )}
-
-        {(view as string) === "cic" && (
-          <CICDashboard />
-        )}
-
-        {(view as string) === "excel-import" && (
-          <div style={{ padding: "32px" }}>
-            <ExcelImport onComplete={async () => { await fetchClients(); setView("admin"); }} />
-          </div>
-        )}
+        {view === "cic" && <CICDashboard />}
       </div>
     </main>
   );
