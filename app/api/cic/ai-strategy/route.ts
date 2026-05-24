@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server'
 
+export const maxDuration = 120
+
 const SYSTEM_PROMPT = `You are a senior MCA (Merchant Cash Advance) underwriting officer with 15 years of experience. You receive deal packages, perform complete internal analysis silently, and present only your final conclusions and decision recommendation.
 
 NEVER narrate your analysis process. NEVER show raw JSON, data structures, or intermediate work in the chat message. NEVER say "I'm analyzing..." or "Let me look at...". You read everything silently. Then you speak once with your verdict.
@@ -114,6 +116,8 @@ export async function POST(request: Request) {
           ...messages.slice(1).map((m: any) => ({ role: m.role, content: m.content }))
         ]
 
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 110000)
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
@@ -127,12 +131,15 @@ export async function POST(request: Request) {
         max_tokens: 4000,
         system: SYSTEM_PROMPT,
         messages: apiMessages
-      })
+      }),
+      signal: controller.signal
     })
+    clearTimeout(timeoutId)
 
     if (!response.ok) {
       const err = await response.text()
-      return NextResponse.json({ error: `API error: ${response.status} — ${err}` }, { status: 500 })
+      console.error('Anthropic API error:', response.status, err)
+      return NextResponse.json({ error: `Anthropic error ${response.status}: ${err}` }, { status: 500 })
     }
 
     const data = await response.json()
@@ -170,6 +177,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ reply, report })
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    console.error('Full route error:', JSON.stringify(error), error.message, error.stack)
+    return NextResponse.json({ error: error.message || 'Internal server error' }, { status: 500 })
   }
 }

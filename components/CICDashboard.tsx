@@ -609,11 +609,14 @@ export default function CICDashboard() {
 
           {/* Typing indicator */}
           {loading && (
-            <div style={{ display: "flex", justifyContent: "flex-start" }}>
+            <div style={{ display: "flex", justifyContent: "flex-start", flexDirection: "column", gap: 6 }}>
               <div style={{ background: "#1a2f45", border: "1px solid rgba(200,146,42,0.2)", borderRadius: "12px 12px 12px 3px", padding: "13px 16px", display: "flex", gap: 5, alignItems: "center" }}>
                 {[0, 1, 2].map(j => (
                   <div key={j} style={{ width: 6, height: 6, borderRadius: "50%", background: "#C8922A", animation: `uwDot 1.2s ${j * 0.15}s ease-in-out infinite` }} />
                 ))}
+              </div>
+              <div style={{ fontSize: 11, color: "rgba(232,213,163,0.35)", paddingLeft: 4 }}>
+                Analyzing documents — this may take up to 60 seconds for large packages…
               </div>
             </div>
           )}
