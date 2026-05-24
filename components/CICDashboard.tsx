@@ -368,7 +368,7 @@ export default function CICDashboard() {
         signal: controller.signal,
         body: JSON.stringify({
           messages: newMessages,
-          documents: documents.map(d => ({ name: d.name, base64: d.base64, mediaType: d.mediaType })),
+          documents: documents.map(d => ({ name: d.name, base64: d.base64.slice(0, 500000), mediaType: d.mediaType })),
           dealContext: dealName,
           underwriterContext: uwContext
         })
