@@ -365,7 +365,11 @@ async function handleFiles(files: FileList | File[]) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           messages: newMessages,
-          documents: documents.map(d => ({ name: d.name, base64: d.base64, mediaType: d.mediaType })),
+          documents: documents.map(d => {
+            const isStatement = /jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|statement|bank/i.test(d.name.toLowerCase())
+            const maxChars = isStatement ? 1200000 : 600000
+            return { name: d.name, base64: d.base64.slice(0, maxChars), mediaType: d.mediaType }
+          }),
           dealContext: dealName,
           underwriterContext: uwContext
         })
