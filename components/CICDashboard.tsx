@@ -310,6 +310,7 @@ const INITIAL_MESSAGE: Message = {
 export default function CICDashboard() {
   const [documents, setDocuments] = useState<DocFile[]>([]);
   const [dealName, setDealName] = useState("");
+  const [uwContext, setUwContext] = useState("");
   const [messages, setMessages] = useState<Message[]>([INITIAL_MESSAGE]);
   const [report, setReport] = useState<any>(null);
   const [input, setInput] = useState("");
@@ -365,6 +366,7 @@ export default function CICDashboard() {
           messages: allMessages,
           documents: documents.map(d => ({ name: d.name, base64: d.base64, mediaType: d.mediaType })),
           dealContext: dealName,
+          underwriterContext: uwContext,
         }),
       });
       const data = await res.json();
@@ -383,6 +385,7 @@ export default function CICDashboard() {
   function resetWorkspace() {
     setDocuments([]);
     setDealName("");
+    setUwContext("");
     setMessages([INITIAL_MESSAGE]);
     setReport(null);
     setInput("");
@@ -497,6 +500,18 @@ export default function CICDashboard() {
             onChange={e => setDealName(e.target.value)}
             placeholder="Deal name (e.g. Long-Win Logistics LLC)"
             style={{ width: "100%", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(200,146,42,0.2)", borderRadius: 6, padding: "7px 10px", fontSize: 12, color: "#E8D5A3", outline: "none", boxSizing: "border-box" as const }}
+          />
+        </div>
+
+        {/* Underwriter context */}
+        <div style={{ padding: "10px 14px", borderBottom: panelBorder, flexShrink: 0 }}>
+          <div style={{ fontSize: 9, fontWeight: 700, color: "#C8922A", letterSpacing: "0.08em", textTransform: "uppercase" as const, marginBottom: 5 }}>Underwriter Context</div>
+          <textarea
+            value={uwContext}
+            onChange={e => setUwContext(e.target.value)}
+            placeholder="Notes the documents can't show — MTD revenue, client conversation, owner explanation of unusual items, override rationale..."
+            rows={4}
+            style={{ width: "100%", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(200,146,42,0.2)", borderRadius: 6, padding: "7px 10px", fontSize: 11, color: "#E8D5A3", outline: "none", resize: "vertical" as const, fontFamily: "'DM Sans', sans-serif", boxSizing: "border-box" as const, lineHeight: 1.55, opacity: 0.85 }}
           />
         </div>
 

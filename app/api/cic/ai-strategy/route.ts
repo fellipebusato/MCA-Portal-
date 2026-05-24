@@ -57,6 +57,8 @@ SCORING RUBRIC (100 pts new merchant / 115 pts returning merchant with payment h
 7. Business Legitimacy (5): operating expenses match stated industry (3), time in business (2)
 8. Payment History — returning merchants only (15): on-time payment rate (6), returns cured vs uncured (5), communication behavior (2), payoff behavior (2)
 
+BALANCE POSITIVE AND NEGATIVE SIGNALS EQUALLY. For existing lenders: if a lender has re-advanced or renewed the merchant multiple times, this is a POSITIVE signal — they have real-time payment data and keep approving. Credit up to 5 bonus points under Cash Flow Health for demonstrated lender confidence. For payment history with existing lenders: count on-time payments, not just return events. One cured return in 15+ payments is a 95% on-time rate — score it as strong. For MTD revenue: if the underwriter context or DecisionLogic shows current month deposits on pace with the trailing average, treat trend as stable rather than declining. If an underwriter context is provided, incorporate it explicitly into your verdict rationale — it represents human judgment the documents cannot capture and should be weighted seriously.
+
 VERDICT THRESHOLDS:
 New merchant: APPROVE 70-100 | CONDITIONAL 50-69 | DECLINE_REVISIT 35-49 | DECLINE 0-34
 Returning merchant: APPROVE 80-115 | CONDITIONAL 57-79 | DECLINE_REVISIT 40-56 | DECLINE 0-39
@@ -84,7 +86,7 @@ JSON REPORT SCHEMA (must match exactly):
 
 export async function POST(request: Request) {
   try {
-    const { messages, documents, dealContext } = await request.json()
+    const { messages, documents, dealContext, underwriterContext } = await request.json()
     const apiKey = process.env.ANTHROPIC_API_KEY
     if (!apiKey) return NextResponse.json({ error: 'API key not configured' }, { status: 500 })
 
@@ -99,10 +101,11 @@ export async function POST(request: Request) {
       }
     }
     const lastMessage = messages[messages.length - 1]
-    firstUserContent.push({
-      type: 'text',
-      text: dealContext ? `Deal: ${dealContext}\n\n${lastMessage.content}` : lastMessage.content
-    })
+    let baseText = dealContext ? `Deal: ${dealContext}\n\n${lastMessage.content}` : lastMessage.content
+    if (underwriterContext && underwriterContext.trim()) {
+      baseText = `UNDERWRITER CONTEXT (provided by the underwriting officer — weight this alongside the documents):\n${underwriterContext.trim()}\n\n${baseText}`
+    }
+    firstUserContent.push({ type: 'text', text: baseText })
 
     const apiMessages = messages.length === 1
       ? [{ role: 'user', content: firstUserContent }]
