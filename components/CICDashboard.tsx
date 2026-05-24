@@ -466,7 +466,7 @@ export default function CICDashboard() {
       {/* ══════════════════ LEFT PANEL — Documents ══════════════════ */}
       <div
         style={{
-          width: "28%",
+          width: "18%",
           borderRight: isDragging ? "2px dashed #C8922A" : panelBorder,
           display: "flex",
           flexDirection: "column",
@@ -479,7 +479,7 @@ export default function CICDashboard() {
         onDrop={e => { e.preventDefault(); setIsDragging(false); handleFiles(e.dataTransfer.files); }}
       >
         {/* Header */}
-        <div style={{ padding: "12px 14px", background: "#0a1520", borderBottom: panelBorder, display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
+        <div style={{ padding: "10px 12px", background: "#0a1520", borderBottom: panelBorder, display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
           <span style={{ fontSize: 10, fontWeight: 700, color: "#C8922A", letterSpacing: "0.08em", textTransform: "uppercase" as const }}>Deal Documents</span>
           <button
             onClick={() => fileInputRef.current?.click()}
@@ -497,7 +497,7 @@ export default function CICDashboard() {
         </div>
 
         {/* Deal name */}
-        <div style={{ padding: "10px 14px", borderBottom: panelBorder, flexShrink: 0 }}>
+        <div style={{ padding: "10px 10px", borderBottom: panelBorder, flexShrink: 0 }}>
           <input
             value={dealName}
             onChange={e => setDealName(e.target.value)}
@@ -507,7 +507,7 @@ export default function CICDashboard() {
         </div>
 
         {/* Underwriter context */}
-        <div style={{ padding: "10px 14px", borderBottom: panelBorder, flexShrink: 0 }}>
+        <div style={{ padding: "10px 10px", borderBottom: panelBorder, flexShrink: 0 }}>
           <div style={{ fontSize: 9, fontWeight: 700, color: "#C8922A", letterSpacing: "0.08em", textTransform: "uppercase" as const, marginBottom: 5 }}>Underwriter Context</div>
           <textarea
             value={uwContext}
@@ -542,7 +542,7 @@ export default function CICDashboard() {
               <div key={doc.id} style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(200,146,42,0.1)", borderRadius: 7, padding: "8px 10px", marginBottom: 6, display: "flex", alignItems: "flex-start", gap: 8 }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 6px", borderRadius: 3, background: bg, color, display: "inline-block", marginBottom: 4 }}>{doc.docType}</span>
-                  <div style={{ fontSize: 12, color: "#fff", lineHeight: 1.3 }} title={doc.name}>{truncName}</div>
+                  <div style={{ fontSize: 10, color: "#fff", lineHeight: 1.3 }} title={doc.name}>{truncName}</div>
                   <div style={{ fontSize: 10, color: "rgba(232,213,163,0.35)", marginTop: 2 }}>{fmtBytes(doc.size)}</div>
                 </div>
                 <button
@@ -556,7 +556,7 @@ export default function CICDashboard() {
         </div>
 
         {/* Bottom bar */}
-        <div style={{ padding: "8px 14px", borderTop: panelBorder, display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0 }}>
+        <div style={{ padding: "8px 10px", borderTop: panelBorder, display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0 }}>
           <span style={{ fontSize: 11, color: "rgba(232,213,163,0.35)" }}>{documents.length} document{documents.length !== 1 ? "s" : ""}</span>
           {documents.length > 0 && (
             <button onClick={() => setDocuments([])} style={{ fontSize: 11, color: "#C8922A", background: "none", border: "none", cursor: "pointer" }}>Clear All</button>
@@ -565,7 +565,7 @@ export default function CICDashboard() {
       </div>
 
       {/* ══════════════════ CENTER PANEL — Chat ══════════════════ */}
-      <div style={{ width: "44%", borderRight: panelBorder, display: "flex", flexDirection: "column" }}>
+      <div style={{ width: "42%", borderRight: panelBorder, display: "flex", flexDirection: "column" }}>
 
         {/* Header */}
         <div style={{ padding: "12px 16px", background: "#0a1520", borderBottom: panelBorder, display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
@@ -661,7 +661,7 @@ export default function CICDashboard() {
       </div>
 
       {/* ══════════════════ RIGHT PANEL — Report ══════════════════ */}
-      <div style={{ width: "28%", display: "flex", flexDirection: "column", overflowY: "auto" as const }}>
+      <div style={{ width: "40%", display: "flex", flexDirection: "column", overflowY: "auto" as const }}>
 
         {report === null ? (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: 12 }}>
