@@ -370,11 +370,18 @@ export default function CICDashboard() {
         }),
       });
       const data = await res.json();
+      console.log('API response:', JSON.stringify(data).slice(0, 200));
+      console.log('Report present:', !!data.report);
       if (data.error) {
         setMessages(prev => [...prev, { role: "assistant", content: `Error: ${data.error}` }]);
       } else {
-        setMessages(prev => [...prev, { role: "assistant", content: data.reply || "" }]);
-        if (data.report && typeof data.report === "object") setReport(data.report);
+        const agentReply = data.reply || data.strategy || '';
+        const reportData = data.report || null;
+        setMessages(prev => [...prev.filter(m => m.content !== '...'), { role: 'assistant', content: agentReply }]);
+        if (reportData && typeof reportData === 'object' && Object.keys(reportData).length > 0) {
+          console.log('Setting report:', reportData.verdict);
+          setReport(reportData);
+        }
       }
     } catch {
       setMessages(prev => [...prev, { role: "assistant", content: "Connection error. Please try again." }]);
@@ -661,15 +668,134 @@ export default function CICDashboard() {
       <div style={{ width: "28%", display: "flex", flexDirection: "column", overflowY: "auto" as const }}>
 
         {report === null ? (
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", padding: "24px", textAlign: "center" as const }}>
-            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="rgba(200,146,42,0.18)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginBottom: 16 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: 12 }}>
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="rgba(200,146,42,0.18)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
               <rect x="3" y="3" width="18" height="18" rx="2" />
               <path d="M3 9h18M9 21V9" />
             </svg>
-            <div style={{ fontSize: 13, color: "rgba(232,213,163,0.3)", lineHeight: 1.7 }}>Run an analysis to see the<br />underwriting report</div>
+            <div style={{ color: '#4a6080', fontSize: 13 }}>Run an analysis to see the underwriting report</div>
           </div>
         ) : (
-          <ReportPanel report={report} verdictConfig={verdictConfig} />
+          <div style={{ padding: 16 }}>
+            {/* VERDICT BANNER */}
+            <div style={{
+              padding: '12px 16px',
+              marginBottom: 16,
+              borderRadius: 8,
+              borderLeft: `4px solid ${report.verdict === 'APPROVE' ? '#10B981' : report.verdict === 'CONDITIONAL' ? '#F59E0B' : report.verdict === 'DECLINE_REVISIT' ? '#F97316' : '#EF4444'}`,
+              background: report.verdict === 'APPROVE' ? '#0f3d20' : report.verdict === 'CONDITIONAL' ? '#3d2a00' : report.verdict === 'DECLINE_REVISIT' ? '#3d1a00' : '#3d0000',
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center'
+            }}>
+              <div style={{ fontSize: 16, fontWeight: 700, color: report.verdict === 'APPROVE' ? '#10B981' : report.verdict === 'CONDITIONAL' ? '#F59E0B' : report.verdict === 'DECLINE_REVISIT' ? '#F97316' : '#EF4444' }}>
+                {report.verdict === 'APPROVE' ? '✓ APPROVED' : report.verdict === 'CONDITIONAL' ? '⚠ CONDITIONAL' : report.verdict === 'DECLINE_REVISIT' ? '↻ DECLINE — REVISIT' : '✗ DECLINE'}
+              </div>
+              <div style={{ fontSize: 24, fontWeight: 700, color: 'white' }}>{report.totalScore} <span style={{ fontSize: 13, color: '#8899aa' }}>/ {report.maxScore}</span></div>
+            </div>
+
+            {/* CATEGORY SCORES */}
+            {report.categoryScores?.length > 0 && (
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 9, fontWeight: 700, color: '#C8922A', textTransform: 'uppercase' as const, letterSpacing: '0.1em', marginBottom: 8 }}>Score Breakdown</div>
+                {report.categoryScores.map((cat: any, i: number) => {
+                  const pct = cat.max > 0 ? cat.score / cat.max : 0;
+                  const barColor = pct > 0.7 ? '#10B981' : pct > 0.4 ? '#F59E0B' : '#EF4444';
+                  return (
+                    <div key={i} style={{ marginBottom: 6 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
+                        <span style={{ fontSize: 10, color: '#c8d8e8' }}>{cat.name}</span>
+                        <span style={{ fontSize: 10, color: '#8899aa' }}>{cat.score}/{cat.max}</span>
+                      </div>
+                      <div style={{ background: 'rgba(255,255,255,0.08)', borderRadius: 3, height: 5 }}>
+                        <div style={{ width: `${pct * 100}%`, height: '100%', background: barColor, borderRadius: 3, transition: 'width 0.5s' }} />
+                      </div>
+                      {cat.notes && <div style={{ fontSize: 9, color: '#6a8a9a', marginTop: 1 }}>{cat.notes}</div>}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* TRUE REVENUE TABLE */}
+            {report.trueMonthlyRevenue?.length > 0 && (
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 9, fontWeight: 700, color: '#C8922A', textTransform: 'uppercase' as const, letterSpacing: '0.1em', marginBottom: 8 }}>True Revenue Analysis</div>
+                <table style={{ width: '100%', borderCollapse: 'collapse' as const, fontSize: 10 }}>
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid rgba(200,146,42,0.2)' }}>
+                      {['Month', 'Gross', 'Adjusted', 'Difference'].map(h => <th key={h} style={{ textAlign: 'left' as const, padding: '4px 6px', color: '#8899aa', fontWeight: 600 }}>{h}</th>)}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {report.trueMonthlyRevenue.map((row: any, i: number) => {
+                      const diff = row.adjusted - row.gross;
+                      return (
+                        <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                          <td style={{ padding: '4px 6px', color: '#c8d8e8' }}>{row.month}</td>
+                          <td style={{ padding: '4px 6px', color: '#c8d8e8' }}>${row.gross?.toLocaleString()}</td>
+                          <td style={{ padding: '4px 6px', color: '#10B981' }}>${row.adjusted?.toLocaleString()}</td>
+                          <td style={{ padding: '4px 6px', color: diff >= 0 ? '#10B981' : '#EF4444' }}>${Math.abs(diff)?.toLocaleString()}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* FLAGS */}
+            {(report.greenFlags?.length > 0 || report.yellowFlags?.length > 0 || report.redFlags?.length > 0) && (
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 9, fontWeight: 700, color: '#C8922A', textTransform: 'uppercase' as const, letterSpacing: '0.1em', marginBottom: 8 }}>Risk Flags</div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+                  <div>
+                    {report.greenFlags?.map((f: string, i: number) => <div key={i} style={{ fontSize: 9, color: '#10B981', marginBottom: 3 }}>✓ {f}</div>)}
+                  </div>
+                  <div>
+                    {report.yellowFlags?.map((f: string, i: number) => <div key={i} style={{ fontSize: 9, color: '#F59E0B', marginBottom: 3 }}>⚠ {f}</div>)}
+                  </div>
+                  <div>
+                    {report.redFlags?.map((f: string, i: number) => <div key={i} style={{ fontSize: 9, color: '#EF4444', marginBottom: 3 }}>✗ {f}</div>)}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* EXISTING OBLIGATIONS */}
+            {report.existingObligations?.length > 0 && (
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 9, fontWeight: 700, color: '#C8922A', textTransform: 'uppercase' as const, letterSpacing: '0.1em', marginBottom: 8 }}>Existing Obligations</div>
+                {report.existingObligations.map((ob: any, i: number) => (
+                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: 10 }}>
+                    <span style={{ color: '#c8d8e8' }}>{ob.lender}</span>
+                    <span style={{ color: '#F59E0B' }}>${ob.weeklyPayment?.toLocaleString()}/wk</span>
+                    <span style={{ color: '#8899aa' }}>${ob.monthlyBurden?.toLocaleString()}/mo</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* VERDICT RATIONALE */}
+            {report.verdictRationale && (
+              <div style={{ marginBottom: 16, padding: 12, borderLeft: '3px solid rgba(200,146,42,0.4)', background: 'rgba(200,146,42,0.05)', borderRadius: '0 6px 6px 0' }}>
+                <div style={{ fontSize: 9, fontWeight: 700, color: '#C8922A', textTransform: 'uppercase' as const, letterSpacing: '0.1em', marginBottom: 6 }}>Verdict Rationale</div>
+                <div style={{ fontSize: 11, color: '#E8D5A3', lineHeight: 1.6, fontStyle: 'italic' }}>{report.verdictRationale}</div>
+              </div>
+            )}
+
+            {/* CONDITIONS */}
+            {report.conditions?.length > 0 && (
+              <div style={{ marginBottom: 16, padding: 10, background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: 6 }}>
+                <div style={{ fontSize: 9, fontWeight: 700, color: '#F59E0B', textTransform: 'uppercase' as const, letterSpacing: '0.1em', marginBottom: 6 }}>Conditions</div>
+                {report.conditions.map((c: string, i: number) => <div key={i} style={{ fontSize: 10, color: '#F59E0B', marginBottom: 3 }}>• {c}</div>)}
+              </div>
+            )}
+
+            {/* EXPORT */}
+            <button
+              onClick={() => { const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' }); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `${report.dealName || 'deal'}-underwriting.json`; a.click(); }}
+              style={{ width: '100%', padding: '8px', borderRadius: 6, border: '1px solid rgba(200,146,42,0.3)', background: 'transparent', color: '#C8922A', fontSize: 11, cursor: 'pointer', marginTop: 8 }}
+            >↓ Export Report JSON</button>
+          </div>
         )}
       </div>
 
