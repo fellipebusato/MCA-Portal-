@@ -335,6 +335,10 @@ export default function CICDashboard() {
     return () => clearTimeout(t);
   }, [toast]);
 
+  useEffect(() => {
+    console.log('Report state:', report ? report.verdict : 'null')
+  }, [report]);
+
   async function handleFiles(files: FileList | File[]) {
     const arr = Array.from(files).filter(f => f.type === "application/pdf");
     for (const file of arr) {
