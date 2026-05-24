@@ -358,14 +358,11 @@ async function handleFiles(files: FileList | File[]) {
     setInput("");
     setLoading(true);
     const newMessages = [...messages, userMsg];
-    const controller = new AbortController()
-    const clientTimeout = setTimeout(() => controller.abort(), 115000)
 
     try {
       const res = await fetch('/api/cic/ai-strategy', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        signal: controller.signal,
         body: JSON.stringify({
           messages: newMessages,
           documents: documents.map(d => ({ name: d.name, base64: d.base64, mediaType: d.mediaType })),
@@ -373,7 +370,6 @@ async function handleFiles(files: FileList | File[]) {
           underwriterContext: uwContext
         })
       })
-      clearTimeout(clientTimeout)
       const data = await res.json()
       if (data.error) {
         setMessages(prev => [...prev, { role: 'assistant', content: 'Error: ' + data.error }])
@@ -384,12 +380,7 @@ async function handleFiles(files: FileList | File[]) {
         }
       }
     } catch (e: any) {
-      clearTimeout(clientTimeout)
-      if (e.name === 'AbortError') {
-        setMessages(prev => [...prev, { role: 'assistant', content: 'Analysis timed out — the package may be too large. Try uploading 4-5 documents at a time instead of all 8 at once.' }])
-      } else {
-        setMessages(prev => [...prev, { role: 'assistant', content: 'Connection error: ' + (e.message || 'Please try again.') }])
-      }
+      setMessages(prev => [...prev, { role: 'assistant', content: 'Connection error: ' + (e.message || 'Please try again.') }])
     }
     setLoading(false);
   }
