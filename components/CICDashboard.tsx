@@ -358,25 +358,24 @@ export default function CICDashboard() {
     setInput("");
     setLoading(true);
     try {
-      const allMessages = [...messages, userMsg];
-      const res = await fetch("/api/cic/ai-strategy", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      const newMessages = [...messages, userMsg];
+      const res = await fetch('/api/cic/ai-strategy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          messages: allMessages,
+          messages: newMessages,
           documents: documents.map(d => ({ name: d.name, base64: d.base64, mediaType: d.mediaType })),
           dealContext: dealName,
-          underwriterContext: uwContext,
-        }),
-      });
-      const data = await res.json();
+          underwriterContext: uwContext
+        })
+      })
+      const data = await res.json()
       if (data.error) {
-        setMessages(prev => [...prev, { role: 'assistant', content: 'Error: ' + data.error }]);
+        setMessages(prev => [...prev, { role: 'assistant', content: 'Error: ' + data.error }])
       } else {
-        const reply = data.reply || '';
-        setMessages(prev => [...prev, { role: 'assistant', content: reply }]);
-        if (data.report && typeof data.report === 'object' && data.report.verdict) {
-          setReport(data.report);
+        setMessages(prev => [...prev, { role: 'assistant', content: data.reply || '' }])
+        if (data.report && data.report.verdict) {
+          setReport(data.report)
         }
       }
     } catch {
