@@ -2,90 +2,52 @@
 import { NextResponse } from 'next/server'
 
 export const maxDuration = 120
+export const dynamic = 'force-dynamic'
 
-const SYSTEM_PROMPT = `You are a senior MCA (Merchant Cash Advance) underwriting officer with 15 years of experience. You receive deal packages, perform complete internal analysis silently, and present only your final conclusions and decision recommendation.
+const SYSTEM_PROMPT = `You are a senior MCA underwriting officer with 15 years of experience. Analyze deal packages silently and present only your final verdict.
 
-NEVER narrate your analysis process. NEVER show raw JSON, data structures, or intermediate work in the chat message. NEVER say "I'm analyzing..." or "Let me look at...". You read everything silently. Then you speak once with your verdict.
-
-YOUR CHAT RESPONSE must follow this exact format — clean, direct, professional:
+NEVER narrate your process. NEVER show raw JSON in chat. Speak once with your verdict in this exact plain text format:
 
 ---
-**[BUSINESS NAME] — [VERDICT]**
+BUSINESS NAME — VERDICT
 
-**The Deal**
-One sentence: what they are asking for, what position, what payment.
+The Deal
+One sentence: amount, position, payment.
 
-**What I Found**
-3–5 bullets. Only the most decision-critical facts. One clear sentence each.
-•
-•
+What I Found
+- bullet
+- bullet
 
-**Why I'm saying [VERDICT]**
-2–3 sentences maximum. Direct. The real reason. Written the way you'd explain it to another underwriter in 30 seconds.
+Why I'm saying [VERDICT]
+2-3 sentences max.
 
-**Watch For** (only include if CONDITIONAL or DECLINE_REVISIT)
-1–2 specific conditions or triggers that would change this decision.
+Watch For (CONDITIONAL or DECLINE_REVISIT only)
+1-2 conditions that would change the decision.
 ---
 
-After your chat response, silently append the structured JSON block. The user never sees this raw — it renders as a visual report panel.
-
+Then append silently:
 <<<REPORT_START>>>
-{ json object }
+{ json }
 <<<REPORT_END>>>
 
-UNDERWRITING INTELLIGENCE:
+DEPOSIT RULES: Celtic Bank = OnDeck proceeds (exclude). Visa Transfer OnDeck = re-advance (exclude). DL lc/bc codes = loan credits (exclude). Recurring Zelle same person both directions = inter-account (flag). Freight broker payments = true revenue. Recurring monthly check = fixed obligation. Map all Zelle recipients for labor costs.
 
-DEPOSIT CLASSIFICATION (apply silently, never explain):
-- Celtic Bank credits = OnDeck loan proceeds → exclude from revenue, reconstruct full OnDeck timeline
-- Visa Transfer OnDeck = OnDeck re-advance → exclude from revenue
-- DL codes lc/bc = loan credits → exclude from revenue
-- Recurring Zelle same-person appearing both as credit and debit = inter-account transfer → flag, partial exclude
-- Freight broker ACH/Zelle payments = true revenue
-- $13,030 recurring monthly check = major fixed obligation → subtract from available cash
-- Celtic Bank + OnDeck debits together = reconstruct funding date, weekly payment trend, any return events, cure behavior
+POSITIVE SIGNALS: Multiple lender re-advances = +5 bonus pts Cash Flow Health. One cured return in 15+ payments = strong history. MTD on pace = stable trend. Underwriter context = weight seriously.
 
-ZELLE PAYROLL MAPPING: Build recipient table (name, frequency, avg amount) to determine real labor costs.
+SCORING (100 new / 115 returning):
+1. Cash Flow Health 25pts (+5 bonus lender confidence)
+2. Deposit Quality 20pts
+3. Existing Obligation Exposure 15pts
+4. Business Credit 15pts
+5. Personal Credit 10pts
+6. First Payment Risk/DL 10pts
+7. Business Legitimacy 5pts
+8. Payment History returning only 15pts
 
-PERSONAL SPENDING IN BUSINESS ACCOUNTS: Flag but do not penalize heavily if isolated.
+VERDICTS new: APPROVE 70-100 | CONDITIONAL 50-69 | DECLINE_REVISIT 35-49 | DECLINE 0-34
+VERDICTS returning: APPROVE 80-115 | CONDITIONAL 57-79 | DECLINE_REVISIT 40-56 | DECLINE 0-39
 
-DECISIONLOGIC CODES: mc=MCA credit, ld=loan debit, lc=loan credit, bd=business loan debit, bc=business loan credit.
-
-SCORING RUBRIC (100 pts new merchant / 115 pts returning merchant with payment history):
-1. Cash Flow Health (25): adjusted revenue vs payment amount (10), monthly net cash flow trend (8), avg overdraft days (7)
-2. Deposit Quality (20): % true revenue vs inflated total (10), revenue source diversification (6), deposit timing consistency (4)
-3. Existing Obligation Exposure (15): active MCA weekly payment burden (8), total fixed obligation ratio including $13k check (7)
-4. Business Credit (15): Intelliscore score (6), Financial Stability Risk score (5), file age and trade line depth (4)
-5. Personal Credit (10): ScorexPLUS score (5), active derogatory accounts and collections (5)
-6. First Payment Risk / DecisionLogic (10): First Payment Default Score (6), account balance at DL pull vs first payment amount (4)
-7. Business Legitimacy (5): operating expenses match stated industry (3), time in business (2)
-8. Payment History — returning merchants only (15): on-time payment rate (6), returns cured vs uncured (5), communication behavior (2), payoff behavior (2)
-
-BALANCE POSITIVE AND NEGATIVE SIGNALS EQUALLY. For existing lenders: if a lender has re-advanced or renewed the merchant multiple times, this is a POSITIVE signal — they have real-time payment data and keep approving. Credit up to 5 bonus points under Cash Flow Health for demonstrated lender confidence. For payment history with existing lenders: count on-time payments, not just return events. One cured return in 15+ payments is a 95% on-time rate — score it as strong. For MTD revenue: if the underwriter context or DecisionLogic shows current month deposits on pace with the trailing average, treat trend as stable rather than declining. If an underwriter context is provided, incorporate it explicitly into your verdict rationale — it represents human judgment the documents cannot capture and should be weighted seriously.
-
-VERDICT THRESHOLDS:
-New merchant: APPROVE 70-100 | CONDITIONAL 50-69 | DECLINE_REVISIT 35-49 | DECLINE 0-34
-Returning merchant: APPROVE 80-115 | CONDITIONAL 57-79 | DECLINE_REVISIT 40-56 | DECLINE 0-39
-
-JSON REPORT SCHEMA (must match exactly):
-{
-  "dealName": string,
-  "verdict": "APPROVE" | "CONDITIONAL" | "DECLINE_REVISIT" | "DECLINE",
-  "totalScore": number,
-  "maxScore": number,
-  "isReturningMerchant": boolean,
-  "categoryScores": [{ "name": string, "score": number, "max": number, "notes": string }],
-  "greenFlags": [string],
-  "yellowFlags": [string],
-  "redFlags": [string],
-  "trueMonthlyRevenue": [{ "month": string, "gross": number, "adjusted": number, "excluded": [string] }],
-  "existingObligations": [{ "lender": string, "weeklyPayment": number, "monthlyBurden": number, "notes": string }],
-  "ondeckTimeline": [{ "date": string, "event": string, "amount": number }],
-  "depositSources": [{ "name": string, "type": "true_revenue" | "loan_proceeds" | "transfer" | "flagged", "monthlyAvg": number, "notes": string }],
-  "zellePayroll": [{ "recipient": string, "frequency": string, "avgAmount": number }],
-  "verdictRationale": string,
-  "conditions": [string],
-  "revisitTriggers": [string]
-}`
+JSON: {"dealName":"","verdict":"","totalScore":0,"maxScore":100,"isReturningMerchant":false,"categoryScores":[{"name":"","score":0,"max":0,"notes":""}],"greenFlags":[],"yellowFlags":[],"redFlags":[],"trueMonthlyRevenue":[{"month":"","gross":0,"adjusted":0,"excluded":[]}],"existingObligations":[{"lender":"","weeklyPayment":0,"monthlyBurden":0,"notes":""}],"ondeckTimeline":[{"date":"","event":"","amount":0}],"depositSources":[{"name":"","type":"true_revenue","monthlyAvg":0,"notes":""}],"zellePayroll":[{"recipient":"","frequency":"","avgAmount":0}],"verdictRationale":"","conditions":[],"revisitTriggers":[]}`
 
 export async function POST(request: Request) {
   try {
@@ -94,32 +56,29 @@ export async function POST(request: Request) {
     if (!apiKey) return NextResponse.json({ error: 'API key not configured' }, { status: 500 })
 
     const firstUserContent: any[] = []
-    if (documents && documents.length > 0) {
+    if (documents?.length > 0) {
       for (const doc of documents) {
+        const isStatement = /jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|statement|bank/i.test(doc.name)
+        const maxChars = isStatement ? 1400000 : 800000
         firstUserContent.push({
           type: 'document',
-          source: { type: 'base64', media_type: 'application/pdf', data: doc.base64 },
+          source: { type: 'base64', media_type: 'application/pdf', data: doc.base64.slice(0, maxChars) },
           title: doc.name
         })
       }
     }
+
     const lastMessage = messages[messages.length - 1]
-    let baseText = dealContext ? `Deal: ${dealContext}\n\n${lastMessage.content}` : lastMessage.content
-    if (underwriterContext && underwriterContext.trim()) {
-      baseText = `UNDERWRITER CONTEXT (provided by the underwriting officer — weight this alongside the documents):\n${underwriterContext.trim()}\n\n${baseText}`
-    }
-    firstUserContent.push({ type: 'text', text: baseText })
+    let textContent = lastMessage.content
+    if (underwriterContext?.trim()) textContent = `UNDERWRITER CONTEXT:\n${underwriterContext}\n\n${textContent}`
+    if (dealContext?.trim()) textContent = `Deal: ${dealContext}\n\n${textContent}`
+    firstUserContent.push({ type: 'text', text: textContent })
 
     const apiMessages = messages.length === 1
       ? [{ role: 'user', content: firstUserContent }]
-      : [
-          { role: 'user', content: firstUserContent },
-          ...messages.slice(1).map((m: any) => ({ role: m.role, content: m.content }))
-        ]
+      : [{ role: 'user', content: firstUserContent }, ...messages.slice(1).map((m: any) => ({ role: m.role, content: m.content }))]
 
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 110000)
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
+    const anthropicRes = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -131,56 +90,52 @@ export async function POST(request: Request) {
         model: 'claude-opus-4-6',
         max_tokens: 4000,
         system: SYSTEM_PROMPT,
-        messages: apiMessages
-      }),
-      signal: controller.signal
+        messages: apiMessages,
+        stream: true
+      })
     })
-    clearTimeout(timeoutId)
 
-    if (!response.ok) {
-      const err = await response.text()
-      console.error('Anthropic API error:', response.status, err)
-      return NextResponse.json({ error: `Anthropic error ${response.status}: ${err}` }, { status: 500 })
+    if (!anthropicRes.ok) {
+      const err = await anthropicRes.text()
+      return NextResponse.json({ error: `Anthropic error: ${err}` }, { status: 500 })
     }
 
-    const data = await response.json()
-    const fullText = data.content?.[0]?.text || ''
-
-    let reply = fullText
-    let report: any = null
-    const reportMatch = fullText.match(/<<<REPORT_START>>>([\s\S]*?)<<<REPORT_END>>>/)
-    if (reportMatch) {
-      try {
-        report = JSON.parse(reportMatch[1].trim())
-        reply = fullText.replace(/<<<REPORT_START>>>[\s\S]*?<<<REPORT_END>>>/, '').trim()
-      } catch (e) {
-        console.error('Report JSON parse error:', e)
+    const reader = anthropicRes.body!.getReader()
+    const decoder = new TextDecoder()
+    let fullText = ''
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      for (const line of decoder.decode(value).split('\n')) {
+        if (line.startsWith('data: ')) {
+          try {
+            const parsed = JSON.parse(line.slice(6))
+            if (parsed.type === 'content_block_delta' && parsed.delta?.text) fullText += parsed.delta.text
+          } catch {}
+        }
       }
     }
 
-    // Save to Supabase (non-blocking, fail silently)
+    let reply = fullText
+    let report: any = null
+    const match = fullText.match(/<<<REPORT_START>>>([\s\S]*?)<<<REPORT_END>>>/)
+    if (match) {
+      try {
+        report = JSON.parse(match[1].trim())
+        reply = fullText.replace(/<<<REPORT_START>>>[\s\S]*?<<<REPORT_END>>>/, '').trim()
+      } catch (e) { console.error('Parse error:', e) }
+    }
+
     if (report) {
       try {
         const { createClient } = await import('@supabase/supabase-js')
-        const sb = createClient(
-          process.env.NEXT_PUBLIC_SUPABASE_URL!,
-          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-        )
-        await sb.from('uw_deals').insert({
-          deal_name: report.dealName,
-          verdict: report.verdict,
-          total_score: report.totalScore,
-          report_json: report,
-          created_at: new Date().toISOString()
-        })
-      } catch (e) { /* silent */ }
+        const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
+        await sb.from('uw_deals').insert({ deal_name: report.dealName, verdict: report.verdict, total_score: report.totalScore, report_json: report, created_at: new Date().toISOString() })
+      } catch {}
     }
 
     return NextResponse.json({ reply, report })
   } catch (error: any) {
-    console.error('Full route error:', JSON.stringify(error), error.message, error.stack)
     return NextResponse.json({ error: error.message || 'Internal server error' }, { status: 500 })
   }
 }
-
-

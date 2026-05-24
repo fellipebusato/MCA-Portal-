@@ -335,11 +335,7 @@ export default function CICDashboard() {
     return () => clearTimeout(t);
   }, [toast]);
 
-  useEffect(() => {
-    console.log('Report state:', report ? report.verdict : 'null')
-  }, [report]);
-
-  async function handleFiles(files: FileList | File[]) {
+async function handleFiles(files: FileList | File[]) {
     const arr = Array.from(files).filter(f => f.type === "application/pdf");
     for (const file of arr) {
       const base64 = await toBase64(file);
@@ -372,7 +368,7 @@ export default function CICDashboard() {
         signal: controller.signal,
         body: JSON.stringify({
           messages: newMessages,
-          documents: documents.map(d => ({ name: d.name, base64: d.base64.slice(0, 500000), mediaType: d.mediaType })),
+          documents: documents.map(d => ({ name: d.name, base64: d.base64, mediaType: d.mediaType })),
           dealContext: dealName,
           underwriterContext: uwContext
         })
