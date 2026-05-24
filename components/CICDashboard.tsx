@@ -357,11 +357,15 @@ export default function CICDashboard() {
     setMessages(prev => [...prev, userMsg]);
     setInput("");
     setLoading(true);
+    const newMessages = [...messages, userMsg];
+    const controller = new AbortController()
+    const clientTimeout = setTimeout(() => controller.abort(), 115000)
+
     try {
-      const newMessages = [...messages, userMsg];
       const res = await fetch('/api/cic/ai-strategy', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
         body: JSON.stringify({
           messages: newMessages,
           documents: documents.map(d => ({ name: d.name, base64: d.base64, mediaType: d.mediaType })),
@@ -369,6 +373,7 @@ export default function CICDashboard() {
           underwriterContext: uwContext
         })
       })
+      clearTimeout(clientTimeout)
       const data = await res.json()
       if (data.error) {
         setMessages(prev => [...prev, { role: 'assistant', content: 'Error: ' + data.error }])
@@ -378,8 +383,13 @@ export default function CICDashboard() {
           setReport(data.report)
         }
       }
-    } catch {
-      setMessages(prev => [...prev, { role: "assistant", content: "Connection error. Please try again." }]);
+    } catch (e: any) {
+      clearTimeout(clientTimeout)
+      if (e.name === 'AbortError') {
+        setMessages(prev => [...prev, { role: 'assistant', content: 'Analysis timed out — the package may be too large. Try uploading 4-5 documents at a time instead of all 8 at once.' }])
+      } else {
+        setMessages(prev => [...prev, { role: 'assistant', content: 'Connection error: ' + (e.message || 'Please try again.') }])
+      }
     }
     setLoading(false);
   }
@@ -618,7 +628,7 @@ export default function CICDashboard() {
                 ))}
               </div>
               <div style={{ fontSize: 11, color: "rgba(232,213,163,0.35)", paddingLeft: 4 }}>
-                Analyzing documents — this may take up to 60 seconds for large packages…
+                Analyzing documents — large packages can take 60–90 seconds. Do not close this tab...
               </div>
             </div>
           )}
