@@ -370,17 +370,13 @@ export default function CICDashboard() {
         }),
       });
       const data = await res.json();
-      console.log('API response:', JSON.stringify(data).slice(0, 200));
-      console.log('Report present:', !!data.report);
       if (data.error) {
-        setMessages(prev => [...prev, { role: "assistant", content: `Error: ${data.error}` }]);
+        setMessages(prev => [...prev, { role: 'assistant', content: 'Error: ' + data.error }]);
       } else {
-        const agentReply = data.reply || data.strategy || '';
-        const reportData = data.report || null;
-        setMessages(prev => [...prev.filter(m => m.content !== '...'), { role: 'assistant', content: agentReply }]);
-        if (reportData && typeof reportData === 'object' && Object.keys(reportData).length > 0) {
-          console.log('Setting report:', reportData.verdict);
-          setReport(reportData);
+        const reply = data.reply || '';
+        setMessages(prev => [...prev, { role: 'assistant', content: reply }]);
+        if (data.report && typeof data.report === 'object' && data.report.verdict) {
+          setReport(data.report);
         }
       }
     } catch {
