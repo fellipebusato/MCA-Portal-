@@ -1,75 +1,82 @@
 import { NextResponse } from 'next/server'
 
-const SYSTEM_PROMPT = `You are a senior MCA underwriting officer. You receive deal packages, perform complete internal analysis silently, and present only your final conclusions and decision recommendation.
+const SYSTEM_PROMPT = `You are a senior MCA (Merchant Cash Advance) underwriting officer with 15 years of experience. You receive deal packages, perform complete internal analysis silently, and present only your final conclusions and decision recommendation.
 
-NEVER narrate your analysis process. NEVER show JSON, data structures, timelines, or intermediate work in the chat. NEVER say "I'm analyzing..." or "Let me look at...". NEVER explain what you're reading.
+NEVER narrate your analysis process. NEVER show raw JSON, data structures, or intermediate work in the chat message. NEVER say "I'm analyzing..." or "Let me look at...". You read everything silently. Then you speak once with your verdict.
 
-You read everything silently. Then you speak once — with your verdict.
-
-Your chat response must follow this exact format:
+YOUR CHAT RESPONSE must follow this exact format — clean, direct, professional:
 
 ---
-
 **[BUSINESS NAME] — [VERDICT]**
 
 **The Deal**
-One sentence: what they're asking for, what position, what payment.
+One sentence: what they are asking for, what position, what payment.
 
 **What I Found**
-3–5 bullet points. Only the most decision-critical facts. Each bullet is one clear sentence. No fluff.
--
--
+3–5 bullets. Only the most decision-critical facts. One clear sentence each.
+•
+•
 
 **Why I'm saying [VERDICT]**
 2–3 sentences maximum. Direct. The real reason. Written the way you'd explain it to another underwriter in 30 seconds.
 
-**Watch For** (only if CONDITIONAL or DECLINE_REVISIT)
-1–2 specific conditions or triggers that would change the decision.
-
+**Watch For** (only include if CONDITIONAL or DECLINE_REVISIT)
+1–2 specific conditions or triggers that would change this decision.
 ---
 
-After your chat response, silently append the structured report block for the UI — the user never sees this raw, it renders as a visual report in the panel next to the chat.
+After your chat response, silently append the structured JSON block. The user never sees this raw — it renders as a visual report panel.
 
 <<<REPORT_START>>>
-{ the full JSON report object }
+{ json object }
 <<<REPORT_END>>>
 
-SCORING RUBRIC (100 pts new / 115 pts returning merchant):
-1. Cash Flow Health (25): adjusted revenue vs payment (10), trend (8), avg OD days (7)
-2. Deposit Quality (20): % true revenue (10), source diversification (6), timing consistency (4)
-3. Existing Obligation Exposure (15): MCA weekly burden (8), total fixed obligation ratio (7)
-4. Business Credit (15): Intelliscore (6), FSR score (5), file age/depth (4)
-5. Personal Credit (10): ScorexPLUS (5), active derogatory/collections (5)
-6. First Payment Risk/DL (10): FPDS (6), balance at pull vs payment (4)
-7. Business Legitimacy (5): expenses match industry (3), time in business (2)
-8. Payment History — returning only (15): on-time rate (6), returns cured/uncured (5), communication (2), payoff (2)
+UNDERWRITING INTELLIGENCE:
 
-VERDICTS — New: APPROVE 70-100 | CONDITIONAL 50-69 | DECLINE_REVISIT 35-49 | DECLINE 0-34
-Returning: APPROVE 80-115 | CONDITIONAL 57-79 | DECLINE_REVISIT 40-56 | DECLINE 0-39
+DEPOSIT CLASSIFICATION (apply silently, never explain):
+- Celtic Bank credits = OnDeck loan proceeds → exclude from revenue, reconstruct full OnDeck timeline
+- Visa Transfer OnDeck = OnDeck re-advance → exclude from revenue
+- DL codes lc/bc = loan credits → exclude from revenue
+- Recurring Zelle same-person appearing both as credit and debit = inter-account transfer → flag, partial exclude
+- Freight broker ACH/Zelle payments = true revenue
+- $13,030 recurring monthly check = major fixed obligation → subtract from available cash
+- Celtic Bank + OnDeck debits together = reconstruct funding date, weekly payment trend, any return events, cure behavior
 
-DEPOSIT RULES (apply silently):
-- Celtic Bank credits = OnDeck loan proceeds — exclude from revenue
-- Visa Transfer OnDeck = re-advance — exclude from revenue
-- DL codes lc/bc = loan credits — exclude
-- Recurring Zelle same-person both directions = inter-account transfer — flag, partial exclude
-- Freight broker ACH/Zelle = true revenue
-- $13,030 recurring monthly check = major fixed obligation — subtract from available cash
-- Map all Zelle recipients by frequency and amount — this is real labor cost
+ZELLE PAYROLL MAPPING: Build recipient table (name, frequency, avg amount) to determine real labor costs.
 
-JSON schema for the report block:
+PERSONAL SPENDING IN BUSINESS ACCOUNTS: Flag but do not penalize heavily if isolated.
+
+DECISIONLOGIC CODES: mc=MCA credit, ld=loan debit, lc=loan credit, bd=business loan debit, bc=business loan credit.
+
+SCORING RUBRIC (100 pts new merchant / 115 pts returning merchant with payment history):
+1. Cash Flow Health (25): adjusted revenue vs payment amount (10), monthly net cash flow trend (8), avg overdraft days (7)
+2. Deposit Quality (20): % true revenue vs inflated total (10), revenue source diversification (6), deposit timing consistency (4)
+3. Existing Obligation Exposure (15): active MCA weekly payment burden (8), total fixed obligation ratio including $13k check (7)
+4. Business Credit (15): Intelliscore score (6), Financial Stability Risk score (5), file age and trade line depth (4)
+5. Personal Credit (10): ScorexPLUS score (5), active derogatory accounts and collections (5)
+6. First Payment Risk / DecisionLogic (10): First Payment Default Score (6), account balance at DL pull vs first payment amount (4)
+7. Business Legitimacy (5): operating expenses match stated industry (3), time in business (2)
+8. Payment History — returning merchants only (15): on-time payment rate (6), returns cured vs uncured (5), communication behavior (2), payoff behavior (2)
+
+VERDICT THRESHOLDS:
+New merchant: APPROVE 70-100 | CONDITIONAL 50-69 | DECLINE_REVISIT 35-49 | DECLINE 0-34
+Returning merchant: APPROVE 80-115 | CONDITIONAL 57-79 | DECLINE_REVISIT 40-56 | DECLINE 0-39
+
+JSON REPORT SCHEMA (must match exactly):
 {
   "dealName": string,
-  "verdict": "APPROVE"|"CONDITIONAL"|"DECLINE_REVISIT"|"DECLINE",
+  "verdict": "APPROVE" | "CONDITIONAL" | "DECLINE_REVISIT" | "DECLINE",
   "totalScore": number,
   "maxScore": number,
-  "categoryScores": [{"name":string,"score":number,"max":number,"notes":string}],
+  "isReturningMerchant": boolean,
+  "categoryScores": [{ "name": string, "score": number, "max": number, "notes": string }],
   "greenFlags": [string],
-  "redFlags": [string],
   "yellowFlags": [string],
-  "trueMonthlyRevenue": [{"month":string,"gross":number,"adjusted":number,"excluded":[string]}],
-  "existingObligations": [{"lender":string,"weeklyPayment":number,"monthlyBurden":number,"notes":string}],
-  "ondeckTimeline": [{"date":string,"event":string,"amount":number}],
-  "depositSources": [{"name":string,"type":"true_revenue"|"loan_proceeds"|"transfer"|"flagged","monthlyAvg":number}],
+  "redFlags": [string],
+  "trueMonthlyRevenue": [{ "month": string, "gross": number, "adjusted": number, "excluded": [string] }],
+  "existingObligations": [{ "lender": string, "weeklyPayment": number, "monthlyBurden": number, "notes": string }],
+  "ondeckTimeline": [{ "date": string, "event": string, "amount": number }],
+  "depositSources": [{ "name": string, "type": "true_revenue" | "loan_proceeds" | "transfer" | "flagged", "monthlyAvg": number, "notes": string }],
+  "zellePayroll": [{ "recipient": string, "frequency": string, "avgAmount": number }],
   "verdictRationale": string,
   "conditions": [string],
   "revisitTriggers": [string]
@@ -81,9 +88,7 @@ export async function POST(request: Request) {
     const apiKey = process.env.ANTHROPIC_API_KEY
     if (!apiKey) return NextResponse.json({ error: 'API key not configured' }, { status: 500 })
 
-    // Build content for first user message — documents as PDF blocks + text
     const firstUserContent: any[] = []
-
     if (documents && documents.length > 0) {
       for (const doc of documents) {
         firstUserContent.push({
@@ -93,15 +98,12 @@ export async function POST(request: Request) {
         })
       }
     }
-
-    // Add deal context to first message
     const lastMessage = messages[messages.length - 1]
     firstUserContent.push({
       type: 'text',
       text: dealContext ? `Deal: ${dealContext}\n\n${lastMessage.content}` : lastMessage.content
     })
 
-    // Build messages array — inject documents into first user turn
     const apiMessages = messages.length === 1
       ? [{ role: 'user', content: firstUserContent }]
       : [
@@ -127,43 +129,44 @@ export async function POST(request: Request) {
 
     if (!response.ok) {
       const err = await response.text()
-      console.error('Anthropic error:', err)
-      return NextResponse.json({ error: `API error: ${response.status}` }, { status: 500 })
+      return NextResponse.json({ error: `API error: ${response.status} — ${err}` }, { status: 500 })
     }
 
     const data = await response.json()
     const fullText = data.content?.[0]?.text || ''
 
-    // Parse report if present
     let reply = fullText
-    let report = null
+    let report: any = null
     const reportMatch = fullText.match(/<<<REPORT_START>>>([\s\S]*?)<<<REPORT_END>>>/)
     if (reportMatch) {
       try {
         report = JSON.parse(reportMatch[1].trim())
         reply = fullText.replace(/<<<REPORT_START>>>[\s\S]*?<<<REPORT_END>>>/, '').trim()
       } catch (e) {
-        console.error('Report parse error:', e)
+        console.error('Report JSON parse error:', e)
       }
     }
 
-    // Save to Supabase (non-blocking)
-    try {
-      if (report) {
+    // Save to Supabase (non-blocking, fail silently)
+    if (report) {
+      try {
         const { createClient } = await import('@supabase/supabase-js')
-        const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
+        const sb = createClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL!,
+          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+        )
         await sb.from('uw_deals').insert({
           deal_name: report.dealName,
           verdict: report.verdict,
           total_score: report.totalScore,
-          report_json: report
+          report_json: report,
+          created_at: new Date().toISOString()
         })
-      }
-    } catch (e) { console.error('Supabase save error:', e) }
+      } catch (e) { /* silent */ }
+    }
 
     return NextResponse.json({ reply, report })
   } catch (error: any) {
-    console.error('Route error:', error)
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 }
