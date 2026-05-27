@@ -3,7 +3,7 @@
 
 import { NextResponse } from 'next/server'
 
-export const maxDuration = 120
+export const maxDuration = 300
 export const dynamic = 'force-dynamic'
 
 // ─── System prompt ──────────────────────────────────────────────────────────
@@ -326,6 +326,7 @@ export async function POST(request: Request) {
       body: JSON.stringify({
         model: 'claude-sonnet-4-6',
         max_tokens: 8000,
+        effort: 'medium',
         system: SYSTEM_PROMPT,
         messages: apiMessages,
       }),
