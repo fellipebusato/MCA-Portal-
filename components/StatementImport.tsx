@@ -287,6 +287,7 @@ export default function StatementImport({
     setProcessing(true);
 
     let importedPayments = 0;
+    let importedPaymentAmount = 0;
     let importedReturns = 0;
     let skipped = 0;
 
@@ -328,6 +329,7 @@ export default function StatementImport({
       if (error && error.code === "23505") { skipped++; continue; }
       if (error) { console.error("Payment insert error:", error); continue; }
       importedPayments++;
+      importedPaymentAmount += Number(row.debit || 0);
     }
 
     // Store collisions for display after import
@@ -390,6 +392,9 @@ export default function StatementImport({
     }
 
     if (parsed.client) {
+      const newPaid = Number(parsed.client.paid || 0) + importedPaymentAmount;
+      const totalReturns = Number(parsed.client.total_returns || 0) + importedReturns;
+
       const { data: allPositions } = await supabase
         .from("positions")
         .select("balance")
@@ -399,12 +404,14 @@ export default function StatementImport({
         const combinedBalance = allPositions.reduce((sum, p) => sum + Number(p.balance), 0);
         await supabase.from("clients").update({
           balance: combinedBalance,
-          total_returns: (parsed.client.total_returns || 0) + importedReturns,
+          paid: newPaid,
+          total_returns: totalReturns,
         }).eq("id", parsed.client.id);
       } else {
         await supabase.from("clients").update({
           balance: parsed.currentBalance,
-          total_returns: (parsed.client.total_returns || 0) + importedReturns,
+          paid: newPaid,
+          total_returns: totalReturns,
         }).eq("id", parsed.client.id);
       }
     }

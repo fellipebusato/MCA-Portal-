@@ -190,7 +190,7 @@ export default function ReturnsImport({
       // Update client record
       const newTotalReturns = Number(client.total_returns || 0) + 1;
       const termExtension = client.payment_frequency === "weekly" ? 5 : 1;
-      const newTotalTerm = Number(client.total_term) + termExtension;
+      const newTotalTerm = Number(client.total_term) + 1;
       const needsAttention = client.payment_frequency === "weekly"
         ? newTotalReturns >= 1
         : newTotalReturns >= 2;

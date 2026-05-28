@@ -61,6 +61,7 @@ export interface Payment {
   debit: number;
   returns: number;
   running_balance: number | null;
+  payment_lifecycle?: "pending" | "settled" | "returned" | "paused";
 }
 
 export interface ConsentLog {

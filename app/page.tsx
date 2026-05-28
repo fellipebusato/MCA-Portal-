@@ -12,8 +12,10 @@ import ConsentPage from "@/components/ConsentPage";
 import StatementImport from "@/components/StatementImport";
 import ReturnsImport from "@/components/ReturnsImport";
 import ACHWorksImport from "@/components/ACHWorksImport";
+import DailyOperations from "@/components/DailyOperations";
 import ExcelImport from "@/components/ExcelImport";
 import PortfolioAnalysis from "@/components/PortfolioAnalysis";
+import SegmentationDashboard from "@/components/SegmentationDashboard";
 
 const ADMIN_EMAIL = "fbusato@cfgms.com";
 
@@ -102,7 +104,7 @@ function parseCSVRows(text: string): { invoice: string; date: string; amount: nu
   return results;
 }
 
-type AdminSubView = "dashboard" | "portfolio" | "analytics" | "triage" | "add" | "excel-import";
+type AdminSubView = "dashboard" | "daily" | "portfolio" | "analytics" | "triage" | "segmentation" | "add" | "excel-import";
 type ImportType = "returns" | "statement" | "achworks";
 
 export default function Home() {
@@ -639,11 +641,11 @@ export default function Home() {
           Client Dashboard
         </button>
 
-        {/* CIC Advisory */}
+        {/* AI Agents */}
         <button
           onClick={() => setView("cic")}
           style={navBtn(view === "cic", { bg: "rgba(200,146,42,0.2)", border: "rgba(200,146,42,0.4)", text: "#C8922A" })}>
-          CIC Advisory
+          AI Agents
         </button>
 
         {/* Import button */}
@@ -737,10 +739,11 @@ export default function Home() {
           {/* Sub-tabs */}
           <div style={{ display: "flex", alignItems: "stretch", gap: 0 }}>
             {([
-              { key: "dashboard", label: "Overview" },
-              { key: "portfolio", label: "Portfolio Analysis" },
+              { key: "daily", label: "Daily Operations" },
+              { key: "segmentation", label: "Segmentation" },
               { key: "analytics", label: "Analytics" },
               { key: "triage", label: "Triage" },
+              { key: "dashboard", label: "Overview" },
             ] as { key: AdminSubView; label: string }[]).map(({ key, label }) => (
               <button key={key} onClick={() => setAdminSubView(key)} style={subTabBtn(adminSubView === key)}>
                 {label}
@@ -792,6 +795,10 @@ export default function Home() {
           />
         )}
 
+        {view === "admin" && adminSubView === "daily" && (
+          <DailyOperations clients={clients} onImportComplete={async () => { await fetchClients(); setImportModalOpen(false); setImportSelected(null); }} />
+        )}
+
         {view === "admin" && adminSubView === "portfolio" && (
           <PortfolioAnalysis clients={clients} openClient={openClient} />
         )}
@@ -805,6 +812,12 @@ export default function Home() {
         {view === "admin" && adminSubView === "triage" && (
           <div style={{ padding: "32px" }}>
             <TriageDashboard clients={clients} openClient={openClient} updateClient={updateClient} />
+          </div>
+        )}
+
+        {view === "admin" && adminSubView === "segmentation" && (
+          <div style={{ padding: "32px" }}>
+            <SegmentationDashboard clients={clients} payments={payments} snapshots={[]} openClient={openClient} />
           </div>
         )}
 

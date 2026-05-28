@@ -1,3 +1,4 @@
+// Legacy view — superseded by Segmentation (Phase 1) and Daily Operations (Phase 2). Kept for reference; not in active nav.
 "use client";
 import React, { useMemo, useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";

@@ -7,18 +7,31 @@
 import { supabase } from "@/lib/supabase";
 import type { Client } from "@/lib/types";
 
+function parseIsoDate(value: string | null | undefined): Date | null {
+  if (!value) return null;
+  const date = value.includes("T") ? new Date(value) : new Date(`${value}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return null;
+  date.setHours(0, 0, 0, 0);
+  return date;
+}
+
+function isCurrentMonth(value: string | null | undefined, today: Date): boolean {
+  const date = parseIsoDate(value);
+  return !!date && date.getFullYear() === today.getFullYear() && date.getMonth() === today.getMonth();
+}
+
 export async function ensureMonthlySnapshots(
   clients: Client[],
   orgId: string
 ): Promise<void> {
   const today = new Date();
-  // Only run on the 1st of the month
-  if (today.getDate() !== 1) return;
+  today.setHours(0, 0, 0, 0);
 
   const snapshotDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-01`;
 
   for (const client of clients) {
     if (Number(client.balance) <= 0) continue;
+    if (isCurrentMonth(client.funded_date, today)) continue;
 
     const minimum = Math.ceil(Number(client.balance) * 0.03 * 100) / 100;
 
