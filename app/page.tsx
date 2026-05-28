@@ -16,6 +16,7 @@ import DailyOperations from "@/components/DailyOperations";
 import ExcelImport from "@/components/ExcelImport";
 import PortfolioAnalysis from "@/components/PortfolioAnalysis";
 import SegmentationDashboard from "@/components/SegmentationDashboard";
+import { ensureMonthlySnapshots, fetchCurrentMonthSnapshots } from "@/lib/snapshots";
 
 const ADMIN_EMAIL = "fbusato@cfgms.com";
 
@@ -113,6 +114,11 @@ export default function Home() {
   const [password, setPassword] = useState("");
   const [clients, setClients] = useState<any[]>([]);
   const [payments, setPayments] = useState<any[]>([]);
+  // For Segmentation: every settled payment this month across ALL clients.
+  // Distinct from `payments` (which is the selected client's full history).
+  const [allPayments, setAllPayments] = useState<any[]>([]);
+  // For Segmentation: current-month snapshots for the 3% minimum math.
+  const [snapshots, setSnapshots] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedClient, setSelectedClient] = useState<any>(null);
   const [view, setView] = useState<"admin" | "client" | "cic">("admin");
@@ -208,6 +214,7 @@ export default function Home() {
   async function logout() {
     await supabase.auth.signOut();
     setUser(null); setClients([]); setPayments([]);
+    setAllPayments([]); setSnapshots([]);
     setSelectedClient(null); setClientRecord(null); setHasConsented(false);
   }
 
@@ -229,11 +236,62 @@ export default function Home() {
       .select("*")
       .order("funded_date", { ascending: true });
     if (error) { alert(error.message); setLoading(false); return; }
-    setClients(data || []);
-    setSelectedClient(data?.[0] || null);
-    if (data?.[0]) await fetchPayments(data[0].invoice);
+    const list = data || [];
+    setClients(list);
+    setSelectedClient(list[0] || null);
+
+    // Self-heal: ensure every eligible client has a current-month snapshot.
+    // Safe to call on every load — it only inserts the ones that are missing.
+    try {
+      await ensureMonthlySnapshots(list);
+    } catch (e) {
+      console.error("[fetchClients] ensureMonthlySnapshots failed:", e);
+    }
+
+    // Load snapshots + this-month payments for Segmentation in parallel.
+    const invoices = list.map((c: any) => c.invoice).filter(Boolean);
+    await Promise.all([
+      (async () => {
+        const snaps = await fetchCurrentMonthSnapshots(invoices);
+        setSnapshots(snaps);
+      })(),
+      fetchAllPaymentsThisMonth(),
+    ]);
+
+    if (list[0]) await fetchPayments(list[0].invoice);
     setView("admin");
     setLoading(false);
+  }
+
+  /**
+   * Load every payment with a settlement_date in the current month, across
+   * ALL clients. Used by SegmentationDashboard so it can compute monthlyReceived
+   * for every client — not just the currently-selected one.
+   *
+   * Paged in chunks of 1000 (Supabase's default row cap per request) so this
+   * scales beyond 1k rows without truncation.
+   */
+  async function fetchAllPaymentsThisMonth() {
+    const today = new Date();
+    const monthStart = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-01`;
+
+    const all: any[] = [];
+    const PAGE = 1000;
+    let from = 0;
+    while (true) {
+      const { data, error } = await supabase
+        .from("payments")
+        .select("*")
+        .gte("settlement_date", monthStart)
+        .order("settlement_date", { ascending: true })
+        .range(from, from + PAGE - 1);
+      if (error) { console.error("[fetchAllPaymentsThisMonth]", error.message); break; }
+      const rows = data || [];
+      all.push(...rows);
+      if (rows.length < PAGE) break;
+      from += PAGE;
+    }
+    setAllPayments(all);
   }
 
   async function fetchPayments(invoice: string) {
@@ -817,7 +875,7 @@ export default function Home() {
 
         {view === "admin" && adminSubView === "segmentation" && (
           <div style={{ padding: "32px" }}>
-            <SegmentationDashboard clients={clients} payments={payments} snapshots={[]} openClient={openClient} />
+            <SegmentationDashboard clients={clients} payments={allPayments} snapshots={snapshots} openClient={openClient} />
           </div>
         )}
 
